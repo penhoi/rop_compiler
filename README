@@ -1,1 +1,8 @@
 This repository contains the code for Veer's and Jeff's MIT 6.858 final project.
+
+Dependencies:
+  capstone
+  pyelftools
+
+Install them with: sudo pip install capstone pyelftools
+
