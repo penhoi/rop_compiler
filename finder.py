@@ -3,15 +3,17 @@ from elftools.elf.elffile import ELFFile
 from elftools.elf.constants import P_FLAGS
 import logging
 
+import gadget as gt
+
 class Finder(object):
 
   MAX_GADGET_SIZE = 10
   GADGET_END_INSTRUCTIONS = ['ret']
 
   def __init__(self, filename, base_address = 0, level = logging.WARNING):
-    logging.basicConfig(format="%(asctime)s - " + " - %(name)s - %(levelname)s - %(message)s")           
-    self.logger = logging.getLogger(self.__class__.__name__)                                                                    
-    self.logger.setLevel(level)                                                                                          
+    logging.basicConfig(format="%(asctime)s - " + " - %(name)s - %(levelname)s - %(message)s")
+    self.logger = logging.getLogger(self.__class__.__name__)
+    self.logger.setLevel(level)
 
     self.fd = open(filename, "rb")
     self.elffile = ELFFile(self.fd)
@@ -43,7 +45,7 @@ class Finder(object):
         if i - j < 0:
           begin = 0
 
-        code = data[begin:i] 
+        code = data[begin:i]
         address = self.base_address + segment.header.p_paddr + begin
         if self.base_address == 0 and segment.header.p_paddr == 0:
           self.logger.warning("No base address given for library or PIE executable.  Addresses may be wrong")
@@ -53,18 +55,21 @@ class Finder(object):
           self.logger.debug("Gadget found:")
           for inst in gadget:
             self.logger.debug("0x%x:\t%s\t%s", inst.address, inst.mnemonic, inst.op_str)
-          gadgets.append(gadget)
+          gadgets.append(gt.Gadget(gadget))
 
     return gadgets
 
 if __name__ == "__main__":
   import argparse
 
-  parser = argparse.ArgumentParser(description="Run the gadget locator on the supplied binary") 
+  parser = argparse.ArgumentParser(description="Run the gadget locator on the supplied binary")
   parser.add_argument('target', type=str, help='The file (executable/library) to find gadgets in')
   parser.add_argument('-base_address', type=int, default=0, help='The address the file is loaded at.  Only needed for PIE/PIC binaries')
   args = parser.parse_args()
 
   finder = Finder(args.target, args.base_address)
-  finder.find_gadgets()
+  gadgets = finder.find_gadgets()
+
+  for gadget in gadgets:
+    print gadget
 
