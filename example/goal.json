@@ -1,0 +1,11 @@
+{
+  "files" :
+    [
+      [ "./example/bof", "0" ],
+      [ "/lib/x86_64-linux-gnu/libc.so.6", "0x800000" ]
+    ], 
+  "goals" : [
+      [ "function", "system", "/bin/sh" ],
+      [ "function", "exit", 55 ]
+    ]
+}
