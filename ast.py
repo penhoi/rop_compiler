@@ -8,10 +8,18 @@ class Const(object):
 
 class Register(object):
   def __init__(self, name):
-    self.name = name
+    self.name, self.size, self.start = self.convert_name(name)
 
   def __str__(self):
     return self.name
+
+  def convert_name(self, name):
+    return (name, 8, -1) #TODO handle al/ah/ax/eax/rax ambiguity
+
+  def is_same_register(self, name):
+    if self.convert_name(name)[0] == self.name:
+      return True
+    return False
 
 class Memory(object):
   def __init__(self, address, size):
@@ -42,3 +50,14 @@ class Mult(BinaryOperand):
   name = "*"
   smt_name = "bvmul"
 
+class BitwiseAnd(BinaryOperand):
+  name = "&"
+  smt_name = "bvand"
+
+class BitwiseOr(BinaryOperand):
+  name = "|"
+  smt_name = "bvor"
+
+class BitwiseXor(BinaryOperand):
+  name = "^"
+  smt_name = "bvxor"

@@ -3,17 +3,17 @@ import collections
 
 from ast import *
 
-# A few register objects for convenience
-rsp = Register("rsp")
-rip = Register("rip")
-
 class Gadget(object):
 
   def __init__(self, insts):
     self.instruction_emulators = collections.defaultdict((lambda: self.unknown_instruction), {
-      "ret" : self.ret,
-      "add" : self.add, "sub" : self.sub,
-      "pop" : self.pop, "push" : self.push,
+      "ret" : self.RET,
+      "add" : self.ADD, "sub"  : self.SUB,
+      "and" : self.AND, "or"   : self.OR,
+      "xor" : self.XOR,
+      "pop" : self.POP, "push" : self.PUSH,
+      "mov" : self.MOV, "xchg" : self.XCHG,
+      "nop" : self.NOP,
     })
     self.insts = insts
     self.get_effects()
@@ -43,7 +43,14 @@ class Gadget(object):
   def resolve_register(self, inst, reg_num):
       if reg_num == X86_REG_INVALID:
         return None
-      return Register(inst.reg_name(reg_num))
+      name = inst.reg_name(reg_num)
+      for (dst, value) in self.effects:
+        if type(dst) == Register and dst.is_same_register(name):
+          return value
+      return Register(name)
+
+  def rsp(self, inst): return self.resolve_register(inst, X86_REG_RSP)
+  def rip(self, inst): return self.resolve_register(inst, X86_REG_RIP)
 
   def resolve_memory(self, inst, op):
     address = self.resolve_register(inst, op.mem.base)
@@ -71,34 +78,56 @@ class Gadget(object):
   def set_operand_value(self, dst, value):
     self.effects.append((dst, value))
 
+  def set_register_value(self, name, value):
+    self.set_operand_value(Register(name), value)
+
 ############################################################################################
 ## Instruction Emulators ###################################################################
 ############################################################################################
 
   def unknown_instruction(self, inst):
-    print "UNKNOWN"
     raise RuntimeError("Unknown instruction: {}".format(inst.mnemonic))
 
   def binary(self, inst, operand):
     dst, src = self.get_operand_values(inst)
     self.set_operand_value(dst, operand(dst, src))
 
-  def add(self, inst): self.binary(inst, Add)
-  def sub(self, inst): self.binary(inst, Sub)
+  def ADD(self, inst): self.binary(inst, Add)
+  def SUB(self, inst): self.binary(inst, Sub)
+  def AND(self, inst): self.binary(inst, BitwiseAnd)
+  def  OR(self, inst): self.binary(inst, BitwiseOr)
+  def XOR(self, inst): self.binary(inst, BitwiseXor)
 
-  def pop(self, inst):
+  def POP(self, inst):
     dst = self.get_operand_values(inst)[0]
+    rsp = self.rsp(inst)
     self.set_operand_value(dst, Memory(rsp, 8))
-    self.set_operand_value(rsp, Add(rsp, 8))
+    self.set_register_value("rsp", Add(rsp, 8))
 
-  def push(self, inst):
+  def PUSH(self, inst):
     src = self.get_operand_values(inst)
+    rsp = self.rsp(inst)
     self.set_operand_value(Memory(rsp, 8), src)
-    self.set_operand_value(rsp, Sub(rsp, 8))
+    self.set_register_value("rsp", Sub(rsp, 8))
 
-  def ret(self, inst):
+  def RET(self, inst):
+    rsp = self.rsp(inst)
+    rip = self.rip(inst)
     self.set_operand_value(rip, Memory(rsp, 8))
-    self.set_operand_value(rsp, Add(rsp, 8))
+    self.set_register_value("rsp", Add(rsp, 8))
+
+  def MOV(self, inst):
+    dst, src = self.get_operand_values(inst)
+    self.set_operand_value(dst, src)
+
+  def XCHG(self, inst):
+    dst, src = self.get_operand_values(inst)
+    self.set_operand_value(dst, src)
+    self.set_operand_value(src, dst)
+
+  def NOP(self, inst):
+    pass
+
 
 if __name__ == "__main__":
   from capstone import *
@@ -108,6 +137,7 @@ if __name__ == "__main__":
   codes = [
     '\x00\x48\x01\xc3', # add byte ptr [rax + 1], cl; ret
     '\x5e\xc3',         # pop rsi; ret
+    '\x48\x93\xc3',     # xchg rbx, rax; ret
   ]
   for code in codes:
     g = Gadget([x for x in disassembler.disasm(code, 0x400000)]) # Expand the generator

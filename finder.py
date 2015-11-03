@@ -55,7 +55,11 @@ class Finder(object):
           self.logger.debug("Gadget found:")
           for inst in gadget:
             self.logger.debug("0x%x:\t%s\t%s", inst.address, inst.mnemonic, inst.op_str)
-          gadgets.append(gt.Gadget(gadget))
+          try:
+            gadgets.append(gt.Gadget(gadget))
+          except RuntimeError, err:
+            print err
+            pass # Ignore all unknown instructions
 
     return gadgets
 
@@ -65,9 +69,10 @@ if __name__ == "__main__":
   parser = argparse.ArgumentParser(description="Run the gadget locator on the supplied binary")
   parser.add_argument('target', type=str, help='The file (executable/library) to find gadgets in')
   parser.add_argument('-base_address', type=int, default=0, help='The address the file is loaded at.  Only needed for PIE/PIC binaries')
+  parser.add_argument('-v', required=False, action='store_true', help='Verbose mode')
   args = parser.parse_args()
 
-  finder = Finder(args.target, args.base_address)
+  finder = Finder(args.target, args.base_address, logging.DEBUG if args.v else logging.WARNING)
   gadgets = finder.find_gadgets()
 
   for gadget in gadgets:
