@@ -87,6 +87,11 @@ class GoalResolver(object):
         self.goals.append(FunctionGoal(goal[1], address, goal[2:]))
       elif goal[0] == "shellcode":
         self.goals.append(ShellcodeGoal(goal[1]))
+      elif goal[0] == "shellcode_file":
+        fd = open(goal[1], "r")
+        shellcode = fd.read()
+        fd.close()
+        self.goals.append(ShellcodeGoal(shellcode))
       else:
         raise RuntimeError("Unknown goal") 
         
