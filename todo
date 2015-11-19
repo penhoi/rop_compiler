@@ -1,0 +1,20 @@
+1) Can list the gadgets in a executable or library.
+  - Done
+
+2) Can obtain semantic meaning of gadgets.
+  - Done
+
+5) Develop attack goal language. This will involve parsing the input file from the user and resolving any given functions names.
+  - Done
+
+3) Can classify gadgets into the categories in Table 2 of the Q paper.
+
+4) Can combine classified gadgets into useful building blocks, such as setting up function arguments.
+
+6) Can chain together gadgets in a POC program designed specifically for this purpose (i.e. it has perfect gadgets available).  The bof example I described earlier is what we're envisioning for this goal.
+  - Setup autogen of rop
+
+7) Can chain together gadgets for CTF challenges.  For this portion, we're going to modify a few exploits from external write ups for CTF challenges to use our ROP compiler.
+  - Find and get exploit working for challenge
+  - Setup autogen of rop
+
