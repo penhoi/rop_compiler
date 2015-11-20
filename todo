@@ -10,6 +10,12 @@
 3) Can classify gadgets into the categories in Table 2 of the Q paper.
 
 4) Can combine classified gadgets into useful building blocks, such as setting up function arguments.
+  - pop rdi
+  - pop rsi
+  - pop rdx
+  - pop rcx (function) / r10 (syscalls)
+  - pop r8
+  - pop r9
 
 6) Can chain together gadgets in a POC program designed specifically for this purpose (i.e. it has perfect gadgets available).  The bof example I described earlier is what we're envisioning for this goal.
   - Setup autogen of rop
