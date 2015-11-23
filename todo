@@ -8,12 +8,14 @@
   - Done
 
 3) Can classify gadgets into the categories in Table 2 of the Q paper.
+  - Done - There's still some room for improvement to allow for more exotic gadgets, but it can classify the basic set
 
 4) Can combine classified gadgets into useful building blocks, such as setting up function arguments.
   - pop rdi
   - pop rsi
   - pop rdx
-  - pop rcx (function) / r10 (syscalls)
+  - pop rcx (arg 4 for function)
+  - pop r10 (arg 4 for syscalls)
   - pop r8
   - pop r9
 
