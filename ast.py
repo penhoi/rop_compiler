@@ -29,8 +29,13 @@ class Memory(object):
   def __str__(self):
     return "[{},{}]".format(self.address, self.size)
 
-class BinaryOperand(object):
+class Operand(object):
+  def __init__(self):
+    self.operands = []
+
+class BinaryOperand(Operand):
   def __init__(self, left, right):
+    super(BinaryOperand, self).__init__()
     self.operands = [left, right]
     if hasattr(self, "init"): #if the class has a constructor, call it
       self.init()
