@@ -71,16 +71,17 @@ class Gadget(object):
   def get_leaf_nodes(self, value):
     if type(value) == Const or type(value) == Register:
       return [value]
+    elif type(value) == int:
+      return [Const(value)]
     elif type(value) == Memory:
       return self.get_leaf_nodes(value.address)
-
-    if issubclass(value.__class__, Operand):
+    elif issubclass(value.__class__, Operand):
       leafs = []
       for operand in value.operands:
         leafs.extend(self.get_leaf_nodes(operand)) 
       return leafs
 
-    raise RuntimeError("Unknown type in get_leaf_nodes {}".format(type(address)))
+    raise RuntimeError("Unknown type in get_leaf_nodes {}".format(type(value)))
 
   def get_registers_in_address(self, address):
     leafs = self.get_leaf_nodes(address)
@@ -240,8 +241,9 @@ class Gadget(object):
   def set_operand_value(self, dst, new_value):
     remove_this = None
     for (destination, old_value) in self.effects:
-      if type(destination) == Register and destination.is_same_register(dst.name):
+      if type(destination) == Register and type(dst) == Register and destination.is_same_register(dst.name):
         remove_this = (destination, old_value)
+      # TODO detect memory overwrites here
     if remove_this != None:
       self.effects.remove(remove_this)
     self.effects.append((dst, new_value))
