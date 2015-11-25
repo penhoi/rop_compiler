@@ -36,10 +36,11 @@ class GoalResolver(object):
 
   def resolve_file_list(self):
     self.file_list = []
-    for (filename, address) in self.json['files']:
-      elffile = ELFFile(open(filename, 'r'))
-      address = int(address, 16)
-      self.file_list.append((elffile, address))
+    if 'files' in self.json:
+      for (filename, address) in self.json['files']:
+        elffile = ELFFile(open(filename, 'r'))
+        address = int(address, 16)
+        self.file_list.append((elffile, address))
 
   def is_address(self, string):
     try: 
