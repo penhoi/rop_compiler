@@ -5,10 +5,11 @@ def rop(filenames_and_addresses, goals, log_level = logging.WARNING):
   """Takes a set of goals and creates a rop chain for it"""
   all_gadgets = []
   for filename, address in filenames_and_addresses:
-    finder = finder.Finder(filename, address, log_level)
-    all_gadgets.expand(finder.find_gadgets())
+    gadget_finder = finder.Finder(filename, address, log_level)
+    all_gadgets.extend(gadget_finder.find_gadgets())
 
   #TODO the rest of this
+  return "TODO"
 
 
 def rop_to_shellcode(filenames_and_addresses, shellcode_address, log_level = logging.WARNING):

