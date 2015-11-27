@@ -18,6 +18,7 @@ class Finder(object):
     self.fd = open(filename, "rb")
     self.elffile = ELFFile(self.fd)
     self.base_address = base_address
+    self.used_addresses = []
 
   def __del__(self):
     self.fd.close()
@@ -56,7 +57,8 @@ class Finder(object):
           if inst.mnemonic in self.GADGET_END_INSTRUCTIONS:
             bad = True
 
-        if not bad and len(gadget) > 1 and gadget[-1].mnemonic in self.GADGET_END_INSTRUCTIONS:
+        if not bad and len(gadget) > 1 and gadget[-1].mnemonic in self.GADGET_END_INSTRUCTIONS and not gadget[0].address in self.used_addresses:
+          self.used_addresses.append(gadget[0].address)
           self.logger.debug("Gadget found:")
           for inst in gadget:
             self.logger.debug("0x%x:\t%s\t%s", inst.address, inst.mnemonic, inst.op_str)
