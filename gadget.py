@@ -48,6 +48,13 @@ class Gadget(object):
       effects += "{} = {}".format(dst, value)
     return "0x{:x} {}: {} / effects: {}".format(address, GadgetTypes.to_string(self.gadget_type), output, effects)
 
+  def output_register_names(self):
+    names = []
+    for (dst, value) in self.effects:
+      if type(dst) == Register:
+        names.append(dst.name)
+    return names
+
   def set_effects(self):
     self.effects = []
     for inst in self.insts:
@@ -78,7 +85,7 @@ class Gadget(object):
     elif issubclass(value.__class__, Operand):
       leafs = []
       for operand in value.operands:
-        leafs.extend(self.get_leaf_nodes(operand)) 
+        leafs.extend(self.get_leaf_nodes(operand))
       return leafs
 
     raise RuntimeError("Unknown type in get_leaf_nodes {}".format(type(value)))
@@ -115,11 +122,11 @@ class Gadget(object):
 
     if ((type(address1) == Const and address1.value == address2.value) or
         (type(address1) == Register and address1.name == address2.name)):
-      return True # References the same address or 
-      
+      return True # References the same address or
+
     if not issubclass(address1.__class__, BinaryOperand):
       return False # We're not going to go too deep with this, so really only consider the type [reg] or [reg operand const]
-  
+
     reg1 = const1 = reg2 = const2 = None
     for operand in address1.operands:
       if type(operand) == Register:

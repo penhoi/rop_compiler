@@ -65,7 +65,7 @@ class Finder(object):
           try:
             gadgets.append(gt.Gadget(gadget))
           except RuntimeError, err:
-            print err
+            self.logger.info(err)
             pass # Ignore all unknown instructions
 
     return gadgets
