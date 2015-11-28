@@ -23,6 +23,13 @@ class ShellcodeGoal(Goal):
   def __str__(self):
     return "shellcode[{}]".format(len(self.shellcode))
 
+class ShellcodeAddressGoal(Goal):
+  def __init__(self, address):
+    self.address = address
+
+  def __str__(self):
+    return "shellcode[0x{:x}]".format(self.address)
+
 class GoalResolver(object):
 
   def __init__(self, goal_json, level = logging.WARNING):
@@ -87,7 +94,7 @@ class GoalResolver(object):
 
         self.goals.append(FunctionGoal(goal[1], address, goal[2:]))
       elif goal[0] == "shellcode":
-        self.goals.append(ShellcodeGoal(goal[1]))
+        self.goals.append(ShellcodeAddressGoal(goal[1]))
       elif goal[0] == "shellcode_file":
         fd = open(goal[1], "r")
         shellcode = fd.read()
