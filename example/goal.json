@@ -5,6 +5,7 @@
       [ "/lib/x86_64-linux-gnu/libc.so.6", "0x800000" ]
     ], 
   "goals" : [
+      [ "function", "mprotect", 8301000, 4096, 7 ],
       [ "function", "system", "/bin/sh" ],
       [ "function", "exit", 55 ]
     ]

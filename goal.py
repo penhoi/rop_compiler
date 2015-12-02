@@ -17,20 +17,32 @@ class FunctionGoal(Goal):
     return "{}({}) == 0x{:x}".format(self.name, ",".join([str(x) for x in self.arguments]), self.address) 
 
 class ShellcodeGoal(Goal):
-  def __init__(self, shellcode):
+  def __init__(self, shellcode, mprotect_address):
     self.shellcode = shellcode
+    self.mprotect_address = mprotect_address
 
   def __str__(self):
     return "shellcode[{}]".format(len(self.shellcode))
 
 class ShellcodeAddressGoal(Goal):
-  def __init__(self, address):
-    self.address = address
+  def __init__(self, shellcode_address, mprotect_address):
+    self.shellcode_address = shellcode_address
+    self.mprotect_address = mprotect_address
 
   def __str__(self):
-    return "shellcode[0x{:x}]".format(self.address)
+    return "shellcode[0x{:x}]".format(self.shellcode_address)
 
 class GoalResolver(object):
+
+  @staticmethod
+  def create_from_arguments(filenames_and_addresses, goals, level = logging.WARNING):
+    """Converts filenames and a set of goals into json for convience (aka, I'm too lazy to fix the constructor)"""
+    files = []
+    for (filename, address) in filenames_and_addresses:
+      files.append('[ "{}", "0x{:x}" ]'.format(filename, address))
+
+    json = '{ "files" : [ %s ], "goals" : %s }' % (",".join(files), str(goals).replace("'",'"'))
+    return GoalResolver(json, level)
 
   def __init__(self, goal_json, level = logging.WARNING):
     logging.basicConfig(format="%(asctime)s - " + " - %(name)s - %(levelname)s - %(message)s")
@@ -94,12 +106,15 @@ class GoalResolver(object):
 
         self.goals.append(FunctionGoal(goal[1], address, goal[2:]))
       elif goal[0] == "shellcode":
-        self.goals.append(ShellcodeAddressGoal(goal[1]))
+        mprotect_address = self.resolve_function("mprotect")
+        shellcode_address = int(goal[1], 16)
+        self.goals.append(ShellcodeAddressGoal(shellcode_address, mprotect_address))
       elif goal[0] == "shellcode_file":
         fd = open(goal[1], "r")
         shellcode = fd.read()
         fd.close()
-        self.goals.append(ShellcodeGoal(shellcode))
+        mprotect_address = self.resolve_function("mprotect")
+        self.goals.append(ShellcodeGoal(shellcode,mprotect_address))
       else:
         raise RuntimeError("Unknown goal") 
         
