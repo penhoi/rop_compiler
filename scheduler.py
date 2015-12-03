@@ -1,4 +1,5 @@
 import goal as go, gadget as ga
+import z3helper
 
 PAGE_MASK = 0xfffffffffffff000
 PROT_RWX = 7
@@ -10,6 +11,7 @@ class Scheduler(object):
 
   def __init__(self, gadgets, goals):
     self.gadgets = gadgets
+    self.solver = z3helper.Z3Helper()
     self.goals = goals
     self.find_needed_gadgets()
     self.chain_gadgets()
@@ -47,7 +49,10 @@ class Scheduler(object):
     for i in range(len(goal.arguments)):
       arg = goal.arguments[i]
       gadget = self.blocks[self.func_calling_convention[i]]
-      print arg, gadget
+      print "Setting arg %d to %x" % (i, arg)
+      print gadget
+      print self.solver.get_values(gadget.to_statements())
+      print ""
       # TODO Transform choosen gadget into rop chain
 
   def create_shellcode_address_chain(self, goal):

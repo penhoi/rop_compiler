@@ -48,6 +48,15 @@ class Gadget(object):
       effects += "{} = {}".format(dst, value)
     return "0x{:x} {}: {} / effects: {}".format(address, GadgetTypes.to_string(self.gadget_type), output, effects)
 
+  def to_statements(self):
+    statements = []
+    for (dst,value) in self.effects:
+      if type(dst) == Register:
+        statements.append(Equal(Register(dst.name, "_output"), value))
+      else: 
+        statements.append(Store(dst.address, value))
+    return statements
+
   def output_register_names(self):
     names = []
     for (dst, value) in self.effects:
@@ -217,7 +226,7 @@ class Gadget(object):
     for (dst, value) in self.effects:
       if type(dst) == Register and dst.is_same_register(name):
         return value
-    return Register(name)
+    return Register(name, "_input")
 
   def rsp(self, inst): return self.resolve_register(inst, X86_REG_RSP)
   def rip(self, inst): return self.resolve_register(inst, X86_REG_RIP)
@@ -279,13 +288,13 @@ class Gadget(object):
     dst = self.get_operand_values(inst)[0]
     rsp = self.rsp(inst)
     self.set_operand_value(dst, Memory(rsp, 8))
-    self.set_register_value("rsp", Add(rsp, 8))
+    self.set_register_value("rsp", Add(rsp, Const(8)))
 
   def PUSH(self, inst):
     src = self.get_operand_values(inst)
     rsp = self.rsp(inst)
     self.set_operand_value(Memory(rsp, 8), src)
-    self.set_register_value("rsp", Sub(rsp, 8))
+    self.set_register_value("rsp", Sub(rsp, Const(8)))
 
   def RET(self, inst):
     rsp = self.rsp(inst)
@@ -297,7 +306,7 @@ class Gadget(object):
       stack_diff += amount[0].value # will always be an immediate
 
     self.set_operand_value(rip, Memory(rsp, 8))
-    self.set_register_value("rsp", Add(rsp, stack_diff))
+    self.set_register_value("rsp", Add(rsp, Const(stack_diff)))
 
   def MOV(self, inst):
     dst, src = self.get_operand_values(inst)
