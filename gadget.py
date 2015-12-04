@@ -31,6 +31,7 @@ class Gadget(object):
       "nop" : self.NOP,
     })
     self.insts = insts
+    self.address = insts[0].address
     self.set_effects()
     self.set_type()
     self.set_next_stack()

