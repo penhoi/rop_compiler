@@ -1,5 +1,0 @@
-Dependencies:
-capstone
-libpyelf
-pwntools (for the example bof)
-z3
