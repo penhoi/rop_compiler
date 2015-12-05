@@ -220,9 +220,18 @@ class GadgetClassifier(object):
     if index != None:
       if op.mem.scale != 1:
         index = Mult(index, Const(op.mem.scale))
-      address = Add(address, index)
+
+      if address == None:
+        address = index
+      else:
+        address = Add(address, index)
+
     if op.mem.disp != 0:
-      address = Add(address, Const(op.mem.disp))
+      const = Const(op.mem.disp)
+      if address == None:
+        address = const
+      else:
+        address = Add(address, const)
     return Memory(address, op.size)
 
   def get_operand_value(self, inst, op):
@@ -356,9 +365,10 @@ if __name__ == "__main__":
     (ArithmeticStore, '\x48\x01\x43\xf8\xc3'),                         # add QWORD PTR [rbx-0x8],rax; ret
     (type(None),      '\x48\x39\xeb\xc3'),                             # cmp rbx, rbp; ret
     (type(None),      '\x5e'),                                         # pop rsi
+    (type(None),      '\x8b\x04\xc5\xc0\x32\x45\x00\xc3'),             # mov rax,QWORD PTR [rax*8+0x4532c0]
   ]
-  classifier = GadgetClassifier(logging.DEBUG)
 
+  classifier = GadgetClassifier(logging.DEBUG)
   fail = False
   for (class_type, code) in tests:
     g = classifier.create_gadget_from_instructions([x for x in disassembler.disasm(code, 0x400000)]) # Expand the generator
