@@ -21,7 +21,7 @@ class Scheduler(object):
 
   def find_load_stack_gadget(self, register_name):
     for gadget in self.gadgets:
-      if gadget.gadget_type == ga.GadgetTypes.LOAD_STACK and register_name in gadget.output_register_names(): # best option
+      if type(gadget) == ga.LoadStack and register_name == gadget.output.name: # best option
         return gadget
     return None
 
