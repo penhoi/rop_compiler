@@ -126,11 +126,11 @@ class Scheduler(object):
     return struct.pack("Q", address)
 
   def create_set_reg_chain(self, gadget, value, next_address):
-    differences = self.solver.get_values(gadget.to_statements())
-
-    chain  = differences[gadget.output.name + "_output"][1] * "A"
     if type(value) != str:
       value = self.ap(value)
+
+    differences = self.solver.get_values(gadget.to_statements())
+    chain  = differences[gadget.output.name + "_output"][1] * "A"
     chain += value
     chain += (differences["rip_output"][1] - len(chain)) * "B"
     chain += self.ap(next_address)

@@ -4,58 +4,6 @@ import collections, logging
 from ast import *
 import enum
 
-class Gadget(object):
-
-  def __init__(self, insts, inputs, output, effects):
-    self.insts = insts
-    self.address = insts[0].address
-    self.inputs = inputs
-    self.output = output
-    self.effects = effects
-
-    self.clobber = []
-    for (dst, value) in self.effects:
-      if dst != self.output and not dst.is_rip_or_rsp():
-        self.clobber.append(dst)
-
-  def __str__(self):
-    insts = "; ".join(["{} {}".format(inst.mnemonic, inst.op_str) for inst in self.insts])
-    effects = "; ".join(["{} = {}".format(dst, value) for (dst, value) in self.effects])
-    return "{}(0x{:x}):\nInsts: {}\nEffects: {}\nOutput: {} Input(s): ({}) Clobbers ({})".format(self.__class__.__name__,
-      self.address, insts, effects, self.output, ", ".join([str(x) for x in self.inputs]),
-      ", ".join([str(x) for x in self.clobber]))
-
-  def clobbers_register(self, name):
-    for clobber in self.clobber:
-      if type(clobber) == Register and clobber.name == name:
-        return True
-    return False
-
-  def uses_register(self, name):
-    for an_input in self.inputs:
-      if type(an_input) == Register and an_input.name == name:
-        return True
-    return self.clobbers_register(name) or (type(self.output) == Register and self.output.name == name)
-
-  def complexity(self):
-    return len(self.clobber)
-
-  def to_statements(self):
-    statements = []
-    for (dst,value) in self.effects:
-      if type(dst) == Register:
-        statements.append(Equal(Register(dst.name, "_output"), value))
-      else: 
-        statements.append(Store(dst.address, value))
-    return statements
-
-  def output_register_names(self):
-    names = []
-    for (dst, value) in self.effects:
-      if type(dst) == Register:
-        names.append(dst.name)
-    return names
-
 class GadgetClassifier(object):
 
   def __init__(self, log_level = logging.WARNING):
@@ -217,7 +165,7 @@ class GadgetClassifier(object):
   def resolve_register(self, inst, reg_num):
     if reg_num == X86_REG_INVALID:
       return None
-    name = inst.reg_name(reg_num)
+    name = str(inst.reg_name(reg_num))
     for (dst, value) in self.effects:
       if type(dst) == Register and dst.is_same_register(name):
         return value
@@ -324,6 +272,57 @@ class GadgetClassifier(object):
   def NOP(self, inst):
     pass
 
+class Gadget(object):
+  def __init__(self, insts, inputs, output, effects):
+    self.insts = insts
+    self.address = insts[0].address
+    self.inputs = inputs
+    self.output = output
+    self.effects = effects
+
+    self.clobber = []
+    for (dst, value) in self.effects:
+      if dst != self.output and not dst.is_rip_or_rsp():
+        self.clobber.append(dst)
+
+  def __str__(self):
+    insts = "; ".join(["{} {}".format(inst.mnemonic, inst.op_str) for inst in self.insts])
+    effects = "; ".join(["{} = {}".format(dst, value) for (dst, value) in self.effects])
+    return "{}(0x{:x}):\nInsts: {}\nEffects: {}\nOutput: {} Input(s): ({}) Clobbers ({})".format(self.__class__.__name__,
+      self.address, insts, effects, self.output, ", ".join([str(x) for x in self.inputs]),
+      ", ".join([str(x) for x in self.clobber]))
+
+  def clobbers_register(self, name):
+    for clobber in self.clobber:
+      if type(clobber) == Register and clobber.name == name:
+        return True
+    return False
+
+  def uses_register(self, name):
+    for an_input in self.inputs:
+      if type(an_input) == Register and an_input.name == name:
+        return True
+    return self.clobbers_register(name) or (type(self.output) == Register and self.output.name == name)
+
+  def complexity(self):
+    return len(self.clobber)
+
+  def to_statements(self):
+    statements = []
+    for (dst,value) in self.effects:
+      if type(dst) == Register:
+        statements.append(Equal(Register(dst.name, "_output"), value))
+      else:
+        statements.append(Store(dst.address, value))
+    return statements
+
+  def output_register_names(self):
+    names = []
+    for (dst, value) in self.effects:
+      if type(dst) == Register:
+        names.append(dst.name)
+    return names
+
 class MoveReg(Gadget):         pass
 class LoadConst(Gadget):       pass
 class Arithmetic(Gadget):      pass
@@ -370,6 +369,7 @@ if __name__ == "__main__":
     (LoadStack,       '\x48\x8b\x44\x24\x08\xc3'),                     # mov rax,QWORD PTR [rsp+0x8]; ret
     (LoadStack,       '\x5e\xc3'),                                     # pop rsi; ret
     (LoadStack,       '\x5e\xc2\x10\x00'),                             # pop rsi; ret 16
+    (LoadStack,       '\x5f\x5e\xc3'),                                 # pop rdi; pop rsi; ret
     (StoreMem,        '\x48\x89\x03\xc3'),                             # mov QWORD PTR [rbx],rax; ret
     (StoreMem,        '\x48\x89\x43\x08\xc3'),                         # mov QWORD PTR [rbx+0x8],rax; ret
     (StoreMem,        '\x48\x89\x44\x24\x08\xc3'),                     # mov QWORD PTR [rsp+0x8],rax; ret

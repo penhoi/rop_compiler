@@ -39,7 +39,7 @@ class Register(BaseType):
     return (name, 8, -1) #TODO handle al/ah/ax/eax/rax ambiguity
 
   def is_same_register(self, name):
-    if (type(name) == str and self.convert_name(name)[0] == self.name
+    if ((type(name) == str and self.convert_name(name)[0] == self.name)
         or (type(name) == Register and name.name == self.name)):
       return True
     return False
