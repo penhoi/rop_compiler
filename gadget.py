@@ -1,53 +1,29 @@
 from capstone.x86 import *
-import collections
+import collections, logging
 
 from ast import *
 import enum
 
-class GadgetTypes(enum.Enum):
-  (
-    UNKNOWN,
-    JUMP,              # Jump to address / register
-    MOV_REG,           # OutReg <- InReg
-    LOAD_CONST,        # OutReg <- Constant
-    ARITHMETIC,        # OutReg <- InReg1 operator InReg2
-    LOAD_MEM,          # OutReg <- Mem[Address or Register]
-    LOAD_STACK,        # OutReg <- Mem[rsp + offset]
-    STORE_MEM,         # Mem[Address or Register] = InReg
-    ARITHMETIC_LOAD,   # OutReg <- OutReg operator M[AddrReg or Register]
-    ARITHMETIC_STORE,  # Mem[AddrReg or Register] <- Mem[AddrReg or Register] operator InReg
-  ) = range(10)
-
 class Gadget(object):
 
-  def __init__(self, insts):
-    self.instruction_emulators = collections.defaultdict((lambda: self.unknown_instruction), {
-      "ret" : self.RET,
-      "add" : self.ADD, "sub"  : self.SUB,
-      "and" : self.AND, "or"   : self.OR,
-      "xor" : self.XOR,
-      "pop" : self.POP, "push" : self.PUSH,
-      "mov" : self.MOV, "xchg" : self.XCHG,
-      "nop" : self.NOP,
-    })
+  def __init__(self, insts, inputs, output, effects):
     self.insts = insts
     self.address = insts[0].address
-    self.set_effects()
-    self.set_type()
-    self.set_next_stack()
+    self.inputs = inputs
+    self.output = output
+    self.effects = effects
+
+    self.clobber = []
+    for (dst, value) in self.effects:
+      if dst != self.output:
+        self.clobber.append(dst)
 
   def __str__(self):
-    output = ""
-    address = 0
-    for inst in self.insts:
-      if address == 0: address = inst.address
-      if output != "": output += "; "
-      output += "{} {}".format(inst.mnemonic, inst.op_str)
-    effects = ""
-    for (dst, value) in self.effects:
-      if effects != "": effects += "; "
-      effects += "{} = {}".format(dst, value)
-    return "0x{:x} {}: {} / effects: {}".format(address, GadgetTypes.to_string(self.gadget_type), output, effects)
+    insts = "; ".join(["{} {}".format(inst.mnemonic, inst.op_str) for inst in self.insts])
+    effects = "; ".join(["{} = {}".format(dst, value) for (dst, value) in self.effects])
+    return "{}(0x{:x}):\nInsts: {}\nEffects: {}\nOutput: {} Input(s): ({}) Clobbers ({})".format(self.__class__.__name__,
+      self.address, insts, effects, self.output, ", ".join([str(x) for x in self.inputs]),
+      ", ".join([str(x) for x in self.clobber]))
 
   def to_statements(self):
     statements = []
@@ -65,17 +41,58 @@ class Gadget(object):
         names.append(dst.name)
     return names
 
-  def set_effects(self):
-    self.effects = []
-    for inst in self.insts:
-      self.instruction_emulators[inst.mnemonic](inst)
+class GadgetClassifier(object):
 
-  def set_next_stack(self):
-    """We'll need to know how to get the stack value after this gadget, so find it here"""
-    self.next_stack = None
+  def __init__(self, log_level = logging.WARNING):
+    logging.basicConfig(format="%(asctime)s - " + " - %(name)s - %(levelname)s - %(message)s")
+    self.logger = logging.getLogger(self.__class__.__name__)
+    self.logger.setLevel(log_level)
+
+    self.instruction_emulators = collections.defaultdict((lambda: self.unknown_instruction), {
+      "ret" : self.RET,
+      "add" : self.ADD, "sub"  : self.SUB,
+      "and" : self.AND, "or"   : self.OR,
+      "xor" : self.XOR,
+      "pop" : self.POP, "push" : self.PUSH,
+      "mov" : self.MOV, "movabs" : self.MOV,
+      "xchg" : self.XCHG,
+      "nop" : self.NOP,
+    })
+
+  def create_gadget_from_instructions(self, insts):
+    self.effects = []
+    for inst in insts:
+      try:
+        self.instruction_emulators[inst.mnemonic](inst)
+      except RuntimeError, err:
+        self.logger.info(err)
+        return None
+
+    found = 0
     for (dst, value) in self.effects:
-      if type(dst) == Register and dst.name == "rsp":
-        self.next_stack = value
+      if type(dst) == Register and (dst.is_same_register("rsp") or dst.is_same_register("rip")):
+        found += 1
+    if found != 2:
+      return None # Make sure we have a way to change rsp and rip
+
+    gadget_type, inputs, outputs = self.get_type_and_info()
+    if gadget_type == GadgetTypes.MOV_REG:
+      return MoveReg(insts, inputs, outputs, self.effects)
+    elif gadget_type == GadgetTypes.LOAD_CONST:
+      return LoadConst(insts, inputs, outputs, self.effects)
+    elif gadget_type == GadgetTypes.ARITHMETIC:
+      return Arithmetic(insts, inputs, outputs, self.effects)
+    elif gadget_type == GadgetTypes.LOAD_MEM:
+      return LoadMem(insts, inputs, outputs, self.effects)
+    elif gadget_type == GadgetTypes.LOAD_STACK:
+      return LoadStack(insts, inputs, outputs, self.effects)
+    elif gadget_type == GadgetTypes.STORE_MEM:
+      return StoreMem(insts, inputs, outputs, self.effects)
+    elif gadget_type == GadgetTypes.ARITHMETIC_LOAD:
+      return ArithmeticLoad(insts, inputs, outputs, self.effects)
+    elif gadget_type == GadgetTypes.ARITHMETIC_STORE:
+      return ArithmeticStore(insts, inputs, outputs, self.effects)
+    return None
 
   def is_address_based_off_stack(self, address):
     registers = self.get_registers_in_address(address)
@@ -123,98 +140,60 @@ class Gadget(object):
       is any binary operand)"""
     return (type(memory) == Memory and self.is_simple_operand_type(memory.address))
 
-  def is_same_memory(self, memory1, memory2):
-    # TODO convert this to use the solver to determine this so it can allow more types
-
-    address1, address2 = memory1.address, memory2.address
-    if type(address1) != type(address2):
-      return False
-
-    if ((type(address1) == Const and address1.value == address2.value) or
-        (type(address1) == Register and address1.name == address2.name)):
-      return True # References the same address or
-
-    if not issubclass(address1.__class__, BinaryOperand):
-      return False # We're not going to go too deep with this, so really only consider the type [reg] or [reg operand const]
-
-    reg1 = const1 = reg2 = const2 = None
-    for operand in address1.operands:
-      if type(operand) == Register:
-        reg1 = operand
-      elif type(operand) == Const:
-        con1 = operand
-    for operand in address2.operands:
-      if type(operand) == Register:
-        reg2 = operand
-      elif type(operand) == Const:
-        con2 = operand
-
-    if None in [reg1, reg2] or type(const1) != type(const2): # Allow
-      return
-
-    return reg1.name == reg2.name and (None in [const1, const2] or const1.value == const2.value)
-
-  def set_type(self):
-    self.gadget_type = GadgetTypes.UNKNOWN
+  def get_type_and_info(self):
     memory_writes = []
     register_writes = []
     for (dst, value) in self.effects:
       if type(dst) == Memory:
         memory_writes.append((dst,value))
       elif type(dst) == Register:
+        if dst.name == "rsp" or dst.name == "rip": # ignore the ret part of the gadget
+          continue
         register_writes.append((dst,value))
 
-    if len(memory_writes) > 1: # A little semantic, we don't want to deal with multiple memory writes
-      return
-
-    if len(register_writes) > 3: # TODO for now don't deal with anything beyond writing to one register
-      return
+    if len(memory_writes) > 1: # A little heuristic, we don't want to deal with multiple memory writes
+      return (GadgetTypes.UNKNOWN, [], None)
 
     for (dst, value) in register_writes:
-      if dst.name == "rsp" or dst.name == "rip":
-        continue
-
       if type(value) == Register:
-        self.gadget_type = GadgetTypes.MOV_REG
+        return (GadgetTypes.MOV_REG, [value], dst)
       elif type(value) == Const:
-        self.gadget_type = GadgetTypes.LOAD_CONST
+        return (GadgetTypes.LOAD_CONST, [value], dst)
       elif type(value) == Memory:
         if self.is_address_based_off_stack(value.address):
-          self.gadget_type = GadgetTypes.LOAD_STACK
-        else:
-          self.gadget_type = GadgetTypes.LOAD_MEM
+          return (GadgetTypes.LOAD_STACK, [value], dst)
+        elif self.is_simple_memory_value(value):
+          return (GadgetTypes.LOAD_MEM, [value], dst)
       elif issubclass(value.__class__, Operand):
-        leafs = self.get_leaf_nodes(value)
-        if len(leafs) == 2:
-          if type(leafs[0]) == Register and type(leafs[1]) == Register:
-            self.gadget_type = GadgetTypes.ARITHMETIC
-          else:
-            dst_found = False
-            non_dst = None
-            for operand in value.operands:
-              if type(operand) == Register and operand.name == dst.name:
-                dst_found = True
-              else:
-                non_dst = operand
+        if type(value.operands[0]) == Register and type(value.operands[1]) == Register:
+          return (GadgetTypes.ARITHMETIC, [value.operands[0], value.operands[1]], dst)
 
-            if (dst_found and self.is_simple_memory_value(non_dst)):
-              self.gadget_type = GadgetTypes.ARITHMETIC_LOAD
+        non_dst = None
+        if dst.is_same_register(value.operands[0]):
+          non_dst = value.operands[1]
+        elif dst.is_same_register(value.operands[1]):
+          non_dst = value.operands[0]
+
+        if non_dst != None and self.is_simple_memory_value(non_dst):
+          return (GadgetTypes.ARITHMETIC_LOAD, [value.operands[0], value.operands[1]], dst)
 
     for (dst, value) in memory_writes:
       if not self.is_simple_memory_value(dst):
         continue
 
       if type(value) is Register:
-        self.gadget_type = GadgetTypes.STORE_MEM
+        return (GadgetTypes.STORE_MEM, [value], dst)
       elif issubclass(value.__class__, Operand):
         possible_dst = non_dst = None
         if (type(value.operands[0]) == Memory and type(value.operands[1]) == Register):
-          possible_dst, non_dst = value.operands
+          possible_dst = value.operands[0]
         elif (type(value.operands[0]) == Register and type(value.operands[1]) == Memory):
-          non_dst, possible_dst = value.operands
+          possible_dst = value.operands[1]
 
-        if possible_dst != None and self.is_same_memory(dst, possible_dst):
-          self.gadget_type = GadgetTypes.ARITHMETIC_STORE
+        if possible_dst != None and dst.is_same_memory(possible_dst):
+          return (GadgetTypes.ARITHMETIC_STORE, [value.operands[0], value.operands[1]], dst)
+
+    return (GadgetTypes.UNKNOWN, [], None)
 
 ############################################################################################
 ## Helper Utilities ########################################################################
@@ -321,25 +300,70 @@ class Gadget(object):
   def NOP(self, inst):
     pass
 
+class MoveReg(Gadget):         pass
+class LoadConst(Gadget):       pass
+class Arithmetic(Gadget):      pass
+class LoadMem(Gadget):         pass
+class LoadStack(Gadget):       pass
+class StoreMem(Gadget):        pass
+class ArithmeticLoad(Gadget):  pass
+class ArithmeticStore(Gadget): pass
+
+
+class GadgetTypes(enum.Enum):
+  (
+    UNKNOWN,
+    #JUMP,              # Jump to address / register
+    MOV_REG,           # OutReg <- InReg
+    LOAD_CONST,        # OutReg <- Constant
+    ARITHMETIC,        # OutReg <- InReg1 operator InReg2
+    LOAD_MEM,          # OutReg <- Mem[Address or Register]
+    LOAD_STACK,        # OutReg <- Mem[rsp + offset]
+    STORE_MEM,         # Mem[Address or Register] = InReg
+    ARITHMETIC_LOAD,   # OutReg <- OutReg operator M[AddrReg or Register]
+    ARITHMETIC_STORE,  # Mem[AddrReg or Register] <- Mem[AddrReg or Register] operator InReg
+  ) = range(9)
+
+  CLASSES = { MOV_REG : MoveReg, LoadConst : LoadConst, ARITHMETIC : Arithmetic, LOAD_MEM : LoadMem, LOAD_STACK : LoadStack, 
+    STORE_MEM : StoreMem, ARITHMETIC_LOAD : ArithmeticLoad, ARITHMETIC_STORE : ArithmeticStore }
+  def __init__(self, type_enum, *params):
+    return self.CLASSES[type_enum](*params)
+
+
+
 
 if __name__ == "__main__":
   from capstone import *
 
   disassembler = Cs(CS_ARCH_X86, CS_MODE_64)
   disassembler.detail = True
-  codes = [
-    '\x00\x48\x01\xc3',         # add byte ptr [rax + 1], cl; ret
-    '\x5e\xc3',                 # pop rsi; ret
-    '\x48\x93\xc3',             # xchg rbx, rax; ret
-    '\x5e\xc2\x10\x00',         # pop rsi; ret 16
-    '\x48\x89\x03\xc3',         # mov QWORD PTR [rbx],rax; ret
-    '\x48\x89\x43\x08\xc3',     # mov QWORD PTR [rbx+0x8],rax; ret
-    '\x48\x01\x43\xf8\xc3',     # add QWORD PTR [rbx-0x8],rax; ret
-    '\x48\x89\x44\x24\x08',     # mov QWORD PTR [rsp+0x8],rax
-    '\x48\x8b\x44\x24\x08',     # mov rax,QWORD PTR [rsp+0x8]
-    '\x48\x8b\x43\x08',         # mov rax,QWORD PTR [rbx+0x8]
+  tests = [
+    (MoveReg,         '\x48\x93\xc3'),                                 # xchg rbx, rax; ret
+    (MoveReg,         '\x48\x89\xcb\xc3'),                             # mov rbx,rcx; ret
+    (LoadConst,       '\x48\xbb\xff\xee\xdd\xcc\xbb\xaa\x99\x88\xc3'), # movabs rbx,0x8899aabbccddeeff; ret
+    (Arithmetic,      '\x48\x01\xc3\xc3'),                             # add rbx, rax; reg
+    (LoadMem,         '\x48\x8b\x43\x08\xc3'),                         # mov rax,QWORD PTR [rbx+0x8]; ret
+    (LoadStack,       '\x48\x8b\x44\x24\x08\xc3'),                     # mov rax,QWORD PTR [rsp+0x8]; ret
+    (LoadStack,       '\x5e\xc3'),                                     # pop rsi; ret
+    (LoadStack,       '\x5e\xc2\x10\x00'),                             # pop rsi; ret 16
+    (StoreMem,        '\x48\x89\x03\xc3'),                             # mov QWORD PTR [rbx],rax; ret
+    (StoreMem,        '\x48\x89\x43\x08\xc3'),                         # mov QWORD PTR [rbx+0x8],rax; ret
+    (StoreMem,        '\x48\x89\x44\x24\x08\xc3'),                     # mov QWORD PTR [rsp+0x8],rax; ret
+    (ArithmeticLoad,  '\x48\x03\x44\x24\x08\xc3'),                     # add rax,QWORD PTR [rsp+0x8]
+    (ArithmeticStore, '\x48\x01\x43\xf8\xc3'),                         # add QWORD PTR [rbx-0x8],rax; ret
+    (type(None),      '\x48\x39\xeb\xc3'),                             # cmp rbx, rbp; ret
+    (type(None),      '\x5e'),                                         # pop rsi
   ]
-  for code in codes:
-    g = Gadget([x for x in disassembler.disasm(code, 0x400000)]) # Expand the generator
-    print g
+  classifier = GadgetClassifier(logging.DEBUG)
+
+  fail = False
+  for (class_type, code) in tests:
+    g = classifier.create_gadget_from_instructions([x for x in disassembler.disasm(code, 0x400000)]) # Expand the generator
+    if type(g) != class_type:
+      print "Bad Gadget.  Expected {}, Got {}".format(class_type.__name__, type(g).__name__)
+      fail = True
+    print g, "\n"
+
+  if fail:
+    print "FAILURE!!! One or more incorrectly classified gadgets"
 

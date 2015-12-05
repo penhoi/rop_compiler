@@ -14,6 +14,7 @@ class Finder(object):
     logging.basicConfig(format="%(asctime)s - " + " - %(name)s - %(levelname)s - %(message)s")
     self.logger = logging.getLogger(self.__class__.__name__)
     self.logger.setLevel(level)
+    self.level = level
 
     self.fd = open(filename, "rb")
     self.elffile = ELFFile(self.fd)
@@ -37,8 +38,9 @@ class Finder(object):
   def get_gadgets_for_segment(self, segment):
     disassembler = Cs(CS_ARCH_X86, CS_MODE_64)
     disassembler.detail = True
-    gadgets = []
+    classifier = gt.GadgetClassifier(self.level)
 
+    gadgets = []
     data = segment.data()
     for i in range(1, len(data)):
       for j in range(1, self.MAX_GADGET_SIZE):
@@ -50,23 +52,26 @@ class Finder(object):
         address = self.base_address + segment.header.p_paddr + begin
         if self.base_address == 0 and segment.header.p_paddr == 0:
           self.logger.warning("No base address given for library or PIE executable.  Addresses may be wrong")
-        gadget = [x for x in disassembler.disasm(code, address)] # Expand the generator
+        gadget_insts = [x for x in disassembler.disasm(code, address)] # Expand the generator
 
         bad = False
-        for inst in gadget[:-1]: # Only allow ret's at the end of the instruction
+        for inst in gadget_insts[:-1]: # Only allow ret's at the end of the instruction
           if inst.mnemonic in self.GADGET_END_INSTRUCTIONS:
             bad = True
 
-        if not bad and len(gadget) > 1 and gadget[-1].mnemonic in self.GADGET_END_INSTRUCTIONS and not gadget[0].address in self.used_addresses:
-          self.used_addresses.append(gadget[0].address)
+        if (not bad # Only allow ret's at the end of instructions
+            and len(gadget_insts) > 1 # We don't want a single ret gadget
+            and gadget_insts[-1].mnemonic in self.GADGET_END_INSTRUCTIONS # gadgets must end in a ret
+            and not gadget_insts[0].address in self.used_addresses): # The address hasn't already been used before
+
+          self.used_addresses.append(gadget_insts[0].address)
           self.logger.debug("Gadget found:")
-          for inst in gadget:
+          for inst in gadget_insts:
             self.logger.debug("0x%x:\t%s\t%s", inst.address, inst.mnemonic, inst.op_str)
           try:
-            gadgets.append(gt.Gadget(gadget))
-          except RuntimeError, err:
-            self.logger.info(err)
-            pass # Ignore all unknown instructions
+            gadget = classifier.create_gadget_from_instructions(gadget_insts)
+            if gadget != None:
+              gadgets.append(gadget)
 
     return gadgets
 

@@ -35,7 +35,8 @@ class Register(object):
     return (name, 8, -1) #TODO handle al/ah/ax/eax/rax ambiguity
 
   def is_same_register(self, name):
-    if self.convert_name(name)[0] == self.name:
+    if (type(name) == str and self.convert_name(name)[0] == self.name
+        or (type(name) == Register and name.name == self.name)):
       return True
     return False
 
@@ -45,7 +46,7 @@ class Memory(object):
     self.size = size
 
   def __str__(self):
-    return "[{},{}]".format(self.address, self.size)
+    return "[{}]".format(self.address)
 
   def __repr__(self):
     return "(select Memory %s)" % repr(self.address)
@@ -55,6 +56,45 @@ class Memory(object):
 
   def to_z3(self):
     return z3.Array("Memory", z3.BitVecSort(64), z3.BitVecSort(64))[self.address.to_z3()]
+
+  def is_same_memory(self, other):
+    # TODO convert this to use the solver to determine this so it can allow more types
+
+    address1, address2 = self.address, other.address
+    if type(address1) != type(address2):
+      return False
+
+    if ((type(address1) == Const and address1.value == address2.value) or
+        (type(address1) == Register and address1.name == address2.name)):
+      return True # References the same address or
+
+    if not issubclass(address1.__class__, BinaryOperand):
+      return False # We're not going to go too deep with this, so really only consider the type [reg] or [reg operand const]
+
+    reg1 = const1 = reg2 = const2 = None
+    for operand in address1.operands:
+      if type(operand) == Register:
+        reg1 = operand
+      elif type(operand) == Const:
+        con1 = operand
+    for operand in address2.operands:
+      if type(operand) == Register:
+        reg2 = operand
+      elif type(operand) == Const:
+        con2 = operand
+
+    if None in [reg1, reg2] or type(const1) != type(const2):
+      return False
+
+    return reg1.name == reg2.name and (None in [const1, const2] or const1.value == const2.value)
+
+
+
+
+
+
+
+
 
 class Operand(object):
   def __init__(self):

