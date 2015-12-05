@@ -1,4 +1,4 @@
-import struct
+import struct, logging
 import goal as go, gadget as ga
 import z3helper
 
@@ -9,7 +9,11 @@ class Scheduler(object):
   func_calling_convention = [ "rdi", "rsi", "rdx", "rcx", "r8", "r9" ]
   #syscall_calling_convention = [ "rdi", "rsi", "rdx", "r10", "r8", "r9" ]  # TODO cover the syscall case
 
-  def __init__(self, gadgets, goals):
+  def __init__(self, gadgets, goals, level):
+    logging.basicConfig(format="%(asctime)s - " + " - %(name)s - %(levelname)s - %(message)s")
+    self.logger = logging.getLogger(self.__class__.__name__)
+    self.logger.setLevel(level)
+
     self.gadgets = gadgets
     self.solver = z3helper.Z3Helper()
     self.goals = goals
@@ -20,10 +24,13 @@ class Scheduler(object):
     return self.chain
 
   def find_load_stack_gadget(self, register_name):
+    best = None
     for gadget in self.gadgets:
-      if type(gadget) == ga.LoadStack and register_name == gadget.output.name: # best option
-        return gadget
-    return None
+      if (type(gadget) == ga.LoadStack # It's a load from the stack (most likely a pop)
+        and register_name == gadget.output.name # and it's for the correct register
+        and (best == None or best.complexity() > gadget.complexity())): # and it's got a better complexity than the current one
+          best = gadget
+    return best
 
   def find_needed_gadgets(self):
 
@@ -45,9 +52,6 @@ class Scheduler(object):
 
         # TODO Synthesize gadgets for missing types and add them to self.blocks
 
-    for (name, gadget) in self.blocks.items():
-      print name, gadget
-
   def create_function_chain(self, goal, next_address = 0x44444444):
     chain = ""
     prev_gadget = goal.address
@@ -55,8 +59,6 @@ class Scheduler(object):
       arg = goal.arguments[i]
       reg = self.func_calling_convention[i]
       gadget = self.blocks[reg]
-      print "Setting arg %d to %x" % (i, arg)
-      print gadget
       differences = self.solver.get_values(gadget.to_statements())
 
       arg_chain  = differences[reg + "_output"][1] * "A"
@@ -90,10 +92,4 @@ class Scheduler(object):
 
     return chain
     # TODO chain to gather the blocks into function calls and goals
-
-
-
-
-
-
 

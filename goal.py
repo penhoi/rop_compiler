@@ -90,7 +90,7 @@ class GoalResolver(object):
       for container in containers:
         if container and (isinstance(container, SymbolTableSection) or isinstance(container, DynamicSegment)):
           symbol_address = self.find_symbol(elffile, address, container, name)
-          if symbol_address:
+          if symbol_address != None:
             return symbol_address
     raise RuntimeError("Could not resolve the address of function {}.".format(name))
 

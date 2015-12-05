@@ -25,6 +25,9 @@ class Gadget(object):
       self.address, insts, effects, self.output, ", ".join([str(x) for x in self.inputs]),
       ", ".join([str(x) for x in self.clobber]))
 
+  def complexity(self):
+    return len(self.clobber)
+
   def to_statements(self):
     statements = []
     for (dst,value) in self.effects:

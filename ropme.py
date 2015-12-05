@@ -8,7 +8,7 @@ def rop(filenames_and_addresses, goals, log_level = logging.WARNING):
     gadget_finder = finder.Finder(filename, address, log_level)
     all_gadgets.extend(gadget_finder.find_gadgets())
 
-  gadget_scheduler = scheduler.Scheduler(all_gadgets, goals)
+  gadget_scheduler = scheduler.Scheduler(all_gadgets, goals, log_level)
   return gadget_scheduler.get_chain()
 
 def rop_to_shellcode(filenames_and_addresses, shellcode_address, log_level = logging.WARNING):

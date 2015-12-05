@@ -32,8 +32,6 @@ class Z3Helper(object):
     return s
 
   def get_values(self, statements):
-    print "Statements",statements
-
     smem = self.get_memory_solver()
     s = self.get_solver()
     for statement in statements:
