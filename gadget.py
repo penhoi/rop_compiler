@@ -25,6 +25,18 @@ class Gadget(object):
       self.address, insts, effects, self.output, ", ".join([str(x) for x in self.inputs]),
       ", ".join([str(x) for x in self.clobber]))
 
+  def clobbers_register(self, name):
+    for clobber in self.clobber:
+      if type(clobber) == Register and clobber.name == name:
+        return True
+    return False
+
+  def uses_register(self, name):
+    for an_input in self.inputs:
+      if type(an_input) == Register and an_input.name == name:
+        return True
+    return self.clobbers_register(name) or (type(self.output) == Register and self.output.name == name)
+
   def complexity(self):
     return len(self.clobber)
 
@@ -184,8 +196,8 @@ class GadgetClassifier(object):
       if not self.is_simple_memory_value(dst):
         continue
 
-      if type(value) is Register:
-        return (GadgetTypes.STORE_MEM, [value], dst)
+      if type(value) == Register:
+        return (GadgetTypes.STORE_MEM, [value, self.get_registers_in_address(dst)[0]], dst)
       elif issubclass(value.__class__, Operand):
         possible_dst = non_dst = None
         if (type(value.operands[0]) == Memory and type(value.operands[1]) == Register):

@@ -50,7 +50,7 @@ class Memory(BaseType):
     self.size = size
 
   def __str__(self):
-    return "[{}]".format(self.address)
+    return "Mem[{}]".format(self.address)
 
   def __repr__(self):
     return "(select Memory %s)" % repr(self.address)

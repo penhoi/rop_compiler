@@ -1,4 +1,4 @@
-import json, logging
+import json, logging, binascii
 from elftools.elf.elffile import ELFFile
 from elftools.elf.constants import P_FLAGS
 from elftools.elf.sections import SymbolTableSection
@@ -56,6 +56,12 @@ class GoalResolver(object):
     except ValueError:
         return False
 
+  def get_writable_memory(self):
+    for elffile, address in self.file_list:
+      data_section = elffile.get_section_by_name(".data")
+      return data_section.header.sh_addr
+    raise RuntimeError("Couldn't find a .data section when looking for writable memory")
+
   def get_dynamic_segment(self, elffile):
     for segment in elffile.iter_segments():
       if isinstance(segment, DynamicSegment):
@@ -92,6 +98,11 @@ class GoalResolver(object):
       addresses[name] = address
     return addresses
 
+  def get_contents(self, filename):
+    fd = open(filename, "r")
+    contents = fd.read()
+    fd.close()
+    return contents
 
   def interpret_goals(self):
     self.goals = []
@@ -108,9 +119,10 @@ class GoalResolver(object):
         shellcode_address = int(goal[1], 16)
         self.goals.append(ShellcodeAddressGoal(shellcode_address))
       elif goal[0] == "shellcode_file":
-        fd = open(goal[1], "r")
-        shellcode = fd.read()
-        fd.close()
+        shellcode = self.get_contents(goal[1])
+        self.goals.append(ShellcodeGoal(shellcode))
+      elif goal[0] == "shellcode_hex":
+        shellcode = binascii.unhexlify(goal[1])
         self.goals.append(ShellcodeGoal(shellcode))
       else:
         raise RuntimeError("Unknown goal") 
