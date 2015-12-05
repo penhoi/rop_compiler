@@ -1,11 +1,17 @@
 This repository contains the code for Veer's and Jeff's MIT 6.858 final project.
 
-Dependencies:
+Dependency list:
   capstone
   pyelftools
   z3 (with z3 python bindings)
   pwntools (for the example bof)
 
-Install capstone and pyelftools: sudo pip install capstone pyelftools
-z3 can be installed from: https://github.com/Z3Prover/z3
+Setup:
 
+capstone
+  - sudo pip install capstone
+pyelftools
+  - It can be installed from: https://github.com/eliben/pyelftools
+  - the pyelftools package in pip repos is old
+z3
+  - It can be installed from: https://github.com/Z3Prover/z3

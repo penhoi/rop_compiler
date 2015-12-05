@@ -1,6 +1,10 @@
 import z3
 
-class Const(object):
+class BaseType(object):
+  def is_rip_or_rsp(self):
+    return type(self) == Register and (self.name == "rip" or self.name == "rsp")
+
+class Const(BaseType):
   def __init__(self, value):
     self.value = value
 
@@ -10,7 +14,7 @@ class Const(object):
   def to_z3(self):
     return self.value
 
-class Register(object):
+class Register(BaseType):
   MAX_HANDLE = 0
 
   @classmethod
@@ -40,7 +44,7 @@ class Register(object):
       return True
     return False
 
-class Memory(object):
+class Memory(BaseType):
   def __init__(self, address, size = 8):
     self.address = address
     self.size = size

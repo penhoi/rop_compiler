@@ -11,7 +11,7 @@ class Finder(object):
   GADGET_END_INSTRUCTIONS = ['ret']
 
   def __init__(self, filename, base_address = 0, level = logging.WARNING):
-    logging.basicConfig(format="%(asctime)s - " + " - %(name)s - %(levelname)s - %(message)s")
+    logging.basicConfig(format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
     self.logger = logging.getLogger(self.__class__.__name__)
     self.logger.setLevel(level)
     self.level = level
