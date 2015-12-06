@@ -68,9 +68,7 @@ class Finder(object):
           self.logger.debug("Gadget found:")
           for inst in gadget_insts:
             self.logger.debug("0x%x:\t%s\t%s", inst.address, inst.mnemonic, inst.op_str)
-            gadget = classifier.create_gadget_from_instructions(gadget_insts)
-            if gadget != None:
-              gadgets.append(gadget)
+            gadgets.extend(classifier.create_gadgets_from_instructions(gadget_insts))
 
     return gadgets
 

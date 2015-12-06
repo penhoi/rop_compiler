@@ -3,7 +3,7 @@
 #include <sys/mman.h>
 
 int unused() {
-  printf("%p: sleep 1000",system);
+  printf("%p: uname -a  ",system);
 
   //Add some useful gadgets
   asm volatile("\

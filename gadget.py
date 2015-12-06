@@ -24,7 +24,7 @@ class GadgetClassifier(object):
       "nop" : self.NOP,
     })
 
-  def create_gadget_from_instructions(self, insts):
+  def create_gadgets_from_instructions(self, insts):
     self.insts = insts
     self.effects = []
 
@@ -170,38 +170,41 @@ class GadgetClassifier(object):
     solver = z3.Solver()
     for dst, value in self.effects:
       solver.add(Equal(dst, value).to_z3())
-      print Equal(dst, value).to_z3()
     return solver
 
-  def validate_and_create_move_reg(self, inputs, output, params):
+  def validate_and_create_move_reg(self, inputs, output, params, stack_offset, rip_in_stack_offset):
     # TODO validate with z3
-    return MoveReg(self.insts, inputs, output, params, self.effects)
+    return MoveReg(self.insts, inputs, output, params, self.effects, stack_offset, rip_in_stack_offset)
 
-  def validate_and_create_load_const(self, inputs, output, params):
+  def validate_and_create_load_const(self, inputs, output, params, stack_offset, rip_in_stack_offset):
     # TODO validate with z3
-    return LoadConst(self.insts, inputs, output, params, self.effects)
+    return LoadConst(self.insts, inputs, output, params, self.effects, stack_offset, rip_in_stack_offset)
 
-  def validate_and_create_arithmetic(self, inputs, output, params):
+  def validate_and_create_arithmetic(self, inputs, output, params, stack_offset, rip_in_stack_offset):
     # TODO validate with z3
-    return Arithmetic(self.insts, inputs, output, params, self.effects)
+    return Arithmetic(self.insts, inputs, output, params, self.effects, stack_offset, rip_in_stack_offset)
 
-  def validate_and_create_load_mem(self, inputs, output, params):
+  def validate_and_create_load_mem(self, inputs, output, params, stack_offset, rip_in_stack_offset):
     # TODO validate with z3
-    return LoadMem(self.insts, inputs, output, params, self.effects)
+    return LoadMem(self.insts, inputs, output, params, self.effects, stack_offset, rip_in_stack_offset)
 
-  def validate_and_create_store_mem(self, inputs, output, params):
+  def validate_and_create_store_mem(self, inputs, output, params, stack_offset, rip_in_stack_offset):
     # TODO validate with z3
-    return StoreMem(self.insts, inputs, output, params, self.effects)
+    return StoreMem(self.insts, inputs, output, params, self.effects, stack_offset, rip_in_stack_offset)
 
-  def validate_and_create_aritmetic_load(self, inputs, output, params):
+  def validate_and_create_aritmetic_load(self, inputs, output, params, stack_offset, rip_in_stack_offset):
     # TODO validate with z3
-    return ArithmeticLoad(self.insts, inputs, output, params, self.effects)
+    return ArithmeticLoad(self.insts, inputs, output, params, self.effects, stack_offset, rip_in_stack_offset)
 
-  def validate_and_create_aritmetic_store(self, inputs, output, params):
+  def validate_and_create_aritmetic_store(self, inputs, output, params, stack_offset, rip_in_stack_offset):
     # TODO validate with z3
-    return ArithmeticStore(self.insts, inputs, output, params, self.effects)
+    return ArithmeticStore(self.insts, inputs, output, params, self.effects, stack_offset, rip_in_stack_offset)
 
-  def random_value(self): return random.randint(0, 0x100000)
+  def get_stack_offset(self):
+    inputs = collections.defaultdict(lambda: 0, {})
+    memory = collections.defaultdict(lambda: 0, {})
+    output_registers, output_memory = self.execute(inputs, memory)
+    return output_registers["rsp"]
 
   def get_gadgets(self):
     validators = {  GadgetTypes.MOV_REG          : self.validate_and_create_move_reg,
@@ -230,12 +233,18 @@ class GadgetClassifier(object):
         possible_types = new_possible_types
     
     gadgets = []
+    stack_offset = self.get_stack_offset()
+    for (gadget_type, inputs, output, params) in possible_types:
+      if gadget_type == GadgetTypes.LOAD_MEM and output == "rip" and inputs[0] == "rsp":
+        rip_in_stack_offset = params[0]
+
     for (gadget_type, inputs, output, params) in possible_types:
       if output == "rip": continue # Ignore the LOAD_MEM from the ret at the end
 
-      gadget = validators[gadget_type](inputs, output, params)
+      gadget = validators[gadget_type](inputs, output, params, stack_offset, rip_in_stack_offset)
       if gadget != None:
-        print GadgetTypes.to_string(gadget_type), inputs, output, params
+        self.logger.debug("Found %s gadget with inputs %s, output %s, and params %s",
+          GadgetTypes.to_string(gadget_type), inputs, output, params)
         gadgets.append(gadget)
 
     return gadgets
@@ -418,12 +427,15 @@ class GadgetClassifier(object):
     pass
 
 class Gadget(object):
-  def __init__(self, insts, inputs, output, params, effects):
+  def __init__(self, insts, inputs, output, params, effects, stack_offset, rip_in_stack_offset):
     self.insts = insts
     self.address = insts[0].address
     self.inputs = inputs
     self.output = output
+    self.params = params
     self.effects = effects
+    self.stack_offset = stack_offset
+    self.rip_in_stack_offset = rip_in_stack_offset
 
     self.clobber = []
     for (dst, value) in self.effects:
@@ -450,7 +462,7 @@ class Gadget(object):
     return self.clobbers_register(name) or (type(self.output) == Register and self.output.name == name)
 
   def complexity(self):
-    return len(self.clobber)
+    return len(self.clobber) + (1 if self.stack_offset - 8 != self.rip_in_stack_offset else 0)
 
   def to_statements(self):
     statements = []
@@ -519,21 +531,19 @@ if __name__ == "__main__":
     ({},                    '\x8b\x04\xc5\xc0\x32\x45\x00\xc3'),             # mov rax,QWORD PTR [rax*8+0x4532c0]
     ({LoadMem : 1, LoadConst : 1}, '\x59\x48\x89\xcb\x48\xc7\xc1\x05\x00\x00\x00\xc3'), # pop rcx; mov rbx,rcx; mov rcx,0x5; ret
   ]
-  tests = [tests[13]]
 
   classifier = GadgetClassifier(logging.DEBUG)
   fail = False
   for (expected_types, code) in tests:
-    gadgets = classifier.create_gadget_from_instructions([x for x in disassembler.disasm(code, 0x400000)]) # Expand the generator
+    gadgets = classifier.create_gadgets_from_instructions([x for x in disassembler.disasm(code, 0x400000)]) # Expand the generator
     types = {}
 
     for g in gadgets:
       if type(g) not in types: types[type(g)] = 0
       types[type(g)] += 1
 
-    print "\n"
     if types != expected_types:
-      print "Wrong Types Found.  Expected {}, got {}".format(
+      print "\nWrong Types Found.  Expected {}, got {}".format(
         ",".join(["{} {}".format(t.__name__, c) for t,c in expected_types.items()]),
         ",".join(["{} {}".format(t.__name__, c) for t,c in types.items()]))
 

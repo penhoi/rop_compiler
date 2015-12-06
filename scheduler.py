@@ -34,8 +34,8 @@ class Scheduler(object):
 
     best = None
     for gadget in self.gadgets:
-      if (type(gadget) == ga.LoadStack # It's a load from the stack (most likely a pop)
-        and register_name == gadget.output.name # and it's for the correct register
+      if (type(gadget) == ga.LoadMem and gadget.inputs[0] == "rsp" # It's a load from the stack (most likely a pop)
+        and register_name == gadget.output # and it's for the correct register
         and (best == None or best.complexity() > gadget.complexity())): # and it's got a better complexity than the current one
           best = gadget
 
@@ -55,12 +55,10 @@ class Scheduler(object):
     for gadget in self.gadgets:
       if type(gadget) != ga.StoreMem:
         continue
-      if value_reg != gadget.inputs[0].name:
-        continue
 
-      if (type(gadget) == ga.StoreMem #
-        and addr_reg == gadget.inputs[1].name #
-        and value_reg == gadget.inputs[0].name #
+      if (type(gadget) == ga.StoreMem
+        and addr_reg == gadget.inputs[0]
+        and value_reg == gadget.inputs[1]
         and (best == None or best.complexity() > gadget.complexity())): # and it's got a better complexity than the current one
           best = gadget
 
@@ -129,12 +127,11 @@ class Scheduler(object):
     if type(value) != str:
       value = self.ap(value)
 
-    differences = self.solver.get_values(gadget.to_statements())
-    chain  = differences[gadget.output.name + "_output"][1] * "A"
+    chain  = gadget.params[0] * "A"
     chain += value
-    chain += (differences["rip_output"][1] - len(chain)) * "B"
+    chain += (gadget.rip_in_stack_offset - len(chain)) * "B"
     chain += self.ap(next_address)
-    chain += (differences["rsp_output"][1] - len(chain)) * "C"
+    chain += (gadget.stack_offset - len(chain)) * "C"
     return chain
 
   def create_function_chain(self, goal, next_address = 0x4444444444444444):
@@ -186,10 +183,9 @@ class Scheduler(object):
     chain = self.create_set_reg_chain(load_addr_gadget, address, load_value_gadget.address)
     chain += self.create_set_reg_chain(load_value_gadget, buf, store_mem_gadget.address)
 
-    differences = self.solver.get_values(store_mem_gadget.to_statements()[1:])
-    set_mem_rop = (differences["rip_output"][1]) * "B"
+    set_mem_rop = store_mem_gadget.rip_in_stack_offset * "B"
     set_mem_rop += self.ap(next_address)
-    set_mem_rop += (differences["rsp_output"][1] - len(set_mem_rop)) * "C"
+    set_mem_rop += (store_mem_gadget.stack_offset - len(set_mem_rop)) * "C"
     chain += set_mem_rop
 
     return (chain, load_addr_gadget.address)
