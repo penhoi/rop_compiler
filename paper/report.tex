@@ -4,6 +4,7 @@
 
 \documentclass[journal]{IEEEtran}
 \usepackage{cite}
+\usepackage{url} 
 
 \begin{document}
 %
@@ -34,12 +35,40 @@ Here is where we put Motivation.
       - other existing tools, and their problems
 
 \section{Implementation Details}
-    - based off of Q \cite{schwartz2011q}
-    a) Design
-        1) gadget finder
-        2) goal language
-        3) gadget scheduler
-          - How our compiler interacts with existing defenses (ASLR, w\^x)
+Our ROP Compiler implementation is based of the design presented by Schwartz et al. \cite{schwartz2011q}.
+Our ROP Compiler is separated into four main components: the goal interpreter, the gadget finder, gadget classifier, and the gadget scheduler.
+
+\subsection{Goal Interpreter}
+The goal interpreter provides the necessary configuration data for the ROP compiler.
+This configuration data is supplied by the exploit author and is comprised of three separate components:
+\begin{enumerate}
+  \item A list of files to extract gadgets from.  For PIE executables and libraries, each files should include the address that it was loaded to.
+  \item A list of libraries to extract metadata from.  This list of libraries will be used for obtaining function metadata for use later, as described in \ref{scheduler}.
+  \item A list of the author's desired goals.  Each goal item can be one of three types: \emph{Function}, \emph{ShellcodeAddress}, \emph{Shellcode}.
+  \emph{Function} goals indicate the author wishes to call a given function with a set of specified arguments.  
+  \emph{ShellcodeAddress} goals indicate the author wishes to run a set of shellcode that already exists in the target program's address space.
+  The \emph{Shellcode} goal indicates the author wishes to run a set of shellcode that does not already exists in the target program's address space.
+  Thus, the \emph{Shellcode} goal must first load the shellcode into memory before it may continue.
+\end{enumerate}
+These 3 goals were chosen to allow the exploit author to obtain arbitrary code execution, while also specifying the minimum amount of work that is necessary.
+For instance, there is no need to use a \emph{Shellcode} goal, if the exploit author already knows the address of their shellcode in memory.
+
+\subsection{Gadget Finder}
+The gadget finder iterators over all of the available binaries and searches for gadgets.
+This is accomplished by walking each byte of the executable sections in the and trying to disassemble the last \textbf{N} number of bytes.
+The choice of \textbf{N} is compromise between the speed of the ROP compiling process, and the number of gadgets found.
+As the larger gadgets tend to be more complex (and thus less useful during ROP compiling), increasing \textbf{N} is not necessarily the best option.
+Our implementation makes the compromise of setting \textbf{N} to 10.
+A future version may iteratively increase \textbf{N} upon failing to compile an adequate ROP chain.
+For disassembly, our ROP compiler makes use of the Capstone framework \cite{capstone}.
+
+\subsection{Gadget Classifier}
+The gadget classifier
+
+\subsection{Gadget Scheduler}\label{scheduler}
+The gadget scheduler
+How our compiler interacts with existing defenses (ASLR, w\^x)
+
 
 \section{Example Usage}
   - bof.py
