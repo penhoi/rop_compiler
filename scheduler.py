@@ -36,7 +36,7 @@ class Scheduler(object):
     for gadget in self.gadgets:
       if (type(gadget) == ga.LoadMem and gadget.inputs[0] == "rsp" # It's a load from the stack (most likely a pop)
         and register_name == gadget.output # and it's for the correct register
-        and (no_clobber == None or not self.clobbers_registers(no_clobber))
+        and (no_clobber == None or not gadget.clobbers_registers(no_clobber))
         and (best == None or best.complexity() > gadget.complexity())): # and it's got a better complexity than the current one
           best = gadget
 
@@ -56,7 +56,7 @@ class Scheduler(object):
           or (gadget.inputs[0] == input_registers[0] # Only looking for one specific input
             and (len(gadget.inputs) == 1 or gadget.inputs[1] == input_registers[1]))) # Also looking to match the second input
         and (output_register == None or gadget.output == output_register) # looking to match the output
-        and (no_clobber == None or not self.clobbers_registers(no_clobber)) # Can't clobber anything weneed
+        and (no_clobber == None or not gadget.clobbers_registers(no_clobber)) # Can't clobber anything weneed
         and (best == None or best_complexity > gadget.complexity())): # and it's got a better complexity than the current one
           best = gadget
           best_complexity = best.complexity()
@@ -287,12 +287,17 @@ class Scheduler(object):
 
     # TODO add mmap/memcpy, mmap + rop memory writing, using syscalls instead of functions, and others ways to change memory protections
 
+
     self.logger.info("Couldn't find mprotect or syscall, restorting to reading the GOT and computing addresses")
-    base_address_in_got, offset_in_libc = self.goal_resolver.resolve_symbol_from_got("printf", "mprotect")
-    mprotect_args = [goal.shellcode_address & PAGE_MASK, 0x2000, PROT_RWX]
-    chain, next_address = self.create_read_add_jmp_function_chain(base_address_in_got, offset_in_libc, mprotect_args, goal.shellcode_address)
-    if chain != None:
-      return chain, next_address
+    functions_in_got = ["printf", "puts", "read", "open", "close", "exit"] # Keep trying, in case they don't use the first function
+    for base in functions_in_got:
+      base_address_in_got, offset_in_libc = self.goal_resolver.resolve_symbol_from_got(base, "mprotect")
+      if base_address_in_got == None or offset_in_libc == None:
+        continue
+      mprotect_args = [goal.shellcode_address & PAGE_MASK, 0x2000, PROT_RWX]
+      chain, next_address = self.create_read_add_jmp_function_chain(base_address_in_got, offset_in_libc, mprotect_args, goal.shellcode_address)
+      if chain != None:
+        return chain, next_address
 
     raise RuntimeError("Failed finding necessary gadgets for shellcode address goal")
 

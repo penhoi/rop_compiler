@@ -155,6 +155,8 @@ class GoalResolver(object):
     main_binary = self.file_list[0][0]
     got_addr = main_binary.get_section_by_name(".got").header.sh_addr
     symbol_num = self.symbol_number(main_binary, base_name)
+    if symbol_num == None:
+      return (None, None)
     symbol_in_got = got_addr + 0x20 + ((symbol_num-1) * 8)
 
     # Now, get the offset from the base to the target in libc
