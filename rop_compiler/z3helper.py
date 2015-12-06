@@ -1,3 +1,5 @@
+# This class wraps z3 and provides methods for use in the rop compiler.  At the moment, it isn't used and is more left over
+# from a previous iteration that did use it.
 import logging
 import z3
 from ast import *
@@ -18,7 +20,7 @@ class Z3Helper(object):
   def get_memory_solver(self):
     s = self.get_solver()
     for i in range(0, self.STACK_SIZE, 8):
-      mem_index = self.get_memory(i) 
+      mem_index = self.get_memory(i)
       s.append(mem_index == i)
     return s
 
@@ -57,11 +59,4 @@ class Z3Helper(object):
         s.pop()
 
     return outputs
-
-
-
-
-
-
-
 

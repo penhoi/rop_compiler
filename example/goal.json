@@ -4,6 +4,9 @@
       [ "./example/bof", "0" ],
       [ "/lib/x86_64-linux-gnu/libc.so.6", "0x800000" ]
     ], 
+  "libraries" : [ 
+    "/lib/x86_64-linux-gnu/libc.so.6"
+    ],
   "goals" : [
       [ "function", "mprotect", 8301000, 4096, 7 ],
       [ "function", "system", "/bin/sh" ],

@@ -1,3 +1,4 @@
+# This file contains a few convenience methods that wrap the ROP compiling process that can be used by exploit scripts.
 import logging
 import finder, goal, scheduler
 
@@ -12,14 +13,14 @@ def rop(filenames_and_addresses, goal_resolver, log_level = logging.WARNING):
   return gadget_scheduler.get_chain()
 
 def rop_to_shellcode(filenames_and_addresses, shellcode_address, log_level = logging.WARNING):
-  """Convience method to create a goals json and then find a rop chain for it"""
+  """Convience method to create a goal_resolver for a shellcode address goal then find a rop chain for it"""
   goal_resolver = goal.create_from_arguments(filenames_and_addresses, [], [["shellcode", hex(shellcode_address)]])
   return rop(filenames_and_addresses, goal_resolver, log_level)
 
 if __name__ == "__main__":
   import sys
   if len(sys.argv) < 2:
-    print "Usage: python ropme.py filename"
+    print "Usage: python ropme.py filename [-v]"
     sys.exit(0)
 
   level = logging.WARNING
