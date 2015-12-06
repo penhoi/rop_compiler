@@ -1,0 +1,23 @@
+what problem we're solving
+what our code does
+Q, ropc, mona.py
+
+
+ROP Compiler
+
+1) Intro and Motivation
+    - what is ROP (why it matters)
+    - why pentesting tools matter
+    - why rop compiler
+        - other existing tools, and their problems
+
+2) Our tool
+    - based off of Q
+    a) Design
+        1) gadget finder
+        2) symbolic execution
+        3) gadget scheduler
+
+3) Example exploits
+    - bof.py
+    - rsync
