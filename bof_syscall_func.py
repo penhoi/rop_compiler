@@ -1,6 +1,6 @@
 import sys, logging
 from pwn import *
-import ropme
+from rop_compiler import ropme
 
 filename = './example/bof_syscall'
 p = process([filename,'3000'])

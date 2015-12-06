@@ -1,6 +1,6 @@
 import sys, logging, binascii
 from pwn import *
-import ropme, goal
+from rop_compiler import ropme, goal
 
 filename = './example/bof_read_got'
 p = process([filename,'3000'])
