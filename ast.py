@@ -14,6 +14,9 @@ class Const(BaseType):
   def to_z3(self):
     return self.value
 
+  def compute(self, input_registers, memory):
+    return self.value
+
 class Register(BaseType):
   MAX_HANDLE = 0
 
@@ -30,7 +33,7 @@ class Register(BaseType):
       self.handle = Register.new_handle()
 
   def __str__(self):
-    return self.name + str(self.handle)
+    return self.name
 
   def to_z3(self):
     return z3.BitVec(str(self), self.size * 8)
@@ -43,6 +46,9 @@ class Register(BaseType):
         or (type(name) == Register and name.name == self.name)):
       return True
     return False
+
+  def compute(self, input_registers, memory):
+    return input_registers[self.name]
 
 class Memory(BaseType):
   def __init__(self, address, size = 8):
@@ -92,13 +98,8 @@ class Memory(BaseType):
 
     return reg1.name == reg2.name and (None in [const1, const2] or const1.value == const2.value)
 
-
-
-
-
-
-
-
+  def compute(self, input_registers, memory):
+    return memory[self.address.compute(input_registers, memory)] # Don't evaluate the memory
 
 class Operand(object):
   def __init__(self):
@@ -116,36 +117,46 @@ class BinaryOperand(Operand):
 
   def to_z3(self):
     first = self.operands[0].to_z3()
-    return getattr(first, self.z3_name)(self.operands[1].to_z3())
+    #return getattr(first, self.z3_name)(self.operands[1].to_z3())
     return self.operand(self.operands[0].to_z3(), self.operands[1].to_z3())
+
+  def compute(self, input_registers, memory):
+    return self.operand(self.operands[0].compute(input_registers, memory), self.operands[1].compute(input_registers, memory))
 
 class Add(BinaryOperand):
   name = "+"
   z3_name = "__add__"
+  operand = (lambda self,x,y: x + y)
 
 class Sub(BinaryOperand):
   name = "-"
   z3_name = "__sub__"
+  operand = (lambda self,x,y: x - y)
 
 class Mult(BinaryOperand):
   name = "*"
   z3_name = "__mul__"
+  operand = (lambda self,x,y: x * y)
 
 class BitwiseAnd(BinaryOperand):
   name = "&"
   z3_name = "__and__"
+  operand = (lambda self,x,y: x & y)
 
 class BitwiseOr(BinaryOperand):
   name = "|"
   z3_name = "__or__"
+  operand = (lambda self,x,y: x | y)
 
 class BitwiseXor(BinaryOperand):
   name = "^"
   z3_name = "__xor__"
+  operand = (lambda self,x,y: x ^ y)
 
 class Equal(BinaryOperand):
   name = "="
   z3_name = "__eq__"
+  operand = (lambda self,x,y: x == y)
 
 class Store(BinaryOperand):
   name = "Memory"
@@ -153,10 +164,15 @@ class Store(BinaryOperand):
 
 
 if __name__ == "__main__":
+  inputs = { "rbx" : 9 }
+  add8 = Add(Register("rbx"), Const(8))
+  print add8, "=", add8.compute({"rbx" : 9}, {}),"for inputs:",inputs
+
   s = z3.Solver()
   s.add(Equal(Add(Register("rbx"), Const(8)), Const(10)).to_z3())
   if s.check() == z3.sat:
     print "Model:",s.model()
 
   z3.solve(Equal(Add(Memory(Const(0x1234)), Const(8)), Const(10)).to_z3())
+
 
