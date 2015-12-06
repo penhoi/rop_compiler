@@ -100,53 +100,62 @@ class GadgetClassifier(object):
  
     for oname, ovalue in output_registers.items():
       # Check for LOAD_CONST (it'll get filtered between the multiple rounds)
-      possible_types.append((GadgetTypes.LOAD_CONST, [], oname, ovalue))
+      possible_types.append((LoadConst, [], oname, ovalue))
 
       for iname, ivalue in inputs.items():
         # Check for MOV_REG
         if ovalue == ivalue:
-          possible_types.append((GadgetTypes.MOV_REG, [iname], oname, []))
+          possible_types.append((MoveReg, [iname], oname, []))
 
         if oname == "rip":
-          possible_types.append((GadgetTypes.JUMP, [iname], oname, [ovalue - ivalue]))
+          possible_types.append((Jump, [iname], oname, [ovalue - ivalue]))
 
         # Check for ARITHMETIC
         if iname != oname: # add rbx, rax (where rbx is dst/operand 1 and rax is operand 2)
           continue
 
         for iname2, ivalue2 in inputs.items():
-          if (ovalue == ivalue + ivalue2
-              or ovalue == ivalue - ivalue2
-              or ovalue == ivalue * ivalue2
-              or (ovalue == ivalue & ivalue2 and iname != iname2)
-              or (ovalue == ivalue | ivalue2 and iname != iname2)
-              or ovalue == ivalue ^ ivalue2):
-            possible_types.append((GadgetTypes.ARITHMETIC, [iname, iname2], oname, None))
+          if ovalue == ivalue + ivalue2:
+            possible_types.append((AddGadget, [iname, iname2], oname, None))
+          if ovalue == ivalue - ivalue2:
+            possible_types.append((SubGadget, [iname, iname2], oname, None))
+          if ovalue == ivalue * ivalue2:
+            possible_types.append((MulGadget, [iname, iname2], oname, None))
+          if ovalue == ivalue & ivalue2 and iname != iname2:
+            possible_types.append((AndGadget, [iname, iname2], oname, None))
+          if ovalue == ivalue | ivalue2 and iname != iname2:
+            possible_types.append((OrGadget, [iname, iname2], oname, None))
+          if ovalue == ivalue ^ ivalue2:
+            possible_types.append((XorGadget, [iname, iname2], oname, None))
 
       for address, value_at_address in memory.items():
         # Check for ARITHMETIC_LOAD
         for reg_input_name, reg_input_value in inputs.items():
-          if (   ovalue == reg_input_value + value_at_address
-              or ovalue == reg_input_value - value_at_address
-              or ovalue == reg_input_value * value_at_address
-              or ovalue == reg_input_value & value_at_address 
-              or ovalue == reg_input_value | value_at_address
-              or ovalue == reg_input_value ^ value_at_address):
-
-            for addr_reg_name, addr_reg_value in inputs.items():
-              possible_types.append((GadgetTypes.ARITHMETIC_LOAD, [reg_input_name], oname, [address - addr_reg_value]))
+          for addr_reg_name, addr_reg_value in inputs.items():
+            if ovalue == reg_input_value + value_at_address:
+              possible_types.append((LoadAddGadget, [reg_input_name], oname, [address - addr_reg_value]))
+            if ovalue == reg_input_value - value_at_address:
+              possible_types.append((LoadSubGadget, [reg_input_name], oname, [address - addr_reg_value]))
+            if ovalue == reg_input_value * value_at_address:
+              possible_types.append((LoadMulGadget, [reg_input_name], oname, [address - addr_reg_value]))
+            if ovalue == reg_input_value & value_at_address: 
+              possible_types.append((LoadAndGadget, [reg_input_name], oname, [address - addr_reg_value]))
+            if ovalue == reg_input_value | value_at_address:
+              possible_types.append((LoadOrGadget, [reg_input_name], oname, [address - addr_reg_value]))
+            if ovalue == reg_input_value ^ value_at_address:
+              possible_types.append((LoadXorGadget, [reg_input_name], oname, [address - addr_reg_value]))
 
         # Check for LOAD_MEM
         if ovalue == value_at_address:
           for iname, ivalue in inputs.items():
-            possible_types.append((GadgetTypes.LOAD_MEM, [iname], oname, [address - ivalue]))
+            possible_types.append((LoadMem, [iname], oname, [address - ivalue]))
 
     for address, value in output_memory.items():
       for reg_input_name, reg_input_value in inputs.items():
         # Check for STORE_MEM
         if value == reg_input_value:
           for addr_reg, addr_value in inputs.items():
-            possible_types.append((GadgetTypes.STORE_MEM, [addr_reg, reg_input_name], None, [address - addr_value]))
+            possible_types.append((StoreMem, [addr_reg, reg_input_name], None, [address - addr_value]))
 
         # Check for ARITHMETIC_STORE
         initial_memory_value = None
@@ -154,12 +163,20 @@ class GadgetClassifier(object):
           continue
 
         initial_memory_value = memory[address]
-        if (value == initial_memory_value + reg_input_value or value == initial_memory_value - reg_input_value or
-            value == initial_memory_value * reg_input_value or value == initial_memory_value & reg_input_value or
-            value == initial_memory_value | reg_input_value or value == initial_memory_value ^ reg_input_value):
 
-          for addr_reg_name, addr_reg_value in inputs.items():
-            possible_types.append((GadgetTypes.ARITHMETIC_STORE, [addr_reg_name, reg_input_name], None, [address - addr_reg_value]))
+        for addr_reg_name, addr_reg_value in inputs.items():
+          if value == initial_memory_value + reg_input_value:
+            possible_types.append((StoreAddGadget, [addr_reg_name, reg_input_name], None, [address - addr_reg_value]))
+          if value == initial_memory_value - reg_input_value:
+            possible_types.append((StoreSubGadget, [addr_reg_name, reg_input_name], None, [address - addr_reg_value]))
+          if value == initial_memory_value * reg_input_value:
+            possible_types.append((StoreMulGadget, [addr_reg_name, reg_input_name], None, [address - addr_reg_value]))
+          if value == initial_memory_value & reg_input_value:
+            possible_types.append((StoreAndGadget, [addr_reg_name, reg_input_name], None, [address - addr_reg_value]))
+          if value == initial_memory_value | reg_input_value:
+            possible_types.append((StoreOrGadget, [addr_reg_name, reg_input_name], None, [address - addr_reg_value]))
+          if value == initial_memory_value ^ reg_input_value:
+            possible_types.append((StoreXorGadget, [addr_reg_name, reg_input_name], None, [address - addr_reg_value]))
 
     return possible_types
 
@@ -168,38 +185,6 @@ class GadgetClassifier(object):
     for dst, value in self.effects:
       solver.add(Equal(dst, value).to_z3())
     return solver
-
-  def validate_and_create_move_reg(self, inputs, output, params, stack_offset, rip_in_stack_offset):
-    # TODO validate with z3
-    return MoveReg(self.insts, inputs, output, params, self.effects, stack_offset, rip_in_stack_offset)
-
-  def validate_and_create_load_const(self, inputs, output, params, stack_offset, rip_in_stack_offset):
-    # TODO validate with z3
-    return LoadConst(self.insts, inputs, output, params, self.effects, stack_offset, rip_in_stack_offset)
-
-  def validate_and_create_arithmetic(self, inputs, output, params, stack_offset, rip_in_stack_offset):
-    # TODO validate with z3
-    return Arithmetic(self.insts, inputs, output, params, self.effects, stack_offset, rip_in_stack_offset)
-
-  def validate_and_create_load_mem(self, inputs, output, params, stack_offset, rip_in_stack_offset):
-    # TODO validate with z3
-    return LoadMem(self.insts, inputs, output, params, self.effects, stack_offset, rip_in_stack_offset)
-
-  def validate_and_create_store_mem(self, inputs, output, params, stack_offset, rip_in_stack_offset):
-    # TODO validate with z3
-    return StoreMem(self.insts, inputs, output, params, self.effects, stack_offset, rip_in_stack_offset)
-
-  def validate_and_create_aritmetic_load(self, inputs, output, params, stack_offset, rip_in_stack_offset):
-    # TODO validate with z3
-    return ArithmeticLoad(self.insts, inputs, output, params, self.effects, stack_offset, rip_in_stack_offset)
-
-  def validate_and_create_aritmetic_store(self, inputs, output, params, stack_offset, rip_in_stack_offset):
-    # TODO validate with z3
-    return ArithmeticStore(self.insts, inputs, output, params, self.effects, stack_offset, rip_in_stack_offset)
-
-  def validate_and_create_jump(self, inputs, output, params, stack_offset, rip_in_stack_offset):
-    # TODO validate with z3
-    return Jump(self.insts, inputs, output, params, self.effects, stack_offset, rip_in_stack_offset)
 
   def get_stack_offset(self):
     inputs = collections.defaultdict(lambda: 0, {})
@@ -210,15 +195,6 @@ class GadgetClassifier(object):
     return 0
 
   def get_gadgets(self):
-    validators = {  GadgetTypes.JUMP             : self.validate_and_create_jump,
-                    GadgetTypes.MOV_REG          : self.validate_and_create_move_reg,
-                    GadgetTypes.LOAD_CONST       : self.validate_and_create_load_const,
-                    GadgetTypes.ARITHMETIC       : self.validate_and_create_arithmetic,
-                    GadgetTypes.LOAD_MEM         : self.validate_and_create_load_mem,
-                    GadgetTypes.STORE_MEM        : self.validate_and_create_store_mem,
-                    GadgetTypes.ARITHMETIC_LOAD  : self.validate_and_create_aritmetic_load,
-                    GadgetTypes.ARITHMETIC_STORE : self.validate_and_create_aritmetic_store}
-
     possible_types = None
     for i in range(self.NUM_VALIDATIONS):
       inputs = collections.defaultdict(lambda: random.randint(0,0x100000), {})
@@ -240,17 +216,16 @@ class GadgetClassifier(object):
     stack_offset = self.get_stack_offset()
     rip_in_stack_offset = None
     for (gadget_type, inputs, output, params) in possible_types:
-      if gadget_type == GadgetTypes.LOAD_MEM and output == "rip" and inputs[0] == "rsp":
+      if gadget_type == LoadMem and output == "rip" and inputs[0] == "rsp":
         rip_in_stack_offset = params[0]
 
     for (gadget_type, inputs, output, params) in possible_types:
-      if output == "rip" and gadget_type != GadgetTypes.JUMP: continue # Ignore the LOAD_MEM from the ret at the end
-      if rip_in_stack_offset == None and gadget_type != GadgetTypes.JUMP: continue # Except for JUMP, all the gadgets must load rip from the stack
+      if output == "rip" and gadget_type != Jump: continue # Ignore the LOAD_MEM from the ret at the end
+      if rip_in_stack_offset == None and gadget_type != Jump: continue # Except for JUMP, all the gadgets must load rip from the stack
 
-      gadget = validators[gadget_type](inputs, output, params, stack_offset, rip_in_stack_offset)
+      gadget = gadget_type(self.insts, inputs, output, params, self.effects, stack_offset, rip_in_stack_offset)
       if gadget != None:
-        self.logger.debug("Found %s gadget with inputs %s, output %s, and params %s",
-          GadgetTypes.to_string(gadget_type), inputs, output, params)
+        self.logger.debug("Found %s gadget with inputs %s, output %s, and params %s", gadget_type.__name__, inputs, output, params)
         gadgets.append(gadget)
 
     return gadgets
@@ -445,36 +420,39 @@ class Gadget(object):
         names.append(dst.name)
     return names
 
+  def validate(self):
+    # TODO validate with z3
+    return True
+
 class Jump(Gadget): pass
 class MoveReg(Gadget):         pass
 class LoadConst(Gadget):       pass
-class Arithmetic(Gadget):      pass
 class LoadMem(Gadget):         pass
+class Arithmetic(Gadget):      pass
 class StoreMem(Gadget):        pass
 class ArithmeticLoad(Gadget):  pass
 class ArithmeticStore(Gadget): pass
 
+class AddGadget(Arithmetic):   pass
+class SubGadget(Arithmetic):   pass
+class MulGadget(Arithmetic):   pass
+class AndGadget(Arithmetic):   pass
+class OrGadget(Arithmetic):    pass
+class XorGadget(Arithmetic):   pass
 
-class GadgetTypes(enum.Enum):
-  (
-    UNKNOWN,
-    JUMP,              # Jump to address / register
-    MOV_REG,           # OutReg <- InReg
-    LOAD_CONST,        # OutReg <- Constant
-    ARITHMETIC,        # OutReg <- InReg1 operator InReg2
-    LOAD_MEM,          # OutReg <- Mem[Address or Register]
-    STORE_MEM,         # Mem[Address or Register] = InReg
-    ARITHMETIC_LOAD,   # OutReg <- OutReg operator M[AddrReg or Register]
-    ARITHMETIC_STORE,  # Mem[AddrReg or Register] <- Mem[AddrReg or Register] operator InReg
-  ) = range(9)
+class LoadAddGadget(ArithmeticLoad):   pass
+class LoadSubGadget(ArithmeticLoad):   pass
+class LoadMulGadget(ArithmeticLoad):   pass
+class LoadAndGadget(ArithmeticLoad):   pass
+class LoadOrGadget(ArithmeticLoad):    pass
+class LoadXorGadget(ArithmeticLoad):   pass
 
-  CLASSES = { JUMP : Jump, MOV_REG : MoveReg, LoadConst : LoadConst, ARITHMETIC : Arithmetic, LOAD_MEM : LoadMem,
-    STORE_MEM : StoreMem, ARITHMETIC_LOAD : ArithmeticLoad, ARITHMETIC_STORE : ArithmeticStore }
-  def __init__(self, type_enum, *params):
-    return self.CLASSES[type_enum](*params)
-
-
-
+class StoreAddGadget(ArithmeticStore):   pass
+class StoreSubGadget(ArithmeticStore):   pass
+class StoreMulGadget(ArithmeticStore):   pass
+class StoreAndGadget(ArithmeticStore):   pass
+class StoreOrGadget(ArithmeticStore):    pass
+class StoreXorGadget(ArithmeticStore):   pass
 
 if __name__ == "__main__":
   from capstone import *

@@ -141,10 +141,13 @@ class Scheduler(object):
 
   def ap(self, address):
     """Packs an address into a string. ap is short for Address Pack"""
+    if address < 0:
+      address = 2**64 + address
     return struct.pack("Q", address)
 
   def create_set_reg_chain(self, gadget, value, next_address):
     if type(value) != str:
+      print type(value), value
       value = self.ap(value)
 
     chain  = gadget.params[0] * "A"
@@ -183,6 +186,7 @@ class Scheduler(object):
     arg_gadgets = []
 
     # Look for all the needed gadgets
+    original_offset = offset
     for jump_reg in self.all_registers:
       read_gadget = set_read_addr_gadget = None
       for addr_reg in self.all_registers:
@@ -205,11 +209,15 @@ class Scheduler(object):
 
       add_jump_reg_gadget = set_add_reg_gadget = None
       for add_reg in self.all_registers:
+        offset = original_offset
         if add_reg == jump_reg: continue
 
-        add_jump_reg_gadget = self.find_gadget(ga.Arithmetic, [jump_reg, add_reg], jump_reg)
-        if add_jump_reg_gadget == None:
-          continue
+        add_jump_reg_gadget = self.find_gadget(ga.AddGadget, [jump_reg, add_reg], jump_reg)
+        if add_jump_reg_gadget == None: # If we can't find an AddGadget, try finding a SubGadget and negating
+          add_jump_reg_gadget = self.find_gadget(ga.SubGadget, [jump_reg, add_reg], jump_reg)
+          offset = -offset
+          if add_jump_reg_gadget == None:
+            continue
 
         set_add_reg_gadget = self.find_load_stack_gadget(add_reg, [jump_reg])
         if set_add_reg_gadget == None:
