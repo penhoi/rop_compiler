@@ -1,5 +1,7 @@
 default:
-	pdflatex report.tex
+	pdflatex report
+	bibtex report
+	pdflatex report
 
 clean:
-	rm *.aux *.log *.pdf
+	rm -f *.aux *.log *.pdf *.bbl *.blg
