@@ -390,7 +390,7 @@ class Gadget(object):
   def clobbers_registers(self, names):
     """Check if the gadget clobbers any of the specified registers"""
     for name in names:
-      if self.clobbers_registers(name):
+      if self.clobbers_register(name):
         return True
     return False
 
