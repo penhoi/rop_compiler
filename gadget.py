@@ -245,6 +245,7 @@ class GadgetClassifier(object):
 
     for (gadget_type, inputs, output, params) in possible_types:
       if output == "rip" and gadget_type != GadgetTypes.JUMP: continue # Ignore the LOAD_MEM from the ret at the end
+      if rip_in_stack_offset == None and gadget_type != GadgetTypes.JUMP: continue # Except for JUMP, all the gadgets must load rip from the stack
 
       gadget = validators[gadget_type](inputs, output, params, stack_offset, rip_in_stack_offset)
       if gadget != None:
