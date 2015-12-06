@@ -257,7 +257,7 @@ class Scheduler(object):
     # read the address in the GOT
     read_gadget_chain = read_gadget.rip_in_stack_offset * "B"
     read_gadget_chain += self.ap(set_add_reg_gadget.address)
-    read_gadget_chain += (set_add_reg_gadget.stack_offset - len(read_gadget_chain)) * "C"
+    read_gadget_chain += (read_gadget.stack_offset - len(read_gadget_chain)) * "C"
     chain += read_gadget_chain
 
     # set the offset from the base to the target

