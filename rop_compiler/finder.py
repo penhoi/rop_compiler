@@ -6,8 +6,12 @@ import logging
 import gadget as gt
 
 class Finder(object):
+  """This class parses an ELF files to obtain any gadgets inside their executable sections"""
 
+  """The maximum size in bytes of a gadget to look for"""
   MAX_GADGET_SIZE = 10
+
+  """A list containing any instructions which signify the end of a gadget."""
   GADGET_END_INSTRUCTIONS = ['ret', 'jmp']
 
   def __init__(self, filename, base_address = 0, level = logging.WARNING):
@@ -25,17 +29,20 @@ class Finder(object):
     self.fd.close()
 
   def find_gadgets(self):
+    """Iterates over the defined files and return any gadgets"""
     gadgets = []
     for segment in self.iter_executable_segments():
       gadgets.extend(self.get_gadgets_for_segment(segment))
     return gadgets
 
   def iter_executable_segments(self):
+    """Any iterator that only returns the executable sections in the ELF file"""
     for seg in self.elffile.iter_segments():
       if seg.header.p_flags & P_FLAGS.PF_X != 0:
         yield seg
 
   def is_valid_gadget(self, insts):
+    """Given a set of capstone instructions, determine if they represent a potential gadget worth further investigation"""
     if len(insts) == 0:
       return False
 
@@ -47,6 +54,8 @@ class Finder(object):
     return good
 
   def get_gadgets_for_segment(self, segment):
+    """Iteratively step through an executable section looking for gadgets at each address"""
+
     disassembler = Cs(CS_ARCH_X86, CS_MODE_64)
     disassembler.detail = True
     classifier = gt.GadgetClassifier(self.level)
@@ -61,13 +70,13 @@ class Finder(object):
 
         code = data[begin:i]
         address = self.base_address + segment.header.p_paddr + begin
-        if self.base_address == 0 and segment.header.p_paddr == 0:
+        if self.base_address == 0 and segment.header.p_paddr == 0: # libraries and PIE executable, don't have the p_paddr in the header set to 0
           self.logger.warning("No base address given for library or PIE executable.  Addresses may be wrong")
         gadget_insts = [x for x in disassembler.disasm(code, address)] # Expand the generator
 
         if (self.is_valid_gadget(gadget_insts) and not gadget_insts[0].address in self.used_addresses):
           self.used_addresses.append(gadget_insts[0].address)
-          self.logger.debug("Gadget found:")
+          self.logger.debug("Potential Gadget found:")
           for inst in gadget_insts:
             self.logger.debug("0x%x:\t%s\t%s", inst.address, inst.mnemonic, inst.op_str)
             gadgets.extend(classifier.create_gadgets_from_instructions(gadget_insts))

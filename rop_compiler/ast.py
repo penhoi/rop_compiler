@@ -1,10 +1,16 @@
+# This file holds the Abstract Syntax Tree classes for expressions built when emulating the gadget's instructions.  Note that
+# it is not complete and limited to just the operations that are useful in ROP gadgets.
 import z3
 
 class BaseType(object):
+  """A base class that all of the operand types (Const, Register, Memory) derive from."""
+
   def is_rip_or_rsp(self):
+    """A convience method to quickly determine if this object represents the special rip or rsp Registers"""
     return type(self) == Register and (self.name == "rip" or self.name == "rsp")
 
 class Const(BaseType):
+  """This class holds a immediate operand from instructions."""
   def __init__(self, value):
     self.value = value
 
@@ -18,6 +24,8 @@ class Const(BaseType):
     return self.value
 
 class Register(BaseType):
+  """This class holds a register operand from any instructions.  Each register gets a handle to help differentiate the
+    associated value in it during z3 operations."""
   MAX_HANDLE = 0
 
   @classmethod
@@ -51,6 +59,8 @@ class Register(BaseType):
     return input_registers[self.name]
 
 class Memory(BaseType):
+  """This class holds a memory operand from any instructions.  The address property holds the address of the memory operand and
+    can be any of the other operand types."""
   def __init__(self, address, size = 8):
     self.address = address
     self.size = size
@@ -102,22 +112,21 @@ class Memory(BaseType):
     return memory[self.address.compute(input_registers, memory)] # Don't evaluate the memory
 
 class Operand(object):
+  """The base class for instruction operations (add, subtract, etc) in the AST."""
   def __init__(self):
     self.operands = []
 
 class BinaryOperand(Operand):
+  """Parent class for any operation types that take 2 operands.  This is the majority of the ones we'll care about in ROP gadgets"""
   def __init__(self, left, right):
     super(BinaryOperand, self).__init__()
     self.operands = [left, right]
-    if hasattr(self, "init"): #if the class has a constructor, call it
-      self.init()
 
   def __str__(self):
     return "({} {} {})".format(self.operands[0], self.name, self.operands[1])
 
   def to_z3(self):
     first = self.operands[0].to_z3()
-    #return getattr(first, self.z3_name)(self.operands[1].to_z3())
     return self.operand(self.operands[0].to_z3(), self.operands[1].to_z3())
 
   def compute(self, input_registers, memory):
@@ -125,42 +134,34 @@ class BinaryOperand(Operand):
 
 class Add(BinaryOperand):
   name = "+"
-  z3_name = "__add__"
   operand = (lambda self,x,y: x + y)
 
 class Sub(BinaryOperand):
   name = "-"
-  z3_name = "__sub__"
   operand = (lambda self,x,y: x - y)
 
 class Mult(BinaryOperand):
   name = "*"
-  z3_name = "__mul__"
   operand = (lambda self,x,y: x * y)
 
 class BitwiseAnd(BinaryOperand):
   name = "&"
-  z3_name = "__and__"
   operand = (lambda self,x,y: x & y)
 
 class BitwiseOr(BinaryOperand):
   name = "|"
-  z3_name = "__or__"
   operand = (lambda self,x,y: x | y)
 
 class BitwiseXor(BinaryOperand):
   name = "^"
-  z3_name = "__xor__"
   operand = (lambda self,x,y: x ^ y)
 
 class Equal(BinaryOperand):
   name = "="
-  z3_name = "__eq__"
   operand = (lambda self,x,y: x == y)
 
 class Store(BinaryOperand):
   name = "Memory"
-  z3_name = "store Memory"
 
 
 if __name__ == "__main__":
