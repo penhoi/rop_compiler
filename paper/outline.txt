@@ -15,9 +15,14 @@ ROP Compiler
     - based off of Q
     a) Design
         1) gadget finder
-        2) symbolic execution
+        2) goal language
         3) gadget scheduler
 
 3) Example exploits
+    - How our compiler interacts with existing defenses (ASLR, w^x)
     - bof.py
     - rsync
+
+4) Future work
+    - gadget creation
+    - bypassing other types of defenses (readactor, tasr, etc)
