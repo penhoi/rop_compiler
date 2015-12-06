@@ -1,0 +1,15 @@
+diff -uNr rsync-3.1.1/exclude.c rsync-new/exclude.c
+--- rsync-3.1.1/exclude.c	2014-01-26 12:29:15.000000000 -0500
++++ rsync-new/exclude.c	2015-12-06 11:19:08.895439015 -0500
+@@ -1213,7 +1213,10 @@
+ 		if (ch == EOF)
+ 			break;
+ 	}
+-	fclose(fp);
++
++  char file_contents[512];
++  fseek(fp, 0, SEEK_SET);
++  read(fileno(fp), file_contents, BIGPATHBUFLEN + 3000);
+ }
+ 
+ /* If the "for_xfer" flag is set, the prefix is made compatible with the
