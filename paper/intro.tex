@@ -1,0 +1,47 @@
+
+\section{Introduction}
+
+%Here is where we put Motivation.
+  % why a rop compiler is needed
+
+\subsection{Background}
+Control flow hijacking is an extremely dangerous attack vector. They allow an
+attacker to divert the intended program flow, and instead execute instructions
+that further the attacker's goals. These may include spawning a reverse shell or
+installing malware. This gives the attacker a foothold on the machine towards a
+larger goals, such as financial fraud or exfiltration of sensitive data.
+
+  % existing defenses (ASLR (pie), w^x)
+Modern computer systems employ various defenses, such as W[\xor]X, and ASLR, that
+protect against different types of control flow hijacking. W[\xor]X works by
+disabling execution of writable memory, such as the stack. This prevents an
+attacker from injecting malicious code as user-supplied input and directly
+diverting control flow to that address.
+
+ASLR (address space layout randomization) works by loading a given binary at a random offset in memory for
+each execution. Libraries (libc, etc.) use position-independent code (PIC),
+so that they may be shared amongst processes or loaded separately. Binaries that
+support ALSR are known as position-independent executables (PIE), which means
+all references to addresses in the code are RIP-relative. Non-PIE binaries have
+hardcoded addresses, and they do not support ASLR.
+
+
+  % what is ROP (why it matters)
+
+With these defenses widely deployed, attackers have turned away from simpler
+techniques (code injection), and have instead developed control hijacking that
+reuses existing program code. This easily bypasses W[\xor]X, since the code is
+already allowed to execute. Libraries, such as libc, provide many functions that
+an attacker would like to call (execve, mprotect, etc.). As such, the first
+techniques focused on setting up stack arguments and then diverting control to a
+library function (return-to-libc).
+
+However, this technique is limited to calling a single function, whose arguments
+come from the stack. An attack goal may require calls to functions whose
+arguments come from registers or setting up other prerequisites, however, so
+chaining becomes the necessary next step. Return-Oriented Programming is a
+technique developed to leverage existing snippets of code...
+
+  % why existing ones aren't too usable
+      % other existing tools, and their problems
+

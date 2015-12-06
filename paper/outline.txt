@@ -7,7 +7,6 @@ ROP Compiler
 
 1) Intro and Motivation
     - what is ROP (why it matters)
-    - why pentesting tools matter
     - why rop compiler
         - other existing tools, and their problems
 
