@@ -1,6 +1,5 @@
 import struct, logging, collections
 import goal as go, gadget as ga
-import z3helper
 
 PAGE_MASK = 0xfffffffffffff000
 PROT_RWX = 7
@@ -20,7 +19,6 @@ class Scheduler(object):
     self.write_memory_chains = []
     self.store_mem_gadgets = collections.defaultdict(dict)
 
-    self.solver = z3helper.Z3Helper()
     self.goal_resolver = goal_resolver
     self.goals = goal_resolver.get_goals()
     self.chain = self.chain_gadgets()

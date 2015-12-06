@@ -169,10 +169,10 @@ if __name__ == "__main__":
   print add8, "=", add8.compute({"rbx" : 9}, {}),"for inputs:",inputs
 
   s = z3.Solver()
-  s.add(Equal(Add(Register("rbx"), Const(8)), Const(10)).to_z3())
+  equation = Equal(Add(Register("rbx"), Const(8)), Const(10))
+  s.add(equation.to_z3())
   if s.check() == z3.sat:
-    print "Model:",s.model()
+    print "Equation:", equation, "Model:", s.model()
 
   z3.solve(Equal(Add(Memory(Const(0x1234)), Const(8)), Const(10)).to_z3())
-
 

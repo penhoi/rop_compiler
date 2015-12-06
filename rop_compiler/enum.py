@@ -1,4 +1,4 @@
-# Enum class I wrote for another project
+# A useful enum wrapper class I wrote for another project
 
 class Enum(object):
 	"""This class is the base of all C style Enum classes"""

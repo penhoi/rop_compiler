@@ -13,6 +13,7 @@ class GadgetClassifier(object):
     self.logger = logging.getLogger(self.__class__.__name__)
     self.logger.setLevel(log_level)
 
+    # Holds any instruction emulators that aren't named the same as the instruction mnemonic
     self.instruction_emulators = collections.defaultdict((lambda: self.unknown_instruction), {
       "MOVABS" : self.MOV,
     })
@@ -33,52 +34,6 @@ class GadgetClassifier(object):
         return []
 
     return self.get_gadgets()
-
-  def is_address_based_off_stack(self, address):
-    registers = self.get_registers_in_address(address)
-
-    # TODO consider cases where the address is something like [rsp+rax]
-    if len(registers) == 1 and registers[0].name == "rsp":
-      return True
-    return False
-
-  def get_leaf_nodes(self, value):
-    if type(value) == Const or type(value) == Register:
-      return [value]
-    elif type(value) == int:
-      return [Const(value)]
-    elif type(value) == Memory:
-      return self.get_leaf_nodes(value.address)
-    elif issubclass(value.__class__, Operand):
-      leafs = []
-      for operand in value.operands:
-        leafs.extend(self.get_leaf_nodes(operand))
-      return leafs
-
-    raise RuntimeError("Unknown type in get_leaf_nodes {}".format(type(value)))
-
-  def get_registers_in_address(self, address):
-    leafs = self.get_leaf_nodes(address)
-    registers = []
-    for leaf in leafs:
-      if type(leaf) == Register:
-        registers.append(leaf)
-    return registers
-
-  def is_simple_operand_type(self, operand):
-    # TODO Expand this to allow for addressing by bigger binary operands (i.e. (rax + 8) * 32)
-    return (
-          (type(operand) == Register)
-        or
-          (issubclass(operand.__class__, Operand) and
-          ((type(operand.operands[0]) == Register and type(operand.operands[1]) == Const) or
-          (type(operand.operands[0]) == Const and type(operand.operands[1]) == Register)))
-        )
-
-  def is_simple_memory_value(self, memory):
-    """ Gets whether a memory has a simple address, i.e. is the value memory[reg] or memory[reg operand const] (where operand
-      is any binary operand)"""
-    return (type(memory) == Memory and self.is_simple_operand_type(memory.address))
 
   def execute(self, registers, memory):
     output_memory = {}
@@ -231,7 +186,7 @@ class GadgetClassifier(object):
     return gadgets
 
 ############################################################################################
-## Helper Utilities ########################################################################
+## Instruction Helper Utilities ############################################################
 ############################################################################################
 
   def resolve_register(self, inst, reg_num):
@@ -421,10 +376,10 @@ class Gadget(object):
     return names
 
   def validate(self):
-    # TODO validate with z3
+    # TODO validate the gadget type with z3
     return True
 
-class Jump(Gadget): pass
+class Jump(Gadget):            pass
 class MoveReg(Gadget):         pass
 class LoadConst(Gadget):       pass
 class LoadMem(Gadget):         pass
@@ -460,20 +415,20 @@ if __name__ == "__main__":
   disassembler = Cs(CS_ARCH_X86, CS_MODE_64)
   disassembler.detail = True
   tests = [
-    ({Jump : 1},            '\xff\xe0'),                                     # jmp rax
-    ({MoveReg : 2},         '\x48\x93\xc3'),                                 # xchg rbx, rax; ret
-    ({MoveReg : 1},         '\x48\x89\xcb\xc3'),                             # mov rbx,rcx; ret
-    ({LoadConst : 1},       '\x48\xbb\xff\xee\xdd\xcc\xbb\xaa\x99\x88\xc3'), # movabs rbx,0x8899aabbccddeeff; ret
-    ({Arithmetic : 1},      '\x48\x01\xc3\xc3'),                             # add rbx, rax; reg
-    ({LoadMem : 1},         '\x48\x8b\x43\x08\xc3'),                         # mov rax,QWORD PTR [rbx+0x8]; ret
-    ({StoreMem : 1},        '\x48\x89\x03\xc3'),                             # mov QWORD PTR [rbx],rax; ret
-    ({StoreMem : 1},        '\x48\x89\x43\x08\xc3'),                         # mov QWORD PTR [rbx+0x8],rax; ret
-    ({StoreMem : 1},        '\x48\x89\x44\x24\x08\xc3'),                     # mov QWORD PTR [rsp+0x8],rax; ret
-    ({ArithmeticLoad : 1},  '\x48\x03\x44\x24\x08\xc3'),                     # add rax,QWORD PTR [rsp+0x8]
-    ({ArithmeticStore : 1}, '\x48\x01\x43\xf8\xc3'),                         # add QWORD PTR [rbx-0x8],rax; ret
-    ({},                    '\x48\x39\xeb\xc3'),                             # cmp rbx, rbp; ret
-    ({},                    '\x5e'),                                         # pop rsi
-    ({},                    '\x8b\x04\xc5\xc0\x32\x45\x00\xc3'),             # mov rax,QWORD PTR [rax*8+0x4532c0]
+    ({Jump : 1},            '\xff\xe0'),                                                # jmp rax
+    ({MoveReg : 2},         '\x48\x93\xc3'),                                            # xchg rbx, rax; ret
+    ({MoveReg : 1},         '\x48\x89\xcb\xc3'),                                        # mov rbx,rcx; ret
+    ({LoadConst : 1},       '\x48\xbb\xff\xee\xdd\xcc\xbb\xaa\x99\x88\xc3'),            # movabs rbx,0x8899aabbccddeeff; ret
+    ({AddGadget : 1},       '\x48\x01\xc3\xc3'),                                        # add rbx, rax; reg
+    ({LoadMem : 1},         '\x48\x8b\x43\x08\xc3'),                                    # mov rax,QWORD PTR [rbx+0x8]; ret
+    ({StoreMem : 1},        '\x48\x89\x03\xc3'),                                        # mov QWORD PTR [rbx],rax; ret
+    ({StoreMem : 1},        '\x48\x89\x43\x08\xc3'),                                    # mov QWORD PTR [rbx+0x8],rax; ret
+    ({StoreMem : 1},        '\x48\x89\x44\x24\x08\xc3'),                                # mov QWORD PTR [rsp+0x8],rax; ret
+    ({LoadAddGadget: 1},    '\x48\x03\x44\x24\x08\xc3'),                                # add rax,QWORD PTR [rsp+0x8]
+    ({StoreAddGadget: 1},   '\x48\x01\x43\xf8\xc3'),                                    # add QWORD PTR [rbx-0x8],rax; ret
+    ({},                    '\x48\x39\xeb\xc3'),                                        # cmp rbx, rbp; ret
+    ({},                    '\x5e'),                                                    # pop rsi
+    ({},                    '\x8b\x04\xc5\xc0\x32\x45\x00\xc3'),                        # mov rax,QWORD PTR [rax*8+0x4532c0]
     ({LoadMem : 1, LoadConst : 1}, '\x59\x48\x89\xcb\x48\xc7\xc1\x05\x00\x00\x00\xc3'), # pop rcx; mov rbx,rcx; mov rcx,0x5; ret
   ]
 
@@ -499,4 +454,6 @@ if __name__ == "__main__":
 
   if fail:
     print "FAILURE!!! One or more incorrectly classified gadgets"
+  else:
+    print "SUCCESS, all gadgets correctly classified"
 
