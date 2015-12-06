@@ -224,7 +224,7 @@ class GadgetClassifier(object):
       if rip_in_stack_offset == None and gadget_type != Jump: continue # Except for JUMP, all the gadgets must load rip from the stack
 
       gadget = gadget_type(self.insts, inputs, output, params, self.effects, stack_offset, rip_in_stack_offset)
-      if gadget != None:
+      if gadget != None and gadget.validate():
         self.logger.debug("Found %s gadget with inputs %s, output %s, and params %s", gadget_type.__name__, inputs, output, params)
         gadgets.append(gadget)
 

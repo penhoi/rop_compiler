@@ -147,7 +147,6 @@ class Scheduler(object):
 
   def create_set_reg_chain(self, gadget, value, next_address):
     if type(value) != str:
-      print type(value), value
       value = self.ap(value)
 
     chain  = gadget.params[0] * "A"
