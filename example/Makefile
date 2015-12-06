@@ -3,6 +3,7 @@ default:
 	gcc -g -fno-stack-protector bof_syscall.c -o bof_syscall -masm=intel
 	gcc -g -fno-stack-protector bof_system.c -o bof_system -masm=intel
 	gcc -g -fno-stack-protector bof_shell.c -o bof_shell -masm=intel
+	gcc -g -fno-stack-protector bof_read_got.c -o bof_read_got -masm=intel
 
 clean:
 	rm bof

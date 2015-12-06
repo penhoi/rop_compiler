@@ -8,7 +8,7 @@ import gadget as gt
 class Finder(object):
 
   MAX_GADGET_SIZE = 10
-  GADGET_END_INSTRUCTIONS = ['ret']
+  GADGET_END_INSTRUCTIONS = ['ret', 'jmp']
 
   def __init__(self, filename, base_address = 0, level = logging.WARNING):
     logging.basicConfig(format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
@@ -35,6 +35,17 @@ class Finder(object):
       if seg.header.p_flags & P_FLAGS.PF_X != 0:
         yield seg
 
+  def is_valid_gadget(self, insts):
+    if len(insts) == 0:
+      return False
+
+    good = True
+    for inst in insts[:-1]: # Only allow ret's at the end of the instruction
+      good &= not inst.mnemonic in self.GADGET_END_INSTRUCTIONS
+    good &= not (len(insts) == 1 and insts[-1] == "ret") # ret's must have more than one inst to be useful
+    good &= insts[-1].mnemonic in self.GADGET_END_INSTRUCTIONS # gadgets must end in a ret
+    return good
+
   def get_gadgets_for_segment(self, segment):
     disassembler = Cs(CS_ARCH_X86, CS_MODE_64)
     disassembler.detail = True
@@ -54,16 +65,7 @@ class Finder(object):
           self.logger.warning("No base address given for library or PIE executable.  Addresses may be wrong")
         gadget_insts = [x for x in disassembler.disasm(code, address)] # Expand the generator
 
-        bad = False
-        for inst in gadget_insts[:-1]: # Only allow ret's at the end of the instruction
-          if inst.mnemonic in self.GADGET_END_INSTRUCTIONS:
-            bad = True
-
-        if (not bad # Only allow ret's at the end of instructions
-            and len(gadget_insts) > 1 # We don't want a single ret gadget
-            and gadget_insts[-1].mnemonic in self.GADGET_END_INSTRUCTIONS # gadgets must end in a ret
-            and not gadget_insts[0].address in self.used_addresses): # The address hasn't already been used before
-
+        if (self.is_valid_gadget(gadget_insts) and not gadget_insts[0].address in self.used_addresses):
           self.used_addresses.append(gadget_insts[0].address)
           self.logger.debug("Gadget found:")
           for inst in gadget_insts:

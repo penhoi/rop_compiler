@@ -13,7 +13,7 @@ def rop(filenames_and_addresses, goal_resolver, log_level = logging.WARNING):
 
 def rop_to_shellcode(filenames_and_addresses, shellcode_address, log_level = logging.WARNING):
   """Convience method to create a goals json and then find a rop chain for it"""
-  goal_resolver = goal.create_from_arguments(filenames_and_addresses, [["shellcode", hex(shellcode_address)]])
+  goal_resolver = goal.create_from_arguments(filenames_and_addresses, [], [["shellcode", hex(shellcode_address)]])
   return rop(filenames_and_addresses, goal_resolver, log_level)
 
 if __name__ == "__main__":
