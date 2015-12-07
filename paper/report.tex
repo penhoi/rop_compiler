@@ -6,7 +6,7 @@
 \usepackage{cite}
 \usepackage{url} 
 \usepackage{mathtools} 
-\usepackage[font=normalsize]{caption}
+\usepackage[font=small]{caption}
 
 \begin{document}
 %
@@ -97,7 +97,7 @@ featured (ROPgadget).
 \section{Implementation Details}
 Our ROP Compiler is separated into four main components: the goal interpreter, the gadget finder, gadget classifier, and the gadget scheduler.
 
-\begin{table*}[t]
+\begin{table*}[t,s]
   \begin{center}
     \begin{tabular}{ | l | l | l | l | }
     \hline
@@ -106,14 +106,14 @@ Our ROP Compiler is separated into four main components: the goal interpreter, t
     JumpG & AddrReg & & RIP $\leftarrow$ AddrReg \\
     MoveRegG & InReg, OutReg & & OutReg $\leftarrow$ InReg \\
     LoadConstG & OutReg & Value & OutReg $\leftarrow$ Value \\
-    ArithmeticG & InReg1, InReg2, OutReg & $\diamond$b & OutReg $\leftarrow$ InReg1 $\diamond$b InReg2 \\
+    ArithmeticG & InReg1, InReg2, OutReg & $\diamond_b$ & OutReg $\leftarrow$ InReg1 $\diamond_b$ InReg2 \\
     LoadMemG & AddrReg, OutReg & Offset & OutReg $\leftarrow$ M[AddrReg + Offset] \\
     StoreMemG & AddrReg, InReg & Offset & M[AddrReg + Offset] $\leftarrow$ InReg \\
-    ArithmeticLoadG & AddrReg, OutReg & Offset, $\diamond$b & OutReg $\diamond$b$\leftarrow$  M[AddrReg + Offset] \\
-    ArithmeticStoreG & AddrReg, InReg & Offset, $\diamond$b & M[AddrReg + Offset] $\diamond$b$\leftarrow$ InReg \\
+    ArithmeticLoadG & AddrReg, OutReg & Offset, $\diamond_b$ & OutReg $\diamond_b$$\leftarrow$  M[AddrReg + Offset] \\
+    ArithmeticStoreG & AddrReg, InReg & Offset, $\diamond_b$ & M[AddrReg + Offset] $\diamond_b$$\leftarrow$ InReg \\
       \hline
     \end{tabular}
-    \caption{Gadget Types}
+    \caption{Gadget Types that our Gadget Classifier can find.  M[addr] means accessing memory at the address addr and $\diamond_b$ means an arbitray binary operation.}
   \label{gadgetTypes}
   \end{center}
 \end{table*}
