@@ -88,7 +88,7 @@ snippets of code that end in 'ret' (called gadgets). Most modern exploits levera
       % other existing tools, and their problems
 There do exist some tools that find gadgets and suggest ROP chains, such as Q \cite{schwartz2011q},
 ROPC \cite{ropc}, mona.py \cite{mona}, and ROPgadget \cite{ropgadget}. However, these tools are either not available (Q),
-do not work on realistic (ROPC), x86 64-bit binaries (mona.py), or are not fully featured (ROPgadget).
+do not work on realistic binaries (ROPC), x86 64-bit binaries (mona.py), or are not fully featured (ROPgadget).
 
 \section{Implementation Details}
 Our ROP Compiler is separated into four main components: the goal interpreter, the gadget finder, the gadget classifier, and the gadget scheduler.
@@ -119,7 +119,7 @@ The goal interpreter provides the necessary configuration data for the ROP compi
 This configuration data is supplied by the exploit author and is comprised of three separate components:
 \begin{enumerate}
   \item A list of files to extract gadgets from.  For PIE executables and libraries, each file should include the address that it was loaded to.
-  \item A list of libraries to extract metadata from.  This list of libraries will be used to obtain function metadata for use later, as described in section \ref{scheduler}.
+  \item A list of libraries to extract metadata from.  This list of libraries will be used to obtain function metadata for use later, as described in Section \ref{scheduler}.
   \item A list of the author's desired goals.  Each goal item can be one of three types: \emph{Function}, \emph{ShellcodeAddress}, \emph{Shellcode}.
   \emph{Function} goals indicate the author wishes to call a given function with a set of specified arguments.  
   \emph{ShellcodeAddress} goals indicate the author wishes to run shellcode that already exists in the target program's address space.
@@ -154,9 +154,9 @@ This process is then done a number of times.
 Any preconditions left unviolated throughout all of the concrete executions reveal the gadget type.
 
 While Q \cite{schwartz2011q} and ROPC \cite{ropc} take this process one step further, by utilizing a SMT solver to verify the gadgets; our implementation does not do so.
-In our brief analysis and examples (described in \ref{examples}), we have not seen a gadget that has been misclassified using only the concrete emulation.
+In our brief analysis and examples (described in Section \ref{examples}), we have not seen a gadget that has been misclassified using only the concrete emulation.
 Thus, to improve the ROP compilation speed, our implementation does not verify gadgets.
-Any of the necessary metadata (such as what registers clobbered by a gadget) is extracted from the symbolic formula.
+Any of the necessary metadata (such as which registers are clobbered by a gadget) is extracted from the symbolic formula.
 
 \subsection{Gadget Scheduler}\label{scheduler}
 The gadget scheduler combines classified gadgets into the individual goals.
