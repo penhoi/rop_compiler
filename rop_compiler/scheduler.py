@@ -342,8 +342,8 @@ class Scheduler(object):
     raise RuntimeError("Failed finding necessary gadgets for shellcode address goal")
 
   def create_write_memory_chain(self, buf, address, next_address):
-    """This method generates a chain that will write the buffer to the given address.  For simplicity, the buffer must be 8
-      bytes"""
+    """This method generates a chain that will write the buffer to the given address.  Similar to ROPC we limit ourselves to one
+      memory size for simplicity.  Thus, the buffer must be 8 bytes long"""
     if len(buf) != 8:
       raise RuntimeError("Write memory chains can only write memory in chunks of 8 bytes, requested %d" % len(buf))
 
