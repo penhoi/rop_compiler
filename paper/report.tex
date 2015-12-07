@@ -156,7 +156,7 @@ Any preconditions left unviolated throughout all of the concrete executions reve
 While Q \cite{schwartz2011q} and ROPC \cite{ropc} take this process one step further, by utilizing a SMT solver to verify the gadgets; our implementation does not do so.
 In our brief analysis and examples (described in Section \ref{examples}), we have not seen a gadget that has been misclassified using only the concrete emulation.
 Thus, to improve the ROP compilation speed, our implementation does not verify gadgets.
-Any of the necessary metadata (such as what registers clobbered by a gadget) is extracted from the symbolic formula.
+Any of the necessary metadata (such as which registers are clobbered by a gadget) is extracted from the symbolic formula.
 
 \subsection{Gadget Scheduler}\label{scheduler}
 The gadget scheduler combines classified gadgets into the individual goals.
