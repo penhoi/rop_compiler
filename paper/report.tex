@@ -109,7 +109,7 @@ Our ROP Compiler is separated into four main components: the goal interpreter, t
     ArithmeticStoreG & AddrReg, InReg & Offset, $\diamond_b$ & M[AddrReg + Offset] $\diamond_b$$\leftarrow$ InReg \\
       \hline
     \end{tabular}
-    \caption{Gadget Types that our Gadget Classifier can find.  M[addr] means accessing memory at the address addr and $\diamond_b$ means an arbitray binary operation.}
+    \caption{Gadget Types that our Gadget Classifier can find.  M[addr] means accessing memory at the address addr and $\diamond_b$ means an arbitrary binary operation.}
   \label{gadgetTypes}
   \end{center}
 \end{table*}
@@ -161,7 +161,7 @@ Any of the necessary metadata (such as which registers are clobbered by a gadget
 \subsection{Gadget Scheduler}\label{scheduler}
 The gadget scheduler combines classified gadgets into the individual goals.
 These goals are accomplished by iterating over the classified gadgets to find a sequence that match the required goal. 
-For example, to write a value to memory, the scheduler looks for a LoadMemG gadget to set the address, another LoadMemG gadget to set the value, and a StoreMemG to actually write to memory.
+For example, to write a value to memory, the scheduler looks for a LoadMemG gadget to set the address, another LoadMemG gadget to set the value, and a StoreMemG to perform the write to memory.
 The scheduler keeps track of the registers to ensure that one used in the beginning of a chain does not clobber one needed later in the chain.
 
 While the \emph{Function} and \emph{ShellcodeAddress} goals are relatively straight forward to implement, the \emph{Shellcode} goal requires more work. 
@@ -172,7 +172,7 @@ Once the shellcode has been stored to memory, the \emph{Shellcode} goal can be a
 A final situation that requires additional work is calling external functions in libraries.
 While calling functions within the main binary's Procedure Linkage Table (PLT) is relatively simple, calling a function not imported into the PLT requires substantially more work.
 To accomplish this task, the scheduler must first read from the target process's GOT for a function which the target process does use.
-Next, the scheduler adds the offset from this base function to the target function.
+Next, the scheduler adds the offset from this base function to the target function in the library.
 As offsets within a library are constant under traditional ASLR, the computed value will be the address of the target function.
 Our scheduler implements this approach by finding a chain of the following gadgets:
 \begin{enumerate}
@@ -205,7 +205,7 @@ In order to illustrate a real world use of our ROP compiler, we implemented an e
 As the current rsync\footnote{rsync 3.1.1, current as of 12/6/15} does not have any publicly known vulnerabilities, we introduced a synthetic stack buffer overflow into rsync.
 This stack buffer overflow vulnerability was introduced into rsync's filter file argument processing code.
 rsync provides the ability to filter the files that are copied through the use of a filter file that specifies which files to exclude.
-As this vulnerability is a file format bug, there is little chance for the attacker to leak information about the memory layout of rsync (as compared to a network reachable bug).
+As this vulnerability is a file format bug, there is little chance for the attacker to leak information about the memory layout of rsync (as compared to a network reachable vulnerability).
 Thus, a working exploit must be able to load shellcode at a known address.
 The exploit is further complicated by the need to call mprotect without it being in rsync's PLT.
 
@@ -220,7 +220,7 @@ features. For example, we would like to explore synthesizing new gadgets by
 combining existing smaller gadgets. This would enable our compiler to produce chains on smaller binaries.
 We would also like to expand our attack goal language to allow for more expressive goals.
 While Turing completeness was abandoned early on, in terms of practicality, a more expressive language would allow more complex
-exploits, such as those needed in environments that do not allow remapping of memory permissisons\cite{grsecurity}.
+exploits, such as those needed in environments that do not allow remapping of memory permissions\cite{grsecurity}.
 
 \bibliographystyle{plain}
 \bibliography{sources.bib}{}
