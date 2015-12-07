@@ -189,8 +189,22 @@ Our scheduler implements this approch by finding a chain of the following gadget
 The scheduler scans for each gadget while making sure any values used in the later gadgets (such as the computed function's address) aren't clobbered by the earlier gadgets.
 
 \section{Example Usage}\label{examples}
-  - bof.py
-  - rsync
+
+\subsection{Buffer Overflow Proof of Concepts}
+- bof POC files
+
+\subsection{rsync}
+In order to illustrate a real world use of our ROP compiler, we implemented an exploit for rsync in it.
+As the current rsync\footnote{rsync 3.1.1, current as of 12/6/15} is does not have any publically known vulnerabilities, we introduced a sythentic stack buffer overflow into rsync.
+This stack buffer overflow vulnerability was introduced into rsync's filter file argument processing code.
+rsync provides the ability to filter the files that are copied through the use of a filter file that specifies which files to exclude.
+As this vulnerability is a file format bug, there is little chance for the attacker to leak information about the memory layout of rsync (as compared to a network reachable bug).
+Thus, a working exploit must be able to load shellcode at a known address.
+The exploit is further complicated by the need to call mprotect without it being in rsync's PLT.
+
+Our exploit, provided in \emph{rsync.py}, utilizes an automatically generated ROP chain that handles these issues.
+The resulting ROP chain is 464 bytes that loads and executes a 33 byte execve-based shellcode.
+This ROP chain was generated in 71 seconds.
 
 \section{Future Work}
   - Synthesizing new gadgets by combining ones
