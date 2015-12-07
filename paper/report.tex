@@ -196,7 +196,13 @@ The scheduler scans for each gadget while making sure any values used in the lat
   % Synthesizing new gadgets by combining ones
 Our compiler, while functional, could be improved to provide additional advanced
 features. For example, we would like to explore synthesizing new gadgets by
-combining 
+combining existing small gadgets. This may require using symbolic execution to
+analyze side-effects. Using symbolic execution would also allow us to more
+easily analyze larger gadgets, as the side-effects may be more complex. We would
+also like to expand our attack goal language to allow for more expressive goals.
+This would allow more complex exploits, such as reading or modifying data
+structures in memory. A third feature we would like to implement is exploit
+hardening (as discussed by Q).
 
 \bibliographystyle{plain}
 \bibliography{sources.bib}{}
