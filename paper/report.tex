@@ -215,15 +215,12 @@ This ROP chain was generated in 71 seconds on the author's laptop with an Intel 
 
 \section{Future Work}
   % Synthesizing new gadgets by combining ones
-Our compiler, while functional, could be improved to provide additional advanced
+Our ROP compiler, while functional, could be improved to provide additional advanced
 features. For example, we would like to explore synthesizing new gadgets by
-combining existing small gadgets. This may require using symbolic execution to
-analyze side-effects. Using symbolic execution would also allow us to more
-easily analyze larger gadgets, as the side-effects may be more complex. We would
-also like to expand our attack goal language to allow for more expressive goals.
-This would allow more complex exploits, such as reading or modifying data
-structures in memory. A third feature we would like to implement is exploit
-hardening (as discussed by Q).
+combining existing smaller gadgets. This would enable our compiler to produce chains on smaller binaries.
+We would also like to expand our attack goal language to allow for more expressive goals.
+While Turing completeness was abandoned early on, in terms of practicality, a more expressive language would allow more complex
+exploits, such as those needed in environments that do not allow remapping of memory permissisons\cite{grsecurity}.
 
 \bibliographystyle{plain}
 \bibliography{sources.bib}{}
