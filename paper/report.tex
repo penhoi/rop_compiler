@@ -91,7 +91,7 @@ ROPC \cite{ropc}, mona.py \cite{mona}, and ROPgadget \cite{ropgadget}. However, 
 do not work on realistic (ROPC), x86 64-bit binaries (mona.py), or are not fully featured (ROPgadget).
 
 \section{Implementation Details}
-Our ROP Compiler is separated into four main components: the goal interpreter, the gadget finder, gadget classifier, and the gadget scheduler.
+Our ROP Compiler is separated into four main components: the goal interpreter, the gadget finder, the gadget classifier, and the gadget scheduler.
 
 \begin{table*}[t,s]
   \begin{center}
@@ -118,31 +118,31 @@ Our ROP Compiler is separated into four main components: the goal interpreter, t
 The goal interpreter provides the necessary configuration data for the ROP compiler.
 This configuration data is supplied by the exploit author and is comprised of three separate components:
 \begin{enumerate}
-  \item A list of files to extract gadgets from.  For PIE executables and libraries, each files should include the address that it was loaded to.
-  \item A list of libraries to extract metadata from.  This list of libraries will be used for obtaining function metadata for use later, as described in \ref{scheduler}.
+  \item A list of files to extract gadgets from.  For PIE executables and libraries, each file should include the address that it was loaded to.
+  \item A list of libraries to extract metadata from.  This list of libraries will be used to obtain function metadata for use later, as described in section \ref{scheduler}.
   \item A list of the author's desired goals.  Each goal item can be one of three types: \emph{Function}, \emph{ShellcodeAddress}, \emph{Shellcode}.
   \emph{Function} goals indicate the author wishes to call a given function with a set of specified arguments.  
-  \emph{ShellcodeAddress} goals indicate the author wishes to run a set of shellcode that already exists in the target program's address space.
-  The \emph{Shellcode} goal indicates the author wishes to run a set of shellcode that does not already exists in the target program's address space.
+  \emph{ShellcodeAddress} goals indicate the author wishes to run shellcode that already exists in the target program's address space.
+  The \emph{Shellcode} goal indicates the author wishes to run a set of shellcode that does not already exist in the target program's address space.
   Thus, the \emph{Shellcode} goal must first load the shellcode into memory before it may continue.
 \end{enumerate}
 These 3 goals were chosen to allow the exploit author to obtain arbitrary code execution, while also specifying the minimum amount of work that is necessary.
-For instance, there is no need to use a \emph{Shellcode} goal, if the exploit author already knows the address of their shellcode in memory.
+For instance, there is no need to use a \emph{Shellcode} goal if the exploit author already knows the address of their shellcode in memory.
 
 \subsection{Gadget Finder}
-The gadget finder iterators over all of the available binaries and searches for gadgets.
-This is accomplished by walking each byte of the executable sections in the and trying to disassemble the last \textbf{N} number of bytes.
-If these series of bytes ends in a RET or JMP instruction, then these series of bytes is saved as a potential gadget.
+The gadget finder iterates over all of the available binaries and searches for gadgets.
+This is accomplished by stepping through each byte (not instruction) of the executable sections of each binary, and then trying to disassemble the last \textbf{N} number of bytes.
+If a series of bytes ends in a RET or JMP instruction, then that series of bytes is saved as a potential gadget.
 For disassembly, our ROP compiler makes use of the Capstone framework \cite{capstone}.
 
-The choice of \textbf{N} is compromise between the speed of the ROP compiling process, and the number of gadgets found.
-As the larger gadgets tend to be more complex (and thus less useful during ROP compiling), increasing \textbf{N} is not necessarily the best option.
+The choice of \textbf{N} is a compromise between the speed of the ROP compiling process, and the number of gadgets found.
+As larger gadgets tend to be more complex (and thus less useful during ROP compilation), increasing \textbf{N} is not necessarily the best option.
 Our implementation makes the compromise of setting \textbf{N} to 10.
 A future version may iteratively increase \textbf{N} upon failing to compile an adequate ROP chain.
 
 \subsection{Gadget Classifier}
-The gadget classifier analyzes each of the potential gadgets to determine which type(s) of gadget they are.
-Our classifier's implementation is based of the design of Q's classifier as presented by Schwartz et al. \cite{schwartz2011q}.
+The gadget classifier analyzes each of potential gadget to determine its type(s).
+Our classifier's implementation is based on the design of Q's classifier as presented by Schwartz et al. \cite{schwartz2011q}.
 Schwartz proposed classifying gadget into 9 types useful for generating ROP chains.
 Our implementation classifies our potential gadgets into the 8 gadget types shown in Table \ref{gadgetTypes} (excluding NoOpG gadgets from \cite{schwartz2011q}).
 
@@ -160,7 +160,7 @@ Any of the necessary metadata (such as what registers clobbered by a gadget) is 
 
 \subsection{Gadget Scheduler}\label{scheduler}
 The gadget scheduler combines classified gadgets into the individual goals.
-These goals are accomplished by iterating over the classified gadgets to find a series of ones that match the required goal. 
+These goals are accomplished by iterating over the classified gadgets to find a sequence that match the required goal. 
 For example, to write a value to memory, the scheduler looks for a LoadMemG gadget to set the address, another LoadMemG gadget to set the value, and a StoreMemG to actually write to memory.
 The scheduler keeps track of the registers to ensure that one used in the beginning of a chain does not clobber one needed later in the chain.
 
