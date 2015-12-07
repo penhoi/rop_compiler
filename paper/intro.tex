@@ -3,6 +3,26 @@
 
 %Here is where we put Motivation.
   % why a rop compiler is needed
+When developing exploits for modern x86 64-bit systems, attackers must handcraft
+exploits for each binary. This involves finding a vulnerability (such
+as a stack-based buffer overflow) and diverting control flow (overwrite return
+address). Modern exploits employ Return-Oriented Programming to bypass widely
+deployed defenses such as W\^X.
+
+Building a ROP chain requires manual effort to find suitable gadgets out of the
+multitude of existing code snippets, and then chaining those gadgets together in
+the correct order to call functions or execute injected code. x86 64-bit systems
+present some challenges that do not exist on other platforms. For example, the
+64-bit calling convention primarily uses register arguments, as opposed to
+stack-pushed arguments on many 32-bit systems. This requires finding gadgets to
+set values in registers, instead of using an overflow to write to the stack.
+Many tools exist to help at various stages of exploit building, but no public
+compiler is available to fully create these ROP chains.
+
+We present a simple ROP Compiler, developed to more easily generate ROP chains,
+given a binary and goal. We demonstrate our compiler on both a proof-of-concept
+simple binary, as well as a well-known utility, rsync. Our tool generates
+working ROP chains to inject and call shellcode, or call other functions.
 
 \subsection{Background}
 Control flow hijacking is an extremely dangerous attack vector. They allow an
@@ -12,8 +32,8 @@ installing malware. This gives the attacker a foothold on the machine towards a
 larger goals, such as financial fraud or exfiltration of sensitive data.
 
   % existing defenses (ASLR (pie), w^x)
-Modern computer systems employ various defenses, such as W[\xor]X, and ASLR, that
-protect against different types of control flow hijacking. W[\xor]X works by
+Modern computer systems employ various defenses, such as W\^X, and ASLR, that
+protect against different types of control flow hijacking. W\^X works by
 disabling execution of writable memory, such as the stack. This prevents an
 attacker from injecting malicious code as user-supplied input and directly
 diverting control flow to that address.
@@ -30,7 +50,7 @@ hardcoded addresses, and they do not support ASLR.
 
 With these defenses widely deployed, attackers have turned away from simpler
 techniques (code injection), and have instead developed control hijacking that
-reuses existing program code. This easily bypasses W[\xor]X, since the code is
+reuses existing program code. This easily bypasses W\^X, since the code is
 already allowed to execute. Libraries, such as libc, provide many functions that
 an attacker would like to call (execve, mprotect, etc.). As such, the first
 techniques focused on setting up stack arguments and then diverting control to a
@@ -39,9 +59,14 @@ library function (return-to-libc).
 However, this technique is limited to calling a single function, whose arguments
 come from the stack. An attack goal may require calls to functions whose
 arguments come from registers or setting up other prerequisites, however, so
-chaining becomes the necessary next step. Return-Oriented Programming is a
-technique developed to leverage existing snippets of code...
+chaining becomes the necessary next step. Return-Oriented Programming (ROP) is a
+technique developed to generalize the return-to-libc attacks by chaining
+snippets of code that end in 'ret' (called gadgets). Most modern exploits leverage ROP to bypass existing defenses.
 
   % why existing ones aren't too usable
       % other existing tools, and their problems
+There do exist some tools that find gadgets and suggest ROP chains, such as Q,
+ropc, mona.py, and ROPGadget. However, these tools are either not available (Q),
+do not work on realistic x86 64-bit binaries (ropc, mona.py), or are not fully
+featured (ROPGadget).
 
