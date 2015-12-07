@@ -95,6 +95,27 @@ featured (ROPgadget).
 \section{Implementation Details}
 Our ROP Compiler is separated into four main components: the goal interpreter, the gadget finder, gadget classifier, and the gadget scheduler.
 
+\begin{table*}
+    \centering
+    \begin{tabular}{ | l | l | l | l | }
+    \hline
+    Name & Input & Parameters & Semantic Definition \\
+    \hline
+    JumpG & AddrReg & & RIP <- AddrReg \\
+    MoveRegG & InReg, OutReg & & OutReg <- InReg \\
+    LoadConstG & OutReg & Value & OutReg <- Value \\
+    ArithmeticG & InReg1, InReg2, OutReg & Op & OutReg <- InReg1 Op InReg2 \\
+    LoadMemG & AddrReg, OutReg & Offset & OutReg <- M[AddrReg + Offset] \\
+    StoreMemG & AddrReg, InReg & Offset & M[AddrReg + Offset] <- InReg \\
+    ArithmeticLoadG & AddrReg, OutReg & Offset, Op & OutReg Op<-  M[AddrReg + Offset] \\
+    ArithmeticStoreG & AddrReg, InReg & Offset, Op & M[AddrReg + Offset] Op<- InReg \\
+
+      \hline
+    \end{tabular}
+    \label{tab:gadgetTypes}
+    \caption{Gadget Types}
+\end{table*}
+
 \subsection{Goal Interpreter}
 The goal interpreter provides the necessary configuration data for the ROP compiler.
 This configuration data is supplied by the exploit author and is comprised of three separate components:
@@ -126,28 +147,6 @@ The gadget classifier analyzes each of the potential gadgets to determine which 
 Our classifier's implementation is based of the design of Q's classifier as presented by Schwartz et al. \cite{schwartz2011q}.
 Schwartz proposed classifying gadget into 9 types useful for generating ROP chains.
 Our implementation classifies our potential gadgets into the 8 gadget types shown in \ref{tab:gadgetTypes} (excluding NoOpG gadgets from \cite{schwartz2011q}).
-
-\begin{table*}
-  \begin{center}
-    \begin{tabular}{ | l | l | l | l | }
-    \hline
-    Name & Input & Parameters & Semantic Definition \\
-    \hline
-    JumpG & AddrReg & & RIP <- AddrReg \\
-    MoveRegG & InReg, OutReg & & OutReg <- InReg \\
-    LoadConstG & OutReg & Value & OutReg <- Value \\
-    ArithmeticG & InReg1, InReg2, OutReg & Op & OutReg <- InReg1 Op InReg2 \\
-    LoadMemG & AddrReg, OutReg & Offset & OutReg <- M[AddrReg + Offset] \\
-    StoreMemG & AddrReg, InReg & Offset & M[AddrReg + Offset] <- InReg \\
-    ArithmeticLoadG & AddrReg, OutReg & Offset, Op & OutReg Op<-  M[AddrReg + Offset] \\
-    ArithmeticStoreG & AddrReg, InReg & Offset, Op & M[AddrReg + Offset] Op<- InReg \\
-
-      \hline
-    \end{tabular}
-    \label{tab:gadgetTypes}
-    \caption{Gadget Types}
-  \end{center}
-\end{table*}
 
 Similar to the classifier proposed by Schwartz, our implementation uses the weakest precondition technique.
 For each gadget, we generate a symbolic formula for the instructions.
