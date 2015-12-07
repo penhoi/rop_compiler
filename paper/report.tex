@@ -53,7 +53,7 @@ installing malware. This gives the attacker a foothold on the machine towards a
 larger goals, such as financial fraud or exfiltration of sensitive data.
 
   % existing defenses (ASLR (pie), w^x)
-Modern computer systems employ various defenses, such as W\^X, and ASLR, that
+Modern computer systems employ various defenses, such as W\^X and ASLR, that
 protect against different types of control flow hijacking. W\^X works by
 disabling execution of writable memory, such as the stack. This prevents an
 attacker from injecting malicious code as user-supplied input and directly
@@ -80,14 +80,14 @@ library function (return-to-libc).
 However, this technique is limited to calling a single function, whose arguments
 come from the stack. An attack goal may require calls to functions whose
 arguments come from registers or setting up other prerequisites, however, so
-chaining becomes the necessary next step. Return-Oriented Programming (ROP) is a
+chaining becomes the necessary next step. Return-Oriented Programming (ROP) \cite{rop} is a
 technique developed to generalize the return-to-libc attacks by chaining
 snippets of code that end in 'ret' (called gadgets). Most modern exploits leverage ROP to bypass existing defenses.
 
   % why existing ones aren't too usable
       % other existing tools, and their problems
-There do exist some tools that find gadgets and suggest ROP chains, such as Q,
-ropc, mona.py, and ROPGadget. However, these tools are either not available (Q),
+There do exist some tools that find gadgets and suggest ROP chains, such as Q \cite{schwartz2011q},
+ropc \cite{ropc}, mona.py \cite{mona}, and ROPGadget \cite{ropgadget}. However, these tools are either not available (Q),
 do not work on realistic x86 64-bit binaries (ropc, mona.py), or are not fully
 featured (ROPGadget).
 
