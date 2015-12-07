@@ -159,11 +159,16 @@ Any preconditions left unviolated throughout all of the concrete executions reve
 While Q \cite{schwartz2011q} and ROPC \cite{ropc} take this process one step further, by utilizing a SMT solver to verify the gadgets; our implementation does not do so.
 In our brief analysis and examples (described in \ref{examples}), we have not seen a gadget that has been misclassified using only the concrete emulation.
 Thus, to improve the ROP compilation speed, our implementation does not verify gadgets.
-
-
+Any of the necessary metadata (such as what registers clobbered by a gadget) is extracted from the symbolic formula.
 
 \subsection{Gadget Scheduler}\label{scheduler}
-The gadget scheduler
+The gadget scheduler combines classified gadgets into the individual goals.
+These goals are accomplished by iterating over the classified gadgets to find a series of ones that match the required goal. 
+For example, to write a value to memory, the scheduler looks for a LoadMemG gadget to set the address, another LoadMemG gadget to set the value, and a StoreMemG to actually write to memory.
+The scheduler keeps track of the registers to ensure that one used in the beginning of a chain does not clobber one needed later in the chain.
+
+While the \emph{Function} and \emph{ShellcodeAddress} goals are relatively straight forward to implement, the Shellcode goal requires more work. 
+
 How our compiler interacts with existing defenses (ASLR, w\^x)
 
 
