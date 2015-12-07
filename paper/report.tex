@@ -214,7 +214,7 @@ The exploit is further complicated by the need to call mprotect without it being
 
 Our exploit, provided in \emph{rsync.py}, utilizes an automatically generated ROP chain that handles these issues.
 The resulting ROP chain is 464 bytes that loads and executes a 33 byte execve-based shellcode.
-This ROP chain was generated in 71 seconds.
+This ROP chain was generated in 71 seconds on the author's laptop with an Intel i7-4700HG CPU and 8 GB of RAM.
 
 \section{Future Work}
   % Synthesizing new gadgets by combining ones
