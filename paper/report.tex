@@ -88,7 +88,7 @@ snippets of code that end in 'ret' (called gadgets). Most modern exploits levera
       % other existing tools, and their problems
 There do exist some tools that find gadgets and suggest ROP chains, such as Q \cite{schwartz2011q},
 ROPC \cite{ropc}, mona.py \cite{mona}, and ROPgadget \cite{ropgadget}. However, these tools are either not available (Q),
-do not work on realistic (ROPC), x86 64-bit binaries (mona.py), or are not fully featured (ROPgadget).
+do not work on realistic binaries (ROPC), x86 64-bit binaries (mona.py), or are not fully featured (ROPgadget).
 
 \section{Implementation Details}
 Our ROP Compiler is separated into four main components: the goal interpreter, the gadget finder, the gadget classifier, and the gadget scheduler.
