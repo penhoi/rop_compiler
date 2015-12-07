@@ -5,6 +5,8 @@
 \documentclass[journal]{IEEEtran}
 \usepackage{cite}
 \usepackage{url} 
+\usepackage{mathtools} 
+\usepackage[font=normalsize]{caption}
 
 \begin{document}
 %
@@ -125,7 +127,7 @@ A future version may iteratively increase \textbf{N} upon failing to compile an 
 The gadget classifier analyzes each of the potential gadgets to determine which type(s) of gadget they are.
 Our classifier's implementation is based of the design of Q's classifier as presented by Schwartz et al. \cite{schwartz2011q}.
 Schwartz proposed classifying gadget into 9 types useful for generating ROP chains.
-Our implementation classifies our potential gadgets into the 8 gadget types shown in \ref{tab:gadgetTypes} (excluding NoOpG gadgets from \cite{schwartz2011q}).
+Our implementation classifies our potential gadgets into the 8 gadget types shown in Table \ref{gadgetTypes} (excluding NoOpG gadgets from \cite{schwartz2011q}).
 
 \begin{table*}[t]
   \begin{center}
@@ -133,20 +135,19 @@ Our implementation classifies our potential gadgets into the 8 gadget types show
     \hline
     Name & Input & Parameters & Semantic Definition \\
     \hline
-    JumpG & AddrReg & & RIP <- AddrReg \\
-    MoveRegG & InReg, OutReg & & OutReg <- InReg \\
-    LoadConstG & OutReg & Value & OutReg <- Value \\
-    ArithmeticG & InReg1, InReg2, OutReg & Op & OutReg <- InReg1 Op InReg2 \\
-    LoadMemG & AddrReg, OutReg & Offset & OutReg <- M[AddrReg + Offset] \\
-    StoreMemG & AddrReg, InReg & Offset & M[AddrReg + Offset] <- InReg \\
-    ArithmeticLoadG & AddrReg, OutReg & Offset, Op & OutReg Op<-  M[AddrReg + Offset] \\
-    ArithmeticStoreG & AddrReg, InReg & Offset, Op & M[AddrReg + Offset] Op<- InReg \\
-
+    JumpG & AddrReg & & RIP $\leftarrow$ AddrReg \\
+    MoveRegG & InReg, OutReg & & OutReg $\leftarrow$ InReg \\
+    LoadConstG & OutReg & Value & OutReg $\leftarrow$ Value \\
+    ArithmeticG & InReg1, InReg2, OutReg & $\diamond$b & OutReg $\leftarrow$ InReg1 $\diamond$b InReg2 \\
+    LoadMemG & AddrReg, OutReg & Offset & OutReg $\leftarrow$ M[AddrReg + Offset] \\
+    StoreMemG & AddrReg, InReg & Offset & M[AddrReg + Offset] $\leftarrow$ InReg \\
+    ArithmeticLoadG & AddrReg, OutReg & Offset, $\diamond$b & OutReg $\diamond$b$\leftarrow$  M[AddrReg + Offset] \\
+    ArithmeticStoreG & AddrReg, InReg & Offset, $\diamond$b & M[AddrReg + Offset] $\diamond$b$\leftarrow$ InReg \\
       \hline
     \end{tabular}
     \caption{Gadget Types}
+  \label{gadgetTypes}
   \end{center}
-  \label{tab:gadgetTypes}
 \end{table*}
 
 Similar to the classifier proposed by Schwartz, our implementation uses the weakest precondition technique.
