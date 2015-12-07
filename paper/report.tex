@@ -28,7 +28,7 @@ When developing exploits for modern x86 64-bit systems, attackers must handcraft
 exploits for each binary. This involves finding a vulnerability (such
 as a stack-based buffer overflow) and diverting control flow (overwrite return
 address). Modern exploits employ Return-Oriented Programming to bypass widely
-deployed defenses such as W\^X.
+deployed defenses such as W\^{}X.
 
 Building a ROP chain requires manual effort to find suitable gadgets out of the
 multitude of existing code snippets, and then chaining those gadgets together in
@@ -53,8 +53,8 @@ installing malware. This gives the attacker a foothold on the machine towards a
 larger goals, such as financial fraud or exfiltration of sensitive data.
 
   % existing defenses (ASLR (pie), w^x)
-Modern computer systems employ various defenses, such as W\^X and ASLR, that
-protect against different types of control flow hijacking. W\^X works by
+Modern computer systems employ various defenses, such as W\^{}X and ASLR, that
+protect against different types of control flow hijacking. W\^{}X works by
 disabling execution of writable memory, such as the stack. This prevents an
 attacker from injecting malicious code as user-supplied input and directly
 diverting control flow to that address.
@@ -71,7 +71,7 @@ hardcoded addresses, and they do not support ASLR.
 
 With these defenses widely deployed, attackers have turned away from simpler
 techniques (code injection), and have instead developed control hijacking that
-reuses existing program code. This easily bypasses W\^X, since the code is
+reuses existing program code. This easily bypasses W\^{}X, since the code is
 already allowed to execute. Libraries, such as libc, provide many functions that
 an attacker would like to call (execve, mprotect, etc.). As such, the first
 techniques focused on setting up stack arguments and then diverting control to a
@@ -87,9 +87,9 @@ snippets of code that end in 'ret' (called gadgets). Most modern exploits levera
   % why existing ones aren't too usable
       % other existing tools, and their problems
 There do exist some tools that find gadgets and suggest ROP chains, such as Q \cite{schwartz2011q},
-ropc \cite{ropc}, mona.py \cite{mona}, and ROPGadget \cite{ropgadget}. However, these tools are either not available (Q),
-do not work on realistic x86 64-bit binaries (ropc, mona.py), or are not fully
-featured (ROPGadget).
+ROPC \cite{ropc}, mona.py \cite{mona}, and ROPgadget \cite{ropgadget}. However, these tools are either not available (Q),
+do not work on realistic x86 64-bit binaries (ROPC, mona.py), or are not fully
+featured (ROPgadget).
 
 
 \section{Implementation Details}
@@ -207,7 +207,10 @@ The resulting ROP chain is 464 bytes that loads and executes a 33 byte execve-ba
 This ROP chain was generated in 71 seconds.
 
 \section{Future Work}
-  - Synthesizing new gadgets by combining ones
+  % Synthesizing new gadgets by combining ones
+Our compiler, while functional, could be improved to provide additional advanced
+features. For example, we would like to explore synthesizing new gadgets by
+combining 
 
 \bibliographystyle{plain}
 \bibliography{sources.bib}{}
