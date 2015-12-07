@@ -168,7 +168,7 @@ The scheduler keeps track of the registers to ensure that one used in the beginn
 
 While the \emph{Function} and \emph{ShellcodeAddress} goals are relatively straight forward to implement, the \emph{Shellcode} goal requires more work. 
 In order to execute the exploit author's shellcode, our scheduler first must write the shellcode to memory.
-This is accommplished by querying the goal interpreter for a writable section of memory and then chaining together a series of write memory chains as previously described.
+This is accomplished by querying the goal interpreter for a writable section of memory and then chaining together a series of write memory chains as previously described.
 Once the shellcode has been stored to memory, the \emph{Shellcode} goal can be accomplished through the same means as a \emph{ShellcodeAddress} goal.
 
 A final situation that requires additional work is calling external functions in libraries.
@@ -176,25 +176,35 @@ While calling functions within the main binary's Procedure Linkage Table (PLT) i
 To accomplish this task, the scheduler must first read from the target process's GOT for a function which the target process does use.
 Next, the scheduler adds the offset from this base function to the target function.
 As offsets within a library are constant under traditional ASLR, the computed value will be the address of the target function.
-Our scheduler implements this approch by finding a chain of the following gadgets:
+Our scheduler implements this approach by finding a chain of the following gadgets:
 \begin{enumerate}
   \item LoadMemG from the stack to set the address of the base entry to read in the GOT.
   \item LoadMemG to read the base entry in the GOT.
   \item LoadMemG from the stack to set the offset from the base entry to the target entry in the library.
   \item ArithmeticG to add the offset from the base entry to the target entry in the GOT.
   \item One LoadMemG per arguments for the target function to set the argument's value.
-  \item JumpG to jump to the function in the the library.
+  \item JumpG to jump to the function in the library.
 \end{enumerate}
 The scheduler scans for each gadget while making sure any values used in the later gadgets (such as the computed function's address) aren't clobbered by the earlier gadgets.
 
 \section{Example Usage}\label{examples}
 
 \subsection{Buffer Overflow Proof of Concepts}
-- bof POC files
+In order to provide a test suite for our ROP compiler, we've implemented a series of proof of concept stack buffer overflow exploits.
+These example proof of concept programs exercise the different components of the compiler.
+This test suite includes:
+\begin{enumerate}
+  \item A buffer overflow which calls mprotect from the PLT to change memory permissions and execute shellcode already existing in memory.
+  \item A buffer overflow which calls the syscall function from the PLT to change memory permissions and execute shellcode already existing in memory.
+  \item A buffer overflow which calls mprotect from the PLT to change memory permissions and execute shellcode not already existing in memory.
+  \item A buffer overflow which calls system from the PLT to run a command.
+  \item A buffer overflow which reads the address of printf in the GOT, adds the offset from printf to mprotect in libc, calls
+  mprotect to change memory permissions, and execute shellcode not already existing in memory.
+\end{enumerate}
 
 \subsection{rsync}
 In order to illustrate a real world use of our ROP compiler, we implemented an exploit for rsync in it.
-As the current rsync\footnote{rsync 3.1.1, current as of 12/6/15} is does not have any publically known vulnerabilities, we introduced a sythentic stack buffer overflow into rsync.
+As the current rsync\footnote{rsync 3.1.1, current as of 12/6/15} does not have any publicly known vulnerabilities, we introduced a synthetic stack buffer overflow into rsync.
 This stack buffer overflow vulnerability was introduced into rsync's filter file argument processing code.
 rsync provides the ability to filter the files that are copied through the use of a filter file that specifies which files to exclude.
 As this vulnerability is a file format bug, there is little chance for the attacker to leak information about the memory layout of rsync (as compared to a network reachable bug).

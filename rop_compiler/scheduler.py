@@ -164,6 +164,8 @@ class Scheduler(object):
     self.logger.info("Creating function chain for %s(%s) and finishing with a return to 0x%x", goal.name,
       ",".join([hex(x) for x in goal.arguments]), end_address)
 
+    # TODO add the ability to do strings arguments by writing the string to memory first, and then using the string's address
+
     # Look for gadgets to set each of the arguments
     arg_gadgets = []
     no_clobber = []
