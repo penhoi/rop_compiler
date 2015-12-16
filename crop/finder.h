@@ -1,6 +1,11 @@
 #ifndef __FINDER__H_
 #define __FINDER__H_
 
-void find_gagdets(char * filename);
+#include "gadgets.h"
+
+#define MAX_GADGET_SIZE 10
+
+
+gadgets * find_gadgets(char * filename, unsigned long long base_address);
 
 #endif // __FINDER__H_

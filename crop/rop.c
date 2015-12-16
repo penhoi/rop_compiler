@@ -7,7 +7,7 @@ int main (int argc, char** argv) {
     printf("Usage: rop <filename>\n");
     return 1;
   }
-  find_gadgets(argv[1]);
+  find_gadgets(argv[1], 0);
   return 0;
 }
 
