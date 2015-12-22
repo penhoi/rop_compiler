@@ -40,7 +40,7 @@ gadgets * find_gadgets(char * filename, unsigned long long base_address)
   int fd;
   unsigned char * code_buffer;
   unsigned long long sec_address, gadget_address;
-  long long i, j, begin;
+  long long i;
   state_t s = gdsl_init();
 
   bfd_init();
@@ -65,7 +65,7 @@ gadgets * find_gadgets(char * filename, unsigned long long base_address)
     if(sec_address == 0)
       printf("No base address given for library or PIE executable.  Addresses may be wrong");
       
-    printf("Looking for gadgets in section %s (Address 0x%x, Size 0x%x)\n", sec->name, sec->vma, sec->size);
+    printf("Looking for gadgets in section %s (Address 0x%lx, Size 0x%lx)\n", sec->name, sec->vma, sec->size);
     code_buffer = get_section_code(sec, fd);
     if(!code_buffer)
       continue;

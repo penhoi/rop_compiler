@@ -1,6 +1,8 @@
-CFLAGS=--std=c99 -g
+CFLAGS=--std=c99 -g -Wall
 LIBS=-lgdsl-x86-rreil -lbfd
 SRC=finder.c
+
+all: x86_rop
 
 x86_rop:
 	$(CC) $(CFLAGS) $(SRC) rop.c -o x86_rop $(LIBS)
