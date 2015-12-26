@@ -7,6 +7,9 @@ all: x86_rop
 x86_rop:
 	$(CC) $(CFLAGS) $(SRC) rop.c -o x86_rop $(LIBS)
 
+test:
+	$(CC) $(CFLAGS) test.c -o test $(LIBS)
+
 run:
 	echo LD_PRELOAD=/usr/local/lib/libgdsl-x86-rreil.so ./x86_rop --help
 

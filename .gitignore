@@ -1,2 +1,4 @@
 *.pyc
 *.swp
+crop/test
+crop/x86_rop

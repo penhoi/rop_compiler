@@ -5,7 +5,6 @@
 
 #define MAX_GADGET_SIZE 10
 
-
-gadgets * find_gadgets(char * filename, unsigned long long base_address);
+gadget * find_gadgets(char * filename, unsigned long long base_address);
 
 #endif // __FINDER__H_

@@ -12,6 +12,8 @@
 #include "finder.h"
 #include "gadgets.h"
 
+#define min(a, b) ({__typeof__(a) _a = (a); __typeof__(b) _b = (b); _a < _b ? _a : _b;})
+
 unsigned char * get_section_code(asection * sec, int fd)
 {
   ssize_t len, temp;
@@ -32,12 +34,12 @@ unsigned char * get_section_code(asection * sec, int fd)
   return code_buffer;
 }
 
-gadgets * find_gadgets(char * filename, unsigned long long base_address)
+gadget * find_gadgets(char * filename, unsigned long long base_address)
 {
 	bfd * ibfd;
-  gadgets * gadget = NULL;
+  gadget * gadget = NULL;
   struct bfd_section * sec;
-  int fd;
+  int fd, gadget_size;
   unsigned char * code_buffer;
   unsigned long long sec_address, gadget_address;
   long long i;
@@ -63,7 +65,7 @@ gadgets * find_gadgets(char * filename, unsigned long long base_address)
 
     sec_address = base_address + sec->vma;
     if(sec_address == 0)
-      printf("No base address given for library or PIE executable.  Addresses may be wrong");
+      printf("No base address given for library or PIE executable.  Addresses may be wrong\n");
       
     printf("Looking for gadgets in section %s (Address 0x%lx, Size 0x%lx)\n", sec->name, sec->vma, sec->size);
     code_buffer = get_section_code(sec, fd);
@@ -75,23 +77,36 @@ gadgets * find_gadgets(char * filename, unsigned long long base_address)
       gadget_address = sec_address + i;
       gdsl_seek(s, gadget_address);
 
+      printf("Looking for gadgets at address 0x%lx\n", gdsl_get_ip(s));
       while(gdsl_get_ip(s)- sec_address < MAX_GADGET_SIZE) {
+        printf("End at address 0x%lx\n", gdsl_get_ip(s));
         if (setjmp(*gdsl_err_tgt(s)) != 0) {
-          fprintf(stdout,"exception at address 0x%lx: %s", gdsl_get_ip(s), gdsl_get_error_message(s));
+          fprintf(stdout,"exception at address 0x%lx: %s\n", gdsl_get_ip(s), gdsl_get_error_message(s));
           if(gdsl_seek(s,gdsl_get_ip(s)+1))
             break;
         }
 
-        opt_result_t block = gdsl_decode_translate_block_optimized(s, 0, gdsl_int_max(s), 0);
+        gadget_size = min(sec->size - i, 10);
+        opt_result_t block = gdsl_decode_translate_block_optimized(s, 0, gadget_size, 0);
+        //opt_result_t block = gdsl_decode_translate_block_optimized(s, 0, gdsl_int_max(s), 0);
+
+
+ //       obj_t instr = gdsl_decode(s, gadget_size);
+ //       obj_t res2 = gdsl_pretty(s,instr);
+ //       string_t strz = gdsl_merge_rope(s,res2);
+//        printf("0x%016lx:\n%s\n",gdsl_get_ip(s), strz);
 
         obj_t res = gdsl_rreil_pretty(s,block->rreil);
         string_t str = gdsl_merge_rope(s,res);
-        printf("0x%016lx:\n",gdsl_get_ip(s));
-        fputs(str,stdout);
+//        printf("0x%016lx:\n%s\n",gdsl_get_ip(s), str);
+
+//        printf("\n");
+        //return NULL;
+        printf("End at address 0x%lx\n", gdsl_get_ip(s));
       }
-      gdsl_reset_heap(s);
     }
     
+    gdsl_reset_heap(s);
     free(code_buffer);
   }
 
