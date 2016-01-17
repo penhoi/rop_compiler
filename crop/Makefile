@@ -1,17 +1,13 @@
-CFLAGS=--std=c99 -g -Wall
-LIBS=-lgdsl-x86-rreil -lbfd
-SRC=finder.c
+CPPFLAGS=-std=c++11 -ggdb3 -g -Wall -Iinclude/
+LIBS=-lbfd -lcppgdsl
+CPP=clang++
 
-all: x86_rop
+SRC=finder.cpp
 
-x86_rop:
-	$(CC) $(CFLAGS) $(SRC) rop.c -o x86_rop $(LIBS)
+all: ropme 
 
-test:
-	$(CC) $(CFLAGS) test.c -o test $(LIBS)
-
-run:
-	echo LD_PRELOAD=/usr/local/lib/libgdsl-x86-rreil.so ./x86_rop --help
+ropme:
+	$(CPP) $(CPPFLAGS) $(SRC) rop.cpp -o ropme $(LIBS)
 
 clean:
-	rm -f x86_rop
+	rm -f ropme
