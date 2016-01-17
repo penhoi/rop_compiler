@@ -2,7 +2,7 @@ CPPFLAGS=-std=c++11 -ggdb3 -g -Wall -Iinclude/
 LIBS=-lbfd -lcppgdsl
 CPP=clang++
 
-SRC=finder.cpp
+SRC=finder.cpp gadget.cpp operand.cpp
 
 all: ropme 
 
