@@ -7,15 +7,24 @@
 #include <sys/types.h>
 #include <unistd.h>
 
+#include <vector>
+#include <string>
+
 #include <bfd.h>
 
 #include "finder.h"
+#include "classifier.h"
 
 #define min(a, b) ({__typeof__(a) _a = (a); __typeof__(b) _b = (b); _a < _b ? _a : _b;})
 
+Finder::Finder(std::string architecture)
+{
+  arch = architecture;
+}
+
 unsigned char * Finder::get_section_code(asection * sec, int fd)
 {
-  ssize_t len, temp;
+  size_t len, temp;
   unsigned char * code_buffer = (unsigned char *)malloc(sec->size);
   if(!code_buffer)
     return NULL;
@@ -36,13 +45,13 @@ unsigned char * Finder::get_section_code(asection * sec, int fd)
 std::vector<Gadget *> Finder::find_gadgets(char * filename, unsigned long long base_address)
 {
 	bfd * ibfd;
-  Gadget * gadget = NULL;
   struct bfd_section * sec;
   int fd, gadget_size;
   unsigned char * code_buffer;
-  unsigned long long sec_address, gadget_address;
-  long long i;
-  std::vector<Gadget *> gadgets;
+  unsigned long long sec_address, gadget_address, offset;
+
+  std::vector<Gadget *> gadgets, temp;
+  Classifier classifier(arch);
 
   bfd_init();
 
@@ -72,9 +81,15 @@ std::vector<Gadget *> Finder::find_gadgets(char * filename, unsigned long long b
       continue;
 
     //code is in code_buffer, sec->size bytes in size, at address sec_address
-    for(i = 0; i < sec->size; i++) {
-      gadget_address = sec_address + i;
+    for(offset = 0; offset < sec->size; offset++) {
+      gadget_address = sec_address + offset;
       printf("Looking for gadgets at address 0x%llx\n", gadget_address);
+
+      gadget_size = min(sec->size - offset, MAX_GADGET_SIZE);
+      temp = classifier.create_gadgets_from_instructions(code_buffer + offset, gadget_size, gadget_address);
+      printf("Found %zu gadgets at address 0x%llx\n", temp.size(), gadget_address);
+      gadgets.insert(temp.end(), temp.begin(), temp.end());
+      printf("\n");
     }
     
     free(code_buffer);
