@@ -1,3 +1,5 @@
 pop rdi
-pop rax
 ret
+pop rbx
+pop rax
+jmp rax

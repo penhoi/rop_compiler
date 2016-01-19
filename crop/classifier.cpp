@@ -1,4 +1,3 @@
-#include <vector>
 
 #include <cppgdsl/block.h>
 #include <cppgdsl/frontend/bare_frontend.h>
@@ -9,6 +8,7 @@
 #include <cppgdsl/rreil_builder.h>
 #include <cppgdsl/gdsl.h>
 #include <cppgdsl/rreil/statement/load.h>
+#include <cppgdsl/rreil/statement/branch.h>
 #include <cppgdsl/rreil/visitor.h>
 #include <cppgdsl/gdsl_exception.h>
 
@@ -25,6 +25,8 @@
 #include <stdlib.h>
 #include <iostream>
 #include <string>
+#include <map>
+#include <vector>
 
 #include "classifier.h"
 #include "gadget.h"
@@ -32,6 +34,56 @@
 using gdsl::block;
 
 using namespace gdsl::rreil;
+
+class gadget_visitor : public visitor {
+  public:
+    std::map<variable *, expr *> effects;
+
+  void visit(expr_binop *a) {
+    printf("EXPR_BINOP: %s\n", a->to_string().c_str());
+  }
+
+  void visit(expr_ext *a) {
+    printf("EXPR_EXT: %s\n", a->to_string().c_str());
+  }
+
+  void visit(expr_sexpr *a) {
+    printf("EXPR_SEXPR: %s\n", a->to_string().c_str());
+  }
+
+
+  void visit(assign *s) {
+    variable * lhs = s->get_lhs();
+    expr * rhs = s->get_rhs();
+    printf("Assign: Variable %s Id %s Size %lld Offset %lld Rhs %s\n", lhs->to_string().c_str(),
+      lhs->get_id()->to_string().c_str(), s->get_size(), lhs->get_offset(), rhs->to_string().c_str());
+
+    rhs->accept(*this);
+  }
+
+  void visit(load *s) {
+    variable * lhs = s->get_lhs();
+    printf("Load: Variable %s Id %s Size %lld Offset %lld\n", lhs->to_string().c_str(), lhs->get_id()->to_string().c_str(), s->get_size(), lhs->get_offset());
+  }
+
+  void visit(store *s) {
+    printf("store:\n");
+  }
+
+  void visit(branch *s) {
+    address * a = s->get_target();
+    printf("branch: %s\n", a->to_string().c_str());
+    a->accept(*this);
+  }
+
+  void _default() {
+    printf("No assignment :-(\n");
+  }
+};
+
+//////////////////////////////////////////////////////////////////////////////////////
+// Classifier ////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////////////////
 
 Classifier::Classifier(std::string architecture)
 {
@@ -45,33 +97,15 @@ Classifier::~Classifier()
   delete f;
 }
 
-struct gadget_visitor: public statement_visitor {
-  void visit(assign *s) {
-    variable * lhs = s->get_lhs();
-    expr * rhs = s->get_rhs();
-    printf("Assign: Variable %s Id %s Size %lld Offset %lld Rhs %s\n", lhs->to_string().c_str(),
-      lhs->get_id()->to_string().c_str(), s->get_size(), lhs->get_offset(), rhs->to_string().c_str());
-  }
-  void visit(load *s) {
-    variable * lhs = s->get_lhs();
-    printf("Load: Variable %s Id %s Size %lld Offset %lld\n", lhs->to_string().c_str(), lhs->get_id()->to_string().c_str(), s->get_size(), lhs->get_offset());
-  }
-
-  void _default(statement *s) {
-    printf("No assignment :-(\n");
-  }
-
-  void ite(lin_binop *a) {
-    printf("Ite:\n");
-  }
-};
-
-std::vector<Gadget *> Classifier::create_gadgets_from_instructions(unsigned char * bytes, unsigned long size, unsigned long long address)
+std::vector<Gadget *> Classifier::create_gadgets_from_instructions(unsigned char * bytes,
+  unsigned long size, unsigned long long address)
 {
   std::vector<Gadget *> gadgets;
   statements_t * rreil;
 
   g->set_code(bytes, size, 0);
+
+  gadget_visitor visitor;
   while(true) {
     try
     {
@@ -86,10 +120,16 @@ std::vector<Gadget *> Classifier::create_gadgets_from_instructions(unsigned char
     for(statement *s : *rreil)
     {
       printf("%s\n", s->to_string().c_str());
-      gadget_visitor v;
-      s->accept(v);
+      s->accept(visitor);
       printf("\n");
     }
+
+    printf("Effects:\n");
+    for (std::map<variable *, expr *>::iterator it = visitor.effects.begin(); it != visitor.effects.end(); it++)
+    {
+      printf("%s <== %s\n", it->first->to_string().c_str(), it->second->to_string().c_str());
+    }
+    printf("\n");
   }
 
   return gadgets;
