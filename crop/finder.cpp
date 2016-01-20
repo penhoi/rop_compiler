@@ -50,7 +50,7 @@ std::vector<Gadget *> Finder::find_gadgets(char * filename, unsigned long long b
   unsigned char * code_buffer;
   unsigned long long sec_address, gadget_address, offset;
 
-  std::vector<Gadget *> gadgets, temp;
+  std::vector<Gadget *> gadgets, gadgets_this_round;
   Classifier classifier(arch);
 
   bfd_init();
@@ -86,10 +86,11 @@ std::vector<Gadget *> Finder::find_gadgets(char * filename, unsigned long long b
       printf("Looking for gadgets at address 0x%llx\n", gadget_address);
 
       gadget_size = min(sec->size - offset, MAX_GADGET_SIZE);
-      temp = classifier.create_gadgets_from_instructions(code_buffer + offset, gadget_size, gadget_address);
-      printf("Found %zu gadgets at address 0x%llx\n", temp.size(), gadget_address);
-      gadgets.insert(temp.end(), temp.begin(), temp.end());
+      gadgets_this_round = classifier.create_gadgets_from_instructions(code_buffer + offset, gadget_size, gadget_address);
+      printf("Found %zu gadgets at address 0x%llx\n", gadgets_this_round.size(), gadget_address);
+      gadgets.insert(gadgets_this_round.end(), gadgets_this_round.begin(), gadgets_this_round.end());
       printf("\n");
+      //break;
     }
     
     free(code_buffer);

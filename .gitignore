@@ -2,6 +2,8 @@
 *.swp
 *.o
 crop/example/bof
-crop/example/gadget
+crop/example/x86_gadget
+crop/example/mips_gadget
+crop/example/ppc_gadget
 crop/test
 crop/ropme

@@ -1,7 +1,7 @@
 #ifndef __FINDER__H_
 #define __FINDER__H_
 
-#define MAX_GADGET_SIZE 10
+#define MAX_GADGET_SIZE 16
 
 #include <bfd.h>
 
