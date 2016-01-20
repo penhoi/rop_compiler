@@ -5,7 +5,7 @@ bof:
 	gcc -g -fno-stack-protector bof.c -o bof -masm=intel
 
 $(TARGETS):
-	as $@.s -o $@.o -mmnemonic=intel -msyntax=intel -mnaked-reg
+	$(CC) $@.s -o $@.o -masm=intel -nostdlib -Ttext 0x400000
 	objcopy -O binary $@.o $@
 
 clean:
