@@ -45,6 +45,37 @@ class gadget_visitor : public visitor {
     int ret;
     expr * ret_expr;
 
+
+    void visit(lin_binop *lb)
+    {
+      binop_lin_op op = lb->get_op();
+      linear *opnd1 = lb->get_opnd1();
+      linear *opnd2 = lb->get_opnd2();
+      printf("LIN_BINOP %s: Operand 1: %s Operation: %s Operand 2: %s\n", lb->to_string().c_str(), opnd1->to_string().c_str(),
+        bin_lin_op_to_string(op).c_str(), opnd2->to_string().c_str());
+
+      opnd1->accept(*this);
+      opnd2->accept(*this);
+    }
+
+    void visit(lin_imm *li)
+    {
+      printf("LIN_IMM %s\n", li->to_string().c_str());
+    }
+
+    void visit(lin_scale *ls)
+    {
+      printf("LIN_SCALE %s\n", ls->to_string().c_str());
+    }
+
+    void visit(lin_var *lv)
+    {
+      printf("LIN_VAR %s\n", lv->to_string().c_str());
+    }
+
+
+
+
     void visit(arbitrary *a) {
       printf("SEXPR_ARBITRARY %s\n", a->to_string().c_str());
     }
@@ -54,7 +85,9 @@ class gadget_visitor : public visitor {
     }
 
     void visit(sexpr_lin *sl) {
-      printf("SEXPR_LIN %s\n", sl->to_string().c_str());
+      linear * l = sl->get_lin();
+      printf("SEXPR_LIN: %s, inner %s\n", sl->to_string().c_str(), l->to_string().c_str());
+      l->accept(*this);
     }
 
     void _default(sexpr *s) {
@@ -88,7 +121,11 @@ class gadget_visitor : public visitor {
 
     void visit(load *s) {
       variable * lhs = s->get_lhs();
-      printf("Load: Variable %s Id %s Size %lld Offset %lld\n", lhs->to_string().c_str(), lhs->get_id()->to_string().c_str(), s->get_size(), lhs->get_offset());
+      address * rhs = s->get_address();
+      printf("Load: Variable %s Id %s Size %lld Offset %lld from Address %s\n", lhs->to_string().c_str(),
+        lhs->get_id()->to_string().c_str(), s->get_size(), lhs->get_offset(), rhs->to_string().c_str());
+
+      rhs->accept(*this);
       ret = CONTINUE;
     }
 
