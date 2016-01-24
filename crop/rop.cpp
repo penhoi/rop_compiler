@@ -8,6 +8,7 @@ int main (int argc, char** argv) {
   std::string arch = "x86-rreil";
   if(argc < 2) {
     printf("Usage: rop filename <arch>\n");
+    printf("    arch = x86-rreil, arm7-rreil, mips5-rreil, mips6-rreil, avr-rreil\n");
     return 1;
   }
   if(argc > 2)

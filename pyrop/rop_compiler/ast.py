@@ -24,39 +24,11 @@ class Const(BaseType):
     return self.value
 
 class Register(BaseType):
-  """This class holds a register operand from any instructions.  Each register gets a handle to help differentiate the
-    associated value in it during z3 operations."""
-  MAX_HANDLE = 0
-
-  @classmethod
-  def new_handle(cls):
-    handle = cls.MAX_HANDLE
-    cls.MAX_HANDLE += 1
-    return handle
-
-  def __init__(self, name, handle = None):
-    self.name, self.size, self.start = self.convert_name(name)
-    self.handle = handle
-    if self.handle == None:
-      self.handle = Register.new_handle()
+  def __init__(self, offset):
+    self.offset = offset
 
   def __str__(self):
     return self.name
-
-  def to_z3(self):
-    return z3.BitVec(str(self), self.size * 8)
-
-  def convert_name(self, name):
-    return (name, 8, -1) #TODO handle al/ah/ax/eax/rax ambiguity
-
-  def is_same_register(self, name):
-    if ((type(name) == str and self.convert_name(name)[0] == self.name)
-        or (type(name) == Register and name.name == self.name)):
-      return True
-    return False
-
-  def compute(self, input_registers, memory):
-    return input_registers[self.name]
 
 class Memory(BaseType):
   """This class holds a memory operand from any instructions.  The address property holds the address of the memory operand and
@@ -88,7 +60,7 @@ class Memory(BaseType):
         (type(address1) == Register and address1.name == address2.name)):
       return True # References the same address or
 
-    if not issubclass(address1.__class__, BinaryOperand):
+    if not issubclass(address1.__class__, BinaryOp):
       return False # We're not going to go too deep with this, so really only consider the type [reg] or [reg operand const]
 
     reg1 = const1 = reg2 = const2 = None
@@ -111,15 +83,27 @@ class Memory(BaseType):
   def compute(self, input_registers, memory):
     return memory[self.address.compute(input_registers, memory)] # Don't evaluate the memory
 
-class Operand(object):
+class Operation(object):
   """The base class for instruction operations (add, subtract, etc) in the AST."""
   def __init__(self):
     self.operands = []
 
-class BinaryOperand(Operand):
-  """Parent class for any operation types that take 2 operands.  This is the majority of the ones we'll care about in ROP gadgets"""
+class UnaryOp(Operation):
+  """Parent class for any operation types that take 1 operands."""
+  def __init__(self, operand):
+    super(UnaryOp, self).__init__()
+    self.operands = [operand]
+
+  def __str__(self):
+    return "({}({}))".format(self.name, self.operands[0])
+
+class Un64to32(UnaryOp):
+  name = "64to32"
+
+class BinaryOp(Operation):
+  """Parent class for any operation types that take 2 operands."""
   def __init__(self, left, right):
-    super(BinaryOperand, self).__init__()
+    super(BinaryOp, self).__init__()
     self.operands = [left, right]
 
   def __str__(self):
@@ -132,35 +116,35 @@ class BinaryOperand(Operand):
   def compute(self, input_registers, memory):
     return self.operand(self.operands[0].compute(input_registers, memory), self.operands[1].compute(input_registers, memory))
 
-class Add(BinaryOperand):
+class Add(BinaryOp):
   name = "+"
   operand = (lambda self,x,y: x + y)
 
-class Sub(BinaryOperand):
+class Sub(BinaryOp):
   name = "-"
   operand = (lambda self,x,y: x - y)
 
-class Mult(BinaryOperand):
+class Mult(BinaryOp):
   name = "*"
   operand = (lambda self,x,y: x * y)
 
-class BitwiseAnd(BinaryOperand):
+class BitwiseAnd(BinaryOp):
   name = "&"
   operand = (lambda self,x,y: x & y)
 
-class BitwiseOr(BinaryOperand):
+class BitwiseOr(BinaryOp):
   name = "|"
   operand = (lambda self,x,y: x | y)
 
-class BitwiseXor(BinaryOperand):
+class BitwiseXor(BinaryOp):
   name = "^"
   operand = (lambda self,x,y: x ^ y)
 
-class Equal(BinaryOperand):
+class Equal(BinaryOp):
   name = "="
   operand = (lambda self,x,y: x == y)
 
-class Store(BinaryOperand):
+class Store(BinaryOp):
   name = "Memory"
 
 
