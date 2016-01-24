@@ -211,6 +211,7 @@ class GadgetClassifier(object):
   def Ist_IMark(self, stmt): pass
   def Ist_NoOp(self, stmt):  pass
   def Ist_AbiHint(self, stmt): pass
+  def Ist_Exit(self, stmt): pass
 
 ############################################################################################
 ## Expression Emulators ####################################################################
@@ -234,10 +235,13 @@ class GadgetClassifier(object):
     return getattr(self, expr.con.tag)(expr.con)
 
   def Ico_U8(self, constant):
-    return constant.value
+    return self.mask(constant.value, 8)
+
+  def Ico_U32(self, constant):
+    return self.mask(constant.value, 32)
 
   def Ico_U64(self, constant):
-    return constant.value
+    return self.mask(constant.value, 64)
 
   def Iex_Unop(self, expr):
     argument = getattr(self, expr.args[0].tag)(expr.args[0])
@@ -249,10 +253,22 @@ class GadgetClassifier(object):
   def Iop_32Uto64(self, argument):
     return argument
 
+  def Iop_32Sto64(self, argument):
+    if argument >= 0:
+      return argument
+    else:
+      return (2 ** 64) + argument
+
   def Iex_Binop(self, expr):
     left = getattr(self, expr.args[0].tag)(expr.args[0])
     right = getattr(self, expr.args[1].tag)(expr.args[1])
     return getattr(self, expr.op)(left, right)
+
+  def Iop_And64(self, left, right):
+    return left & right
+
+  def Iop_Xor64(self, left, right):
+    return left ^ right
 
   def Iop_Add64(self, left, right):
     return self.mask(left + right)
@@ -262,6 +278,18 @@ class GadgetClassifier(object):
 
   def Iop_Shl64(self, left, right):
     return self.mask(left << right)
+
+  def Iop_Shl32(self, left, right):
+    return self.mask(left << right, 32)
+
+  def Iop_CmpEQ64(self, left, right):
+    return 1 if self.mask(left, 64) == self.mask(right, 64) else 0
+
+  def Iop_CmpNE64(self, left, right):
+    return 1 if self.mask(left, 64) != self.mask(right, 64) else 0
+
+  def Iop_CmpEQ32(self, left, right):
+    return 1 if self.mask(left, 32) == self.mask(right, 32) else 0
 
 if __name__ == "__main__":
   # A simple set of tests to ensure we can correctly classify some example gadgets
@@ -284,6 +312,18 @@ if __name__ == "__main__":
       ({LoadMem : 1, LoadConst : 1}, '\x59\x48\x89\xcb\x48\xc7\xc1\x05\x00\x00\x00\xc3'), # pop rcx; mov rbx,rcx; mov rcx,0x5; ret
     ],
     archinfo.ArchMIPS64 : [
+      ({LoadMem : 1},
+        '\x8f\xbf\x00\x10' + # lw ra,16(sp)
+        '\x8f\xb0\x00\x08' + # lw s0,8(sp)
+        '\x03\xe0\x00\x08' + # jr ra
+        '\x00\x00\x00\x00')  # nop
+    ],
+    archinfo.ArchPPC64 : [
+      ({LoadMem : 1},
+        '\x83\xe1\x00\x08' + # lwz r31,8(r1)
+        '\x80\x01\x00\x04' + # lwz r0,4(r1)
+        '\x7c\x08\x03\xa6' + # mtlr r0
+        '\x4e\x80\x00\x20')  # blr
     ]
   }
 
