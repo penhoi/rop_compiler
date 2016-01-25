@@ -54,8 +54,8 @@ class GadgetClassifier(object):
 
     possible_types = None
     for i in range(self.NUM_VALIDATIONS):
-      self.in_regs = collections.defaultdict(lambda: random.randint(0,0x100000), {})
-      self.in_mem  = collections.defaultdict(lambda: random.randint(0,0x100000), {})
+      self.in_regs = collections.defaultdict(lambda: random.randint(0, 2 ** (self.arch.bits - 2)), {})
+      self.in_mem  = collections.defaultdict(lambda: random.randint(0, 2 ** (self.arch.bits - 2)), {})
       self.out_regs = {}
       self.out_mem = {}
       self.tmps = {}
@@ -63,7 +63,7 @@ class GadgetClassifier(object):
       success = self.emulate_statements(irsb.statements)
       if not success:
         return []
-      
+
       possible_types_this_round = self.check_execution_for_gadget_types()
       if possible_types == None:
         possible_types = possible_types_this_round
@@ -81,6 +81,9 @@ class GadgetClassifier(object):
     stack_offset = 0
     if sp_reg in self.out_regs and sp_reg in self.in_regs: 
       stack_offset = self.out_regs[sp_reg] - self.in_regs[sp_reg]
+    if stack_offset < 0:
+      return []
+
     ip_in_stack_offset = None
     for (gadget_type, inputs, output, params) in possible_types: # Find the offset of rip in the stack for these gadgets
       if gadget_type == LoadMem and output == ip_reg and inputs[0] == sp_reg:
@@ -97,7 +100,7 @@ class GadgetClassifier(object):
         if oreg != output and oreg != ip_reg and oreg != sp_reg and not self.is_ignored_register(oreg):
           clobber.append(oreg)
 
-      gadget = gadget_type(self.arch, irsb, inputs, output, params, clobber, stack_offset, ip_in_stack_offset)
+      gadget = gadget_type(self.arch, irsb, inputs, output, params, clobber, stack_offset, ip_in_stack_offset, len(self.out_mem))
       if gadget != None and gadget.validate():
         self.logger.debug("Found gadget: %s", str(gadget))
         gadgets.append(gadget)
@@ -229,17 +232,17 @@ class GadgetClassifier(object):
 
   def Iex_Get(self, expr):
     if expr.offset in self.out_regs:
-      return self.out_regs[expr.offset]
-    return self.in_regs[expr.offset]
+      return self.mask(self.out_regs[expr.offset], expr.result_size)
+    return self.mask(self.in_regs[expr.offset], expr.result_size)
     
   def Iex_RdTmp(self, argument):
-    return self.tmps[argument.tmp]
+    return self.mask(self.tmps[argument.tmp], argument.result_size)
 
   def Iex_Load(self, expr):
     address = getattr(self, expr.addr.tag)(expr.addr)
     if address in self.out_mem:
-      return self.out_mem[address]
-    return self.in_mem[address]
+      return self.mask(self.out_mem[address], expr.result_size)
+    return self.mask(self.in_mem[address], expr.result_size)
     
   def Iex_Const(self, expr):
     return getattr(self, expr.con.tag)(expr.con)
@@ -261,10 +264,10 @@ class GadgetClassifier(object):
     return self.mask(argument, 32)
 
   def Iop_32Uto64(self, argument):
-    return argument
+    return self.mask(argument)
 
   def Iop_8Uto64(self, argument):
-    return argument
+    return self.mask(argument)
 
   def Iop_32Sto64(self, argument):
     if argument >= 0:

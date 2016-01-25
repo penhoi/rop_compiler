@@ -1,8 +1,9 @@
+import math
 
 class Gadget(object):
   """This class wraps a set of instructions and holds the associated metadata that makes up a gadget"""
 
-  def __init__(self, arch, irsb, inputs, output, params, clobber, stack_offset, ip_in_stack_offset):
+  def __init__(self, arch, irsb, inputs, output, params, clobber, stack_offset, ip_in_stack_offset, num_mem_writes):
     self.arch = arch
     self.irsb = irsb
     self.address = irsb._addr
@@ -10,6 +11,7 @@ class Gadget(object):
     self.output = output
     self.params = params
     self.clobber = clobber
+    self.num_mem_writes = num_mem_writes
     self.stack_offset = stack_offset
     self.ip_in_stack_offset = ip_in_stack_offset
 
@@ -26,7 +28,8 @@ class Gadget(object):
     params = ", ".join([hex(x) for x in self.params])
     if params != "":
       params = ", Params [{}]".format(params)
-    return "{}(Address: 0x{:x}{}{}{}{})".format(self.__class__.__name__, self.address, output, inputs, clobber, params)
+    return "{}(Address: 0x{:x}, Complexity {}, Stack Offset 0x{:x}{}{}{}{})".format(self.__class__.__name__, self.address,
+      self.complexity(), self.stack_offset, output, inputs, clobber, params)
 
   def clobbers_register(self, reg):
     """Check if the gadget clobbers the specified register"""
@@ -60,9 +63,11 @@ class Gadget(object):
       complexity += 1
 
     if self.stack_offset < 0:
-      complexity += 5
+      complexity += 10
+    elif self.stack_offset > 0:
+      complexity += (math.log(self.stack_offset)/math.log(8))
 
-    return len(self.clobber) + complexity
+    return len(self.clobber) + complexity + 2 * self.num_mem_writes
 
   def validate(self):
     """This method validates the inputs, output, and parameters with z3 to ensure it follows the gadget type's preconditions"""

