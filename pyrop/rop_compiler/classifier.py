@@ -35,14 +35,22 @@ class GadgetClassifier(object):
           getattr(self, stmt.tag)(stmt)
         else:
           self.unknown_statement(stmt)
-      except RuntimeError, err:
-        # RuntimeError's are thrown whenever we detect a gadget is unusable (Memory Reads from Constants, Bad instructions, etc)
-        # Upon receiving an error, give up on this set of instructions
-        self.logger.info(err)
-        break
+      except:
+        return False
+    return True
+
+  def get_irsb(self, code, address):
+    irsb = None
+    try:
+      irsb = pyvex.IRSB(code, address, self.arch)
+    except:
+      pass
+    return irsb
 
   def create_gadgets_from_instructions(self, code, address):
-    irsb = pyvex.IRSB(code, address, self.arch)
+    irsb = self.get_irsb(code, address)
+    if irsb == None:
+      return []
 
     possible_types = None
     for i in range(self.NUM_VALIDATIONS):
@@ -52,7 +60,9 @@ class GadgetClassifier(object):
       self.out_mem = {}
       self.tmps = {}
 
-      self.emulate_statements(irsb.statements)
+      success = self.emulate_statements(irsb.statements)
+      if not success:
+        return []
       
       possible_types_this_round = self.check_execution_for_gadget_types()
       if possible_types == None:
@@ -68,7 +78,7 @@ class GadgetClassifier(object):
     sp_reg = self.arch.registers['sp'][0]
     ip_reg = self.arch.registers['ip'][0]
 
-    stack_offset = None
+    stack_offset = 0
     if sp_reg in self.out_regs and sp_reg in self.in_regs: 
       stack_offset = self.out_regs[sp_reg] - self.in_regs[sp_reg]
     ip_in_stack_offset = None
@@ -253,6 +263,9 @@ class GadgetClassifier(object):
   def Iop_32Uto64(self, argument):
     return argument
 
+  def Iop_8Uto64(self, argument):
+    return argument
+
   def Iop_32Sto64(self, argument):
     if argument >= 0:
       return argument
@@ -264,32 +277,23 @@ class GadgetClassifier(object):
     right = getattr(self, expr.args[1].tag)(expr.args[1])
     return getattr(self, expr.op)(left, right)
 
-  def Iop_And64(self, left, right):
-    return left & right
+  def Iop_And64(self, left, right): return left & right
 
-  def Iop_Xor64(self, left, right):
-    return left ^ right
+  def Iop_Xor64(self, left, right): return left ^ right
 
-  def Iop_Add64(self, left, right):
-    return self.mask(left + right)
+  def Iop_Add64(self, left, right): return self.mask(left + right)
+  def Iop_Add32(self, left, right): return self.mask(left + right, 32)
+  def Iop_Add8(self, left, right):  return self.mask(left + right, 8)
 
-  def Iop_Sub64(self, left, right):
-    return self.mask(left - right)
+  def Iop_Sub64(self, left, right): return self.mask(left - right)
 
-  def Iop_Shl64(self, left, right):
-    return self.mask(left << right)
+  def Iop_Shl64(self, left, right): return self.mask(left << right)
+  def Iop_Shl32(self, left, right): return self.mask(left << right, 32)
 
-  def Iop_Shl32(self, left, right):
-    return self.mask(left << right, 32)
+  def Iop_CmpEQ64(self, left, right): return 1 if self.mask(left, 64) == self.mask(right, 64) else 0
+  def Iop_CmpEQ32(self, left, right): return 1 if self.mask(left, 32) == self.mask(right, 32) else 0
 
-  def Iop_CmpEQ64(self, left, right):
-    return 1 if self.mask(left, 64) == self.mask(right, 64) else 0
-
-  def Iop_CmpNE64(self, left, right):
-    return 1 if self.mask(left, 64) != self.mask(right, 64) else 0
-
-  def Iop_CmpEQ32(self, left, right):
-    return 1 if self.mask(left, 32) == self.mask(right, 32) else 0
+  def Iop_CmpNE64(self, left, right): return 1 if self.mask(left, 64) != self.mask(right, 64) else 0
 
 if __name__ == "__main__":
   # A simple set of tests to ensure we can correctly classify some example gadgets

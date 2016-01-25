@@ -3,7 +3,7 @@ from elftools.elf.constants import P_FLAGS
 import archinfo
 import logging
 
-import gadget as gt
+import classifier as cl
 
 class Finder(object):
   """This class parses an ELF files to obtain any gadgets inside their executable sections"""
@@ -15,8 +15,8 @@ class Finder(object):
   GADGET_END_INSTRUCTIONS = ['ret', 'jmp']
 
   """The amount to step between instructions"""
-  STEP = [ archinfo.ArchX86 : 1, archinfo.ArchAMD64 : 1, archinfo.MIPS64 : 4, archinfo.ArchMIPS32 : 4,
-    archinfo.ArchPPC32 : 4, archinfo.ArchPPC64 : 4 ]
+  STEP = { archinfo.ArchX86 : 1, archinfo.ArchAMD64 : 1, archinfo.ArchMIPS64 : 4, archinfo.ArchMIPS32 : 4,
+    archinfo.ArchPPC32 : 4, archinfo.ArchPPC64 : 4 }
 
   def __init__(self, filename, arch, base_address = 0, level = logging.WARNING):
     logging.basicConfig(format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
@@ -50,7 +50,7 @@ class Finder(object):
     if self.base_address == 0 and segment.header.p_paddr == 0: # libraries and PIE executable, don't have the p_paddr in the header set to 0
       self.logger.warning("No base address given for library or PIE executable.  Addresses may be wrong")
 
-    classifier = gt.GadgetClassifier(self.arch, self.level)
+    classifier = cl.GadgetClassifier(self.arch, self.level)
     gadgets = []
     data = segment.data()
     for i in range(1, len(data), self.STEP[self.arch]):
@@ -67,13 +67,13 @@ if __name__ == "__main__":
 
   parser = argparse.ArgumentParser(description="Run the gadget locator on the supplied binary")
   parser.add_argument('target', type=str, help='The file (executable/library) to find gadgets in')
-  parser.add_argument('-base_address', type=str, default=0, help='The address the file is loaded at (in hex).  Only needed for PIE/PIC binaries')
+  parser.add_argument('-base_address', type=str, default="0", help='The address the file is loaded at (in hex).  Only needed for PIE/PIC binaries')
   parser.add_argument('-v', required=False, action='store_true', help='Verbose mode')
   args = parser.parse_args()
 
-  finder = Finder(args.target, int(args.base_address, 16), logging.DEBUG if args.v else logging.WARNING)
+  finder = Finder(args.target, archinfo.ArchAMD64, int(args.base_address, 16), logging.DEBUG if args.v else logging.WARNING)
   gadgets = finder.find_gadgets()
 
   for gadget in gadgets:
-    print gadget
+    print gadget, gadget.complexity()
 

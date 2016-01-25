@@ -1,6 +1,7 @@
 # This file contains the logic to combine a set of gadgets and implement the desired goals
 import struct, logging, collections
 import goal as go, gadget as ga
+import archinfo
 
 PAGE_MASK = 0xfffffffffffff000
 PROT_RWX = 7
@@ -9,15 +10,22 @@ MPROTECT_SYSCALL = 10
 class Scheduler(object):
   """This class takes a set of gadgets and combines them together to implement the given goals"""
 
-  func_calling_convention = [ "rdi", "rsi", "rdx", "rcx", "r8", "r9" ]
-  #syscall_calling_convention = [ "rdi", "rsi", "rdx", "r10", "r8", "r9" ]  # TODO cover the syscall case
-  all_registers = [ "rax", "rbx", "rcx", "rdx", "rdi", "rsi", "rbp", "r10", "r8", "r9", "r11", "r12", "r13", "r14", "r15" ]
+  func_calling_convention = collections.defaultdict(list, {
+    "AMD64" : ["rdi", "rsi", "rdx", "rcx", "r8", "r9"]
+  })
 
-  def __init__(self, gadgets, goal_resolver, level):
+  #syscall_calling_convention = [ "rdi", "rsi", "rdx", "r10", "r8", "r9" ]  # TODO cover the syscall case
+
+  IGNORED_REGISTERS = collections.defaultdict(list, {
+    "AMD64" : [ "cc_dep1", "cc_dep2", "cc_ndep", "cc_op", "d", "fpround", "fs", "sseround"  ]
+  })
+
+  def __init__(self, gadgets, goal_resolver, arch = archinfo.ArchAMD64, level = logging.WARNING):
     logging.basicConfig(format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
     self.logger = logging.getLogger(self.__class__.__name__)
     self.logger.setLevel(level)
 
+    self.arch = arch()
     self.gadgets = gadgets
     self.write_memory_chains = []
     self.store_mem_gadgets = collections.defaultdict(dict)
@@ -26,23 +34,38 @@ class Scheduler(object):
     self.goals = goal_resolver.get_goals()
     self.chain = self.chain_gadgets()
 
+  def get_all_registers(self):
+    registers = dict(self.arch.registers)
+    for reg in self.IGNORED_REGISTERS[self.arch.name]:
+      registers.pop(reg)
+    reg_numbers = []
+    for name, (number, size) in registers.items():
+      reg_numbers.append(number)
+    return reg_numbers
+
+  def reg_name(self, reg_number):
+    return self.arch.translate_register_name(reg_number)
+
+  def reg_number(self, reg_name):
+    return self.arch.registers[reg_name][0]
+
   def get_chain(self):
     """Returns the compiled ROP chain"""
     return self.chain
 
-  def find_load_stack_gadget(self, register_name, no_clobber = None):
+  def find_load_stack_gadget(self, register, no_clobber = None):
     """This method finds the best gadget (lowest complexity) to load a register from the stack"""
     best = best_complexity = None
     for gadget in self.gadgets:
-      if (type(gadget) == ga.LoadMem and gadget.inputs[0] == "rsp" # It's a load from the stack (most likely a pop)
-        and register_name == gadget.output # and it's for the correct register
+      if (type(gadget) == ga.LoadMem and gadget.inputs[0] == self.arch.registers['sp'][0] # It's a load from the stack (most likely a pop)
+        and register == gadget.output # and it's for the correct register
         and (no_clobber == None or not gadget.clobbers_registers(no_clobber))
-        and (best == None or best_complexity > gadget.complexity())): # and it's got a better complexity than the current one
+        and (best == None or best_complexity < gadget.complexity())): # and it's got a better complexity than the current one
           best = gadget
           best_complexity = best.complexity()
 
     if best != None:
-      self.logger.debug("Found LoadStack %s Gadget:\n%s\n", register_name, best)
+      self.logger.debug("Found LoadStack %s Gadget: %s", self.reg_name(register), best)
 
     # TODO Synthesize gadgets for missing types
     return best
@@ -56,13 +79,13 @@ class Scheduler(object):
           or (gadget.inputs[0] == input_registers[0] # Only looking for one specific input
             and (len(gadget.inputs) == 1 or gadget.inputs[1] == input_registers[1]))) # Also looking to match the second input
         and (output_register == None or gadget.output == output_register) # looking to match the output
-        and (no_clobber == None or not gadget.clobbers_registers(no_clobber)) # Can't clobber anything weneed
+        and (no_clobber == None or not gadget.clobbers_registers(no_clobber)) # Can't clobber anything we need
         and (best == None or best_complexity > gadget.complexity())): # and it's got a better complexity than the current one
           best = gadget
           best_complexity = best.complexity()
 
     if best != None:
-      self.logger.debug("Found %s %s Gadget:\n%s\n", gadget_type.__name__, best.inputs[0], best)
+      self.logger.debug("Found %s %s Gadget: %s", gadget_type.__name__, self.reg_name(best.inputs[0]), best)
 
     # TODO Synthesize gadgets for missing types
     return best
@@ -85,7 +108,7 @@ class Scheduler(object):
 
     self.store_mem_gadgets[addr_reg][value_reg] = best
     if best != None:
-      self.logger.debug("Found StoreMem(%s, %s) Gadget:\n%s\n", addr_reg, value_reg, best)
+      self.logger.debug("Found StoreMem(%s, %s) Gadget:%s", self.reg_name(addr_reg), self.reg_name(value_reg), best)
     return best
 
   def combined_complexity(self, chain):
@@ -104,18 +127,18 @@ class Scheduler(object):
     """This method determines a set of gadget sequences that will write a value to memory"""
 
     self.write_memory_chains = []
-    for addr_reg in self.all_registers:
+    for addr_reg in self.get_all_registers():
       # First find a gadget to set the address register
       load_addr_gadget = self.find_load_stack_gadget(addr_reg)
       if load_addr_gadget == None:
         continue
 
-      for value_reg in self.all_registers:
+      for value_reg in self.get_all_registers():
         if addr_reg == value_reg:
           continue
 
         # Then find a gadget to set the value register
-        load_value_gadget = self.find_load_stack_gadget(value_reg, addr_reg)
+        load_value_gadget = self.find_load_stack_gadget(value_reg, [addr_reg])
         if load_value_gadget == None:
           continue
 
@@ -154,7 +177,7 @@ class Scheduler(object):
 
     chain  = gadget.params[0] * "A"
     chain += value
-    chain += (gadget.rip_in_stack_offset - len(chain)) * "B"
+    chain += (gadget.ip_in_stack_offset - len(chain)) * "B"
     chain += self.ap(next_address)
     chain += (gadget.stack_offset - len(chain)) * "C"
     return chain
@@ -170,7 +193,7 @@ class Scheduler(object):
     arg_gadgets = []
     no_clobber = []
     for i in range(len(goal.arguments)):
-      reg = self.func_calling_convention[i]
+      reg = self.reg_number(self.func_calling_convention[self.arch.name][i])
       arg_gadget = self.find_load_stack_gadget(reg, no_clobber)
       if arg_gadget == None:
         # TODO Rearrange the order of setting gadgets so we can still use gadgets that clobber another register
@@ -200,9 +223,9 @@ class Scheduler(object):
 
     # First, look for all the needed gadgets
     original_offset = offset
-    for jump_reg in self.all_registers:
+    for jump_reg in self.get_all_registers():
       read_gadget = set_read_addr_gadget = None
-      for addr_reg in self.all_registers:
+      for addr_reg in self.get_all_registers():
         if addr_reg == jump_reg: continue
 
         # Find a gadget to read from memory
@@ -225,7 +248,7 @@ class Scheduler(object):
         continue
 
       add_jump_reg_gadget = set_add_reg_gadget = None
-      for add_reg in self.all_registers:
+      for add_reg in self.get_all_registers():
         offset = original_offset
         if add_reg == jump_reg: continue
 
@@ -250,7 +273,7 @@ class Scheduler(object):
       arg_gadgets = []
       no_clobber = [jump_reg]
       for i in range(len(arguments)):
-        reg = self.func_calling_convention[i]
+        reg = self.reg_number(self.func_calling_convention[self.arch.name][i])
         arg_gadget = self.find_load_stack_gadget(reg, no_clobber)
         if arg_gadget != None:
           arg_gadgets.append(arg_gadget)
@@ -276,7 +299,7 @@ class Scheduler(object):
     chain = self.create_set_reg_chain(set_read_addr_gadget, address - read_gadget.params[0], read_gadget.address)
 
     # read the address in the GOT
-    read_gadget_chain = read_gadget.rip_in_stack_offset * "B"
+    read_gadget_chain = read_gadget.ip_in_stack_offset * "B"
     read_gadget_chain += self.ap(set_add_reg_gadget.address)
     read_gadget_chain += (read_gadget.stack_offset - len(read_gadget_chain)) * "C"
     chain += read_gadget_chain
@@ -285,7 +308,7 @@ class Scheduler(object):
     chain += self.create_set_reg_chain(set_add_reg_gadget, offset, add_jump_reg_gadget.address)
 
     # add the offset
-    add_jump_reg_gadget_chain = add_jump_reg_gadget.rip_in_stack_offset * "B"
+    add_jump_reg_gadget_chain = add_jump_reg_gadget.ip_in_stack_offset * "B"
     add_jump_reg_gadget_chain += self.ap(start_of_function_address)
     add_jump_reg_gadget_chain += (add_jump_reg_gadget.stack_offset - len(add_jump_reg_gadget_chain)) * "C"
     chain += add_jump_reg_gadget_chain
@@ -327,12 +350,15 @@ class Scheduler(object):
     # the offset in libc to find mprotect.  This will allow us to call mprotect without knowing the address of libc
     self.logger.info("Couldn't find mprotect or syscall, restorting to reading the GOT and computing addresses")
     functions_in_got = ["printf", "puts", "read", "open", "close", "exit"] # Keep trying, in case they don't use the first function
+    base_address_in_got = offset_in_libc = None
     for base in functions_in_got:
       # Find the address of the base function in libc, and the offset between it and mprotect
       base_address_in_got, offset_in_libc = self.goal_resolver.resolve_symbol_from_got(base, "mprotect")
-      if base_address_in_got == None or offset_in_libc == None:
-        continue
+      if base_address_in_got != None and offset_in_libc != None:
+        self.logger.info("Used %s to found the address of libc: 0x%x", base, base_address_in_got)
+        break
 
+    if base_address_in_got != None and offset_in_libc != None:
       # Create the chain to call mprotect based on the base function's address
       mprotect_args = [goal.shellcode_address & PAGE_MASK, 0x2000, PROT_RWX]
       chain, next_address = self.create_read_add_jmp_function_chain(base_address_in_got, offset_in_libc, mprotect_args, goal.shellcode_address)
@@ -355,7 +381,7 @@ class Scheduler(object):
     chain += self.create_set_reg_chain(load_value_gadget, buf, store_mem_gadget.address)
 
     # Finally, create the chain to write to memory
-    set_mem_rop = store_mem_gadget.rip_in_stack_offset * "B"
+    set_mem_rop = store_mem_gadget.ip_in_stack_offset * "B"
     set_mem_rop += self.ap(next_address)
     set_mem_rop += (store_mem_gadget.stack_offset - len(set_mem_rop)) * "C"
     chain += set_mem_rop
