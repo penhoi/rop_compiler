@@ -1,4 +1,4 @@
-import math
+import math, struct
 
 class Gadget(object):
   """This class wraps a set of instructions and holds the associated metadata that makes up a gadget"""
@@ -73,13 +73,42 @@ class Gadget(object):
     # TODO validate the gadget type with z3
     return True
 
+  def ap(self, address):
+    """Packs an address into a string. ap is short for Address Pack"""
+    if type(address) == str: # Assume already packed
+      return address
+    if address < 0:
+      address = (2 ** self.arch.bits) + address
+    return struct.pack("Q", address)
+
+  def chain(self, next_address, input_value = None): 
+    """Default ROP Chain generation, uses no parameters"""
+    chain = self.ip_in_stack_offset * "I"
+    chain += self.ap(next_address)
+    chain += (self.stack_offset - len(chain)) * "J"
+    return chain
+
 # The various Gadget types
-class Jump(Gadget):            pass
+class Jump(Gadget):
+  def chain(self, next_address = None, input_value = None): 
+    return self.stack_offset * "H" # No parameters or IP in stack, just fill the stack offset
+
 class MoveReg(Gadget):         pass
 class LoadConst(Gadget):       pass
-class LoadMem(Gadget):         pass
-class Arithmetic(Gadget):      pass
+
+class LoadMem(Gadget):
+  def chain(self, next_address, input_value = None): 
+    chain = ""
+    if input_value != None:
+      chain += self.params[0] * "A"
+      chain += self.ap(input_value)
+    chain += (self.ip_in_stack_offset - len(chain)) * "B"
+    chain += self.ap(next_address)
+    chain += (self.stack_offset - len(chain)) * "C"
+    return chain
+
 class StoreMem(Gadget):        pass
+class Arithmetic(Gadget):      pass
 class ArithmeticLoad(Gadget):  pass
 class ArithmeticStore(Gadget): pass
 
