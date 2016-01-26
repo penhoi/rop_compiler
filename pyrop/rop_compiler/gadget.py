@@ -1,6 +1,67 @@
 import math, struct
 
-class Gadget(object):
+class GadgetBase(object):
+  def clobbers_register(self, reg):
+    raise RuntimeError("Not Implemented")
+
+  def clobbers_registers(self, regs):
+    raise RuntimeError("Not Implemented")
+
+  def uses_register(self, name):
+    raise RuntimeError("Not Implemented")
+
+  def complexity(self):
+    raise RuntimeError("Not Implemented")
+
+  def validate(self):
+    raise RuntimeError("Not Implemented")
+
+  def ap(self, address):
+    """Packs an address into a string. ap is short for Address Pack"""
+    if type(address) == str: # Assume already packed
+      return address
+    if address < 0:
+      address = (2 ** self.arch.bits) + address
+    return struct.pack("Q", address)
+
+  def chain(self, next_address, input_value = None): 
+    raise RuntimeError("Not Implemented")
+
+class CombinedGadget(GadgetBase):
+  """This class wraps multiple gadgets which are combined to create a single ROP primitive"""
+  def __init__(self, gadgets):
+    self.gadgets = gadgets
+    self.arch = gadgets[0].arch
+    self.address = gadgets[0].address
+
+  def __str__(self):
+    return "CombinedGadget([{}])".format(", ".join([str(g) for g in self.gadgets]))
+
+  def complexity(self):
+    return sum([g.complexity() for g in self.gadgets])
+
+  def clobbers_register(self, reg):
+    return any([g.clobbers_register(reg) for g in self.gadgets])
+
+  def clobbers_registers(self, regs):
+    return any([g.clobbers_registers(regs) for g in self.gadgets])
+
+  def uses_register(self, name):
+    return any([g.uses_register(name) for g in self.gadgets])
+
+  def validate(self):
+    return all([g.validate() for g in self.gadgets])
+
+  def chain(self, next_address, input_value = None): 
+    chain = ""
+    for i in range(len(self.gadgets)):
+      next_gadget_address = next_address
+      if i + 1 < len(self.gadgets):
+        next_gadget_address = self.gadgets[i+1].address
+      chain += self.gadgets[i].chain(next_gadget_address, input_value)
+    return chain
+
+class Gadget(GadgetBase):
   """This class wraps a set of instructions and holds the associated metadata that makes up a gadget"""
 
   def __init__(self, arch, irsb, inputs, output, params, clobber, stack_offset, ip_in_stack_offset):
@@ -72,14 +133,6 @@ class Gadget(object):
     """This method validates the inputs, output, and parameters with z3 to ensure it follows the gadget type's preconditions"""
     # TODO validate the gadget type with z3
     return True
-
-  def ap(self, address):
-    """Packs an address into a string. ap is short for Address Pack"""
-    if type(address) == str: # Assume already packed
-      return address
-    if address < 0:
-      address = (2 ** self.arch.bits) + address
-    return struct.pack("Q", address)
 
   def chain(self, next_address, input_value = None): 
     """Default ROP Chain generation, uses no parameters"""
