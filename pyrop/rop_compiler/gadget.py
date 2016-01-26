@@ -3,7 +3,7 @@ import math
 class Gadget(object):
   """This class wraps a set of instructions and holds the associated metadata that makes up a gadget"""
 
-  def __init__(self, arch, irsb, inputs, output, params, clobber, stack_offset, ip_in_stack_offset, num_mem_writes):
+  def __init__(self, arch, irsb, inputs, output, params, clobber, stack_offset, ip_in_stack_offset):
     self.arch = arch
     self.irsb = irsb
     self.address = irsb._addr
@@ -11,7 +11,6 @@ class Gadget(object):
     self.output = output
     self.params = params
     self.clobber = clobber
-    self.num_mem_writes = num_mem_writes
     self.stack_offset = stack_offset
     self.ip_in_stack_offset = ip_in_stack_offset
 
@@ -67,7 +66,7 @@ class Gadget(object):
     elif self.stack_offset > 0:
       complexity += (math.log(self.stack_offset)/math.log(8))
 
-    return len(self.clobber) + complexity + 2 * self.num_mem_writes
+    return len(self.clobber) + complexity
 
   def validate(self):
     """This method validates the inputs, output, and parameters with z3 to ensure it follows the gadget type's preconditions"""

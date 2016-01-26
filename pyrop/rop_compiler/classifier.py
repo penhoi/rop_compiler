@@ -71,8 +71,8 @@ class GadgetClassifier(object):
         new_possible_types = []
         for possible_type_this_round in possible_types_this_round:
           for possible_type in possible_types:
-            if possible_type_this_round == possible_type:
-              new_possible_types.append(possible_type)
+            if possible_type_this_round == possible_type and self.all_exceptable_memory_accesses(possible_type_this_round):
+                new_possible_types.append(possible_type)
         possible_types = new_possible_types
 
     sp_reg = self.arch.registers['sp'][0]
@@ -91,21 +91,67 @@ class GadgetClassifier(object):
 
     gadgets = []
     for (gadget_type, inputs, output, params) in possible_types:
-      if output == ip_reg and gadget_type != Jump: continue # Ignore the LoadMem gadget from the ret at the end
-      if ip_in_stack_offset == None and gadget_type != Jump: continue # Except for Jump, all the gadgets must load rip from the stack
-      if self.is_ignored_register(output): continue # We don't care about finding gadgets that set the flags
+      if (
+        # Ignore the LoadMem gadget for the IP register
+        (output == ip_reg and gadget_type != Jump)
+
+        # Except for Jump, all the gadgets must load rip from the stack
+        or (ip_in_stack_offset == None and gadget_type != Jump)
+
+        # We don't care about finding gadgets that set the flags
+        or (self.is_ignored_register(output))
+        ):
+        continue
 
       clobber = []
       for oreg in self.out_regs.keys():
         if oreg != output and oreg != ip_reg and oreg != sp_reg and not self.is_ignored_register(oreg):
           clobber.append(oreg)
 
-      gadget = gadget_type(self.arch, irsb, inputs, output, params, clobber, stack_offset, ip_in_stack_offset, len(self.out_mem))
+      gadget = gadget_type(self.arch, irsb, inputs, output, params, clobber, stack_offset, ip_in_stack_offset)
       if gadget != None and gadget.validate():
         self.logger.debug("Found gadget: %s", str(gadget))
         gadgets.append(gadget)
 
     return gadgets
+
+  def all_exceptable_memory_accesses(self, possible_type):
+    (gadget_type, inputs, output, params) = possible_type
+    sp_reg = self.arch.registers['sp'][0]
+    ip_reg = self.arch.registers['ip'][0]
+
+    # Always allow the LoadMem gadget for loading IP from the Stack
+    if gadget_type == LoadMem and output == ip_reg and inputs[0] == sp_reg:
+      return True
+
+    for mem_address, mem_value in self.in_mem.items():
+      good_mem_access = False
+      if not (
+          # Allow the LoadMem's read
+          (gadget_type == LoadMem and mem_address == self.in_regs[inputs[0]] + params[0] and self.out_regs[output] == mem_value)
+
+          # Allow the ArithmeticLoad's read
+          or (issubclass(gadget_type, ArithmeticLoad) and mem_address == self.in_regs[inputs[0]] + params[0])
+
+          # Allow the ArithmeticStore's read
+          or (issubclass(gadget_type, ArithmeticStore) and mem_address == self.in_regs[inputs[0]] + params[0])
+
+          # Allow loads from the SP register (i.e. pop)
+          or (sp_reg in self.in_regs and abs(mem_address - self.in_regs[sp_reg]) < 0x1000)
+      ):
+        return False
+
+    for mem_address, mem_value in self.out_mem.items():
+      if not (
+        # Allow the StoreMem's write
+        (gadget_type == StoreMem and mem_address == self.in_regs[inputs[0]] + params[0] and mem_value == self.in_regs[inputs[1]])
+
+        # Allow the ArithmeticStore's write
+        or (issubclass(gadget_type, ArithmeticStore) and mem_address == self.in_regs[inputs[0]] + params[0])
+      ):
+        return False
+
+    return True
 
   def check_execution_for_gadget_types(self):
     """Given the results of an emulation of a set of instructions, check the results to determine any potential gadget types and
@@ -333,6 +379,9 @@ if __name__ == "__main__":
         '\x4e\x80\x00\x20')  # blr
     ]
   }
+  #import sys
+  #tests = { archinfo.ArchAMD64 : [tests[archinfo.ArchAMD64][int(sys.argv[1])]] }
+  #tests = { archinfo.ArchAMD64 : tests[archinfo.ArchAMD64] }
 
   fail = False
   for arch, arch_tests in tests.items():
