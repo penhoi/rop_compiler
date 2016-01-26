@@ -28,6 +28,6 @@ if __name__ == "__main__":
   if len(sys.argv) > 2 and sys.argv[2] == "-v":
     level = logging.DEBUG
 
-  rop = rop_to_shellcode([(sys.argv[1], 0)], 0x7fff124, level)
+  rop = rop_to_shellcode([(sys.argv[1], 0)], 0x7fff124, archinfo.ArchARM, level)
   print rop
 

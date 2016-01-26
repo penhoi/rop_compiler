@@ -16,7 +16,7 @@ class Finder(object):
 
   """The amount to step between instructions"""
   STEP = { archinfo.ArchX86 : 1, archinfo.ArchAMD64 : 1, archinfo.ArchMIPS64 : 4, archinfo.ArchMIPS32 : 4,
-    archinfo.ArchPPC32 : 4, archinfo.ArchPPC64 : 4 }
+    archinfo.ArchPPC32 : 4, archinfo.ArchPPC64 : 4, archinfo.ArchARM : 4 }
 
   def __init__(self, filename, arch, base_address = 0, level = logging.WARNING):
     logging.basicConfig(format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
@@ -53,7 +53,7 @@ class Finder(object):
     classifier = cl.GadgetClassifier(self.arch, self.level)
     gadgets = []
     data = segment.data()
-    for i in range(1, len(data), self.STEP[self.arch]):
+    for i in range(0, len(data), self.STEP[self.arch]):
       end = i + self.MAX_GADGET_SIZE
       code = data[i:end]
       address = self.base_address + segment.header.p_paddr + i

@@ -11,7 +11,8 @@ class Scheduler(object):
   """This class takes a set of gadgets and combines them together to implement the given goals"""
 
   func_calling_convention = collections.defaultdict(list, {
-    "AMD64" : ["rdi", "rsi", "rdx", "rcx", "r8", "r9"]
+    "AMD64" : ["rdi", "rsi", "rdx", "rcx", "r8", "r9"],
+    "ARMEL" : ["r0", "r1", "r2", "r3", "r4"]
   })
 
   #syscall_calling_convention = [ "rdi", "rsi", "rdx", "r10", "r8", "r9" ]  # TODO cover the syscall case
@@ -197,7 +198,7 @@ class Scheduler(object):
       arg_gadget = self.find_load_stack_gadget(reg, no_clobber)
       if arg_gadget == None:
         # TODO Rearrange the order of setting gadgets so we can still use gadgets that clobber another register
-        msg = "No gadget found to set {} register during function call to {}".format(reg, goal.name)
+        msg = "No gadget found to set {} register during function call to {}".format(self.reg_name(reg), goal.name)
         self.logger.critical(msg)
         raise RuntimeError(msg)
       arg_gadgets.append(arg_gadget)

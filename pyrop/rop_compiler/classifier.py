@@ -377,11 +377,16 @@ if __name__ == "__main__":
         '\x80\x01\x00\x04' + # lwz r0,4(r1)
         '\x7c\x08\x03\xa6' + # mtlr r0
         '\x4e\x80\x00\x20')  # blr
+    ],
+    archinfo.ArchARM : [
+      ({LoadMem : 1}, '\x08\x80\xbd\xe8'),                 # pop {r3, pc}
+      ({MoveReg : 1}, '\x02\x00\xa0\xe1\x04\xf0\x9d\xe4'), # mov r0, r2; pop {pc}
+      ({LoadMem : 7}, '\xf0\x87\xbd\xe8'),                 # pop {r4, r5, r6, r7, r8, r9, sl, pc}
     ]
   }
   #import sys
   #tests = { archinfo.ArchAMD64 : [tests[archinfo.ArchAMD64][int(sys.argv[1])]] }
-  #tests = { archinfo.ArchAMD64 : tests[archinfo.ArchAMD64] }
+  #tests = { archinfo.ArchARM : tests[archinfo.ArchARM] }
 
   fail = False
   for arch, arch_tests in tests.items():
