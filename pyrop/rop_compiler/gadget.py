@@ -88,8 +88,11 @@ class Gadget(GadgetBase):
     params = ", ".join([hex(x) for x in self.params])
     if params != "":
       params = ", Params [{}]".format(params)
-    return "{}(Address: 0x{:x}, Complexity {}, Stack Offset 0x{:x}{}{}{}{})".format(self.__class__.__name__, self.address,
-      self.complexity(), self.stack_offset, output, inputs, clobber, params)
+    ip = self.ip_in_stack_offset
+    if self.ip_in_stack_offset != None:
+      ip = "0x{:x}".format(self.ip_in_stack_offset)
+    return "{}(Address: 0x{:x}, Complexity {}, Stack 0x{:x}, Ip {}{}{}{}{})".format(self.__class__.__name__,
+      self.address, self.complexity(), self.stack_offset, ip, output, inputs, clobber, params)
 
   def clobbers_register(self, reg):
     """Check if the gadget clobbers the specified register"""

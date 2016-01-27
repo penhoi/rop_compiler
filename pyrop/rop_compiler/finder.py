@@ -1,7 +1,7 @@
 from elftools.elf.elffile import ELFFile
 from elftools.elf.constants import P_FLAGS
 import archinfo
-import logging
+import logging, collections
 
 import classifier as cl
 
@@ -9,7 +9,8 @@ class Finder(object):
   """This class parses an ELF files to obtain any gadgets inside their executable sections"""
 
   """The maximum size in bytes of a gadget to look for"""
-  MAX_GADGET_SIZE = 10
+  MAX_GADGET_SIZE = { archinfo.ArchX86 : 10, archinfo.ArchAMD64 : 10, archinfo.ArchMIPS64 : 20, archinfo.ArchMIPS32 : 20,
+    archinfo.ArchPPC32 : 20, archinfo.ArchPPC64 : 20, archinfo.ArchARM : 20 }
 
   """A list containing any instructions which signify the end of a gadget."""
   GADGET_END_INSTRUCTIONS = ['ret', 'jmp']
@@ -54,7 +55,7 @@ class Finder(object):
     gadgets = []
     data = segment.data()
     for i in range(0, len(data), self.STEP[self.arch]):
-      end = i + self.MAX_GADGET_SIZE
+      end = i + self.MAX_GADGET_SIZE[self.arch]
       code = data[i:end]
       address = self.base_address + segment.header.p_paddr + i
 

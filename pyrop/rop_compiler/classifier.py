@@ -99,7 +99,10 @@ class GadgetClassifier(object):
         or (ip_in_stack_offset == None and gadget_type != Jump)
 
         # We don't care about finding gadgets that set the flags
-        or (self.is_ignored_register(output))
+        or self.is_ignored_register(output)
+
+        # If it's a LoadMem that results in a jmp to the load register, thus we can't actually load any value we want
+        or (gadget_type == LoadMem and params[0] == ip_in_stack_offset)
         ):
         continue
 
@@ -382,11 +385,14 @@ if __name__ == "__main__":
       ({LoadMem : 1}, '\x08\x80\xbd\xe8'),                 # pop {r3, pc}
       ({MoveReg : 1}, '\x02\x00\xa0\xe1\x04\xf0\x9d\xe4'), # mov r0, r2; pop {pc}
       ({LoadMem : 7}, '\xf0\x87\xbd\xe8'),                 # pop {r4, r5, r6, r7, r8, r9, sl, pc}
+      ({LoadMem : 2}, '\x04\xe0\x9d\xe5\x08\xd0\x8d\xe2'   # ldr lr, [sp, #4]; add sp, sp, #8
+                    + '\x0c\x00\xbd\xe8\x1e\xff\x2f\xe1'), # pop {r2, r3}; bx lr
     ]
   }
   #import sys
-  #tests = { archinfo.ArchAMD64 : [tests[archinfo.ArchAMD64][int(sys.argv[1])]] }
-  #tests = { archinfo.ArchARM : tests[archinfo.ArchARM] }
+  #arch = archinfo.ArchARM
+  #tests = { arch : [tests[arch][int(sys.argv[1])]] }
+  #tests = { arch : tests[arch] }
 
   fail = False
   for arch, arch_tests in tests.items():

@@ -12,7 +12,7 @@ class Scheduler(object):
 
   func_calling_convention = collections.defaultdict(list, {
     "AMD64" : ["rdi", "rsi", "rdx", "rcx", "r8", "r9"],
-    "ARMEL" : ["r0", "r1", "r2", "r3", "r4"]
+    "ARMEL" : ["r0", "r1", "r2", "r3"]
   })
 
   #syscall_calling_convention = [ "rdi", "rsi", "rdx", "r10", "r8", "r9" ]  # TODO cover the syscall case
@@ -167,9 +167,10 @@ class Scheduler(object):
 
   def ap(self, address):
     """Packs an address into a string. ap is short for Address Pack"""
+    formats = { 32 : "I", 64 : "Q" }
     if address < 0:
-      address = 2**64 + address
-    return struct.pack("Q", address)
+      address = (2**self.arch.bits) + address
+    return struct.pack(formats[self.arch.bits], address)
 
   def create_function_chain(self, goal, end_address = 0x4444444444444444):
     """This method returns a ROP chain that will call a function"""
@@ -349,9 +350,9 @@ class Scheduler(object):
 
   def create_write_memory_chain(self, buf, address, next_address):
     """This method generates a chain that will write the buffer to the given address.  Similar to ROPC we limit ourselves to one
-      memory size for simplicity.  Thus, the buffer must be 8 bytes long"""
-    if len(buf) != 8:
-      raise RuntimeError("Write memory chains can only write memory in chunks of 8 bytes, requested %d" % len(buf))
+      memory size for simplicity.  Thus, the buffer must be arch.bits/8 bytes long"""
+    if len(buf) != (self.arch.bits/8):
+      raise RuntimeError("Write memory chains can only write memory in chunks of %d bytes, requested %d" % (self.arch.bits/8, len(buf)))
 
     # First find the necessary gagdgets
     load_addr_gadget, load_value_gadget, store_mem_gadget = self.get_write_memory_gadget()
@@ -367,16 +368,17 @@ class Scheduler(object):
 
   def create_write_shellcode_chain(self, shellcode, address, next_address):
     """This function returns a ROP chain implemented to write shellcode to a given address"""
-    if len(shellcode) % 8 != 0:
-      shellcode += (8 - (len(shellcode) % 8)) * "K" # pad it to be 8 byte aligned (for simplicity)
+    alignment = self.arch.bits / 8
+    if len(shellcode) % alignment != 0:
+      shellcode += (alignment - (len(shellcode) % alignment)) * "K" # pad it to the correct alignment (for simplicity)
 
     chain = ""
     addr = address
-    for i in range(0, len(shellcode), 8):
-      # Iteratively create the ROP chain for each 8 byte chunk of the shellcode
-      single_write_chain, next_address = self.create_write_memory_chain(shellcode[i:i+8], addr, next_address)
+    for i in range(0, len(shellcode), alignment):
+      # Iteratively create the ROP chain for each byte chunk of the shellcode
+      single_write_chain, next_address = self.create_write_memory_chain(shellcode[i:i+alignment], addr, next_address)
       chain = single_write_chain + chain
-      addr += 8
+      addr += alignment
     return chain, next_address
 
   def create_shellcode_chain(self, goal):
