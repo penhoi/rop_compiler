@@ -59,6 +59,11 @@ int main(int argc, char ** argv) {
   buffer_ptr = buffer;
   write(client_fd, &buffer_ptr, sizeof(buffer_ptr));
 
+  //Don't care about the shellcode, so we'll do this here
+  dup2(client_fd, 0);
+  dup2(client_fd, 1);
+  dup2(client_fd, 2);
+
   i = 0;
   while(1)
   {
