@@ -18,11 +18,12 @@ class GadgetBase(object):
 
   def ap(self, address):
     """Packs an address into a string. ap is short for Address Pack"""
+    formats = { 32 : "I", 64 : "Q" }
     if type(address) == str: # Assume already packed
       return address
     if address < 0:
       address = (2 ** self.arch.bits) + address
-    return struct.pack("Q", address)
+    return struct.pack(formats[self.arch.bits], address)
 
   def chain(self, next_address, input_value = None): 
     raise RuntimeError("Not Implemented")
@@ -122,7 +123,7 @@ class Gadget(GadgetBase):
     complexity = 0
     if self.ip_in_stack_offset == None:
       complexity += 2
-    elif self.stack_offset - 8 != self.ip_in_stack_offset:
+    elif self.stack_offset - (self.arch.bits/8) != self.ip_in_stack_offset:
       complexity += 1
 
     if self.stack_offset < 0:
@@ -155,11 +156,20 @@ class LoadConst(Gadget):       pass
 class LoadMem(Gadget):
   def chain(self, next_address, input_value = None): 
     chain = ""
-    if input_value != None:
+
+    # If our input value is supposed to come before the next PC address, add it to the chain now
+    if input_value != None and self.params[0] < self.ip_in_stack_offset:
       chain += self.params[0] * "A"
       chain += self.ap(input_value)
+
     chain += (self.ip_in_stack_offset - len(chain)) * "B"
     chain += self.ap(next_address)
+
+    # If our input value is supposed to come after the next PC address, add it to the chain now
+    if input_value != None and self.params[0] > self.ip_in_stack_offset:
+      chain += (self.params[0] - len(chain)) * "A"
+      chain += self.ap(input_value)
+
     chain += (self.stack_offset - len(chain)) * "C"
     return chain
 

@@ -5,5 +5,8 @@ default:
 	gcc -g -fno-stack-protector bof_shell.c -o bof_shell -masm=intel
 	gcc -g -fno-stack-protector bof_read_got.c -o bof_read_got -masm=intel
 
+arm:
+	arm-linux-gnueabi-gcc -fno-stack-protector arm_bof.c -o arm_bof --static
+
 clean:
 	rm bof
