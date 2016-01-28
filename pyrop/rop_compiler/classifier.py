@@ -102,7 +102,7 @@ class GadgetClassifier(object):
         or self.is_ignored_register(output)
 
         # If it's a LoadMem that results in a jmp to the load register, thus we can't actually load any value we want
-        or (gadget_type == LoadMem and params[0] == ip_in_stack_offset)
+        or (gadget_type == LoadMem and params[0] == ip_in_stack_offset and inputs[0] == sp_reg)
         ):
         continue
 
@@ -357,6 +357,7 @@ if __name__ == "__main__":
       ({LoadConst : 1},       '\x48\xbb\xff\xee\xdd\xcc\xbb\xaa\x99\x88\xc3'),            # movabs rbx,0x8899aabbccddeeff; ret
       ({AddGadget : 1},       '\x48\x01\xc3\xc3'),                                        # add rbx, rax; reg
       ({LoadMem : 1},         '\x48\x8b\x43\x08\xc3'),                                    # mov rax,QWORD PTR [rbx+0x8]; ret
+      ({LoadMem : 1},         '\x48\x8b\x07\xc3'),                                        # mov rax,QWORD PTR [rdi]; ret
       ({StoreMem : 1},        '\x48\x89\x03\xc3'),                                        # mov QWORD PTR [rbx],rax; ret
       ({StoreMem : 1},        '\x48\x89\x43\x08\xc3'),                                    # mov QWORD PTR [rbx+0x8],rax; ret
       ({StoreMem : 1},        '\x48\x89\x44\x24\x08\xc3'),                                # mov QWORD PTR [rsp+0x8],rax; ret
@@ -390,7 +391,7 @@ if __name__ == "__main__":
     ]
   }
   #import sys
-  #arch = archinfo.ArchARM
+  #arch = archinfo.ArchAMD64
   #tests = { arch : [tests[arch][int(sys.argv[1])]] }
   #tests = { arch : tests[arch] }
 
