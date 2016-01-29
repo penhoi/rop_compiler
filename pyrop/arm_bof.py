@@ -9,7 +9,7 @@ options = ['ssh', 'armel']
 options.extend([filename, '3000'])
 #p = process(options)
 #gdb.attach(p, "set disassembly-flavor intel\nbreak *0x40063f\nbreak *0x400641\nbreak *0x400643")
-p = remote('localhost', 8888)
+p = remote('localhost', 2222)
 
 buffer_address = struct.unpack("<I", p.read(4))[0]
 

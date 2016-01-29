@@ -5,7 +5,6 @@ import archinfo
 
 PAGE_MASK = 0xfffffffffffff000
 PROT_RWX = 7
-MPROTECT_SYSCALL = 10
 
 class Scheduler(object):
   """This class takes a set of gadgets and combines them together to implement the given goals"""
@@ -20,6 +19,8 @@ class Scheduler(object):
   IGNORED_REGISTERS = collections.defaultdict(list, {
     "AMD64" : [ "cc_dep1", "cc_dep2", "cc_ndep", "cc_op", "d", "fpround", "fs", "sseround"  ]
   })
+
+  MPROTECT_SYSCALL = { "AMD64" : 10 }
 
   def __init__(self, gadgets, goal_resolver, arch = archinfo.ArchAMD64, level = logging.WARNING):
     logging.basicConfig(format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
@@ -182,6 +183,7 @@ class Scheduler(object):
     # TODO add the ability to do strings arguments by writing the string to memory first, and then using the string's address
 
     # Look for gadgets to set each of the arguments
+    next_address = goal.address
     arg_gadgets = []
     no_clobber = []
     for i in range(len(goal.arguments)):
@@ -195,15 +197,30 @@ class Scheduler(object):
       arg_gadgets.append(arg_gadget)
       no_clobber.append(reg)
 
+    lr_gadget = None
+    if 'lr' in self.arch.registers:
+      # We need an extra gadget to set the function's return address, since this architecture doesn't push them
+      reg = self.reg_number('lr')
+      lr_gadget = self.find_load_stack_gadget(reg, no_clobber)
+      if lr_gadget == None:
+        # TODO Rearrange the order of setting gadgets so we can still use gadgets that clobber another register
+        msg = "No gadget found to set lr register during function call to {}".format(goal.name)
+        self.logger.critical(msg)
+        raise RuntimeError(msg)
+      next_address = lr_gadget.address
+
     # Set the arguments for the function
     chain = ""
     for i in range(len(arg_gadgets)):
-      next_address = goal.address
+      next_gadget_address = next_address
       if i + 1 < len(goal.arguments):
-        next_address = arg_gadgets[i + 1].address
-      chain += arg_gadgets[i].chain(next_address, goal.arguments[i])
+        next_gadget_address = arg_gadgets[i + 1].address
+      chain += arg_gadgets[i].chain(next_gadget_address, goal.arguments[i])
 
-    chain = chain + self.ap(end_address)
+    if lr_gadget != None:
+      chain += lr_gadget.chain(goal.address, end_address)
+    else:
+      chain += self.ap(end_address)
     return (chain, arg_gadgets[0].address)
 
   def create_read_add_jmp_function_chain(self, address, offset, arguments, end_address):
@@ -324,7 +341,8 @@ class Scheduler(object):
     elif addresses["syscall"] != None:
       # If we've have the syscall function, slightly harder as it needs an extra argument. Create a chain to call syscall()
       self.logger.info("Found syscall(), using it to call mprotect to change shellcode permissions")
-      syscall_goal = go.FunctionGoal("syscall", addresses["syscall"], [MPROTECT_SYSCALL, goal.shellcode_address & PAGE_MASK, 0x1000, PROT_RWX])
+      syscall_goal = go.FunctionGoal("syscall", addresses["syscall"], [self.MPROTECT_SYSCALL[self.arch.name],
+        goal.shellcode_address & PAGE_MASK, 0x1000, PROT_RWX])
       return self.create_function_chain(syscall_goal, goal.shellcode_address)
 
     # TODO add mmap/memcpy, mmap + rop memory writing, using syscalls instead of functions, and others ways to fix the memory protections

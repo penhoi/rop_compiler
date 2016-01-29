@@ -32,7 +32,7 @@ void setup_client_conn()
 
   servaddr.sin_family = AF_INET;
   servaddr.sin_addr.s_addr = htons(INADDR_ANY);
-  servaddr.sin_port = htons(80);
+  servaddr.sin_port = htons(2222);
 
   bind(listen_fd, (struct sockaddr *) &servaddr, sizeof(servaddr));
   listen(listen_fd, 1);
