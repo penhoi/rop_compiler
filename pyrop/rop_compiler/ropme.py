@@ -1,16 +1,16 @@
 # This file contains a few convenience methods that wrap the ROP compiling process that can be used by exploit scripts.
 import logging
 import archinfo
-import finder, goal, scheduler
+import finder, goal, scheduler, gadget
 
 def rop(filenames_and_addresses, goal_resolver, arch = archinfo.ArchAMD64, log_level = logging.WARNING):
   """Takes a goal resolver and creates a rop chain for it"""
-  all_gadgets = []
+  all_gadget_list = gadget.GadgetList()
   for filename, address in filenames_and_addresses:
     gadget_finder = finder.Finder(filename, arch, address, log_level)
-    all_gadgets.extend(gadget_finder.find_gadgets())
+    all_gadget_list.copy_gadgets(gadget_finder.find_gadgets())
 
-  gadget_scheduler = scheduler.Scheduler(all_gadgets, goal_resolver, arch, log_level)
+  gadget_scheduler = scheduler.Scheduler(all_gadget_list, goal_resolver, arch, log_level)
   return gadget_scheduler.get_chain()
 
 def rop_to_shellcode(filenames_and_addresses, shellcode_address, arch = archinfo.ArchAMD64, log_level = logging.WARNING):

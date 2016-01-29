@@ -22,13 +22,13 @@ class Scheduler(object):
 
   MPROTECT_SYSCALL = { "AMD64" : 10 }
 
-  def __init__(self, gadgets, goal_resolver, arch = archinfo.ArchAMD64, level = logging.WARNING):
+  def __init__(self, gadget_list, goal_resolver, arch = archinfo.ArchAMD64, level = logging.WARNING):
     logging.basicConfig(format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
     self.logger = logging.getLogger(self.__class__.__name__)
     self.logger.setLevel(level)
 
     self.arch = arch()
-    self.gadgets = gadgets
+    self.gadget_list = gadget_list
     self.write_memory_chains = []
     self.store_mem_gadgets = collections.defaultdict(dict)
 
@@ -55,55 +55,14 @@ class Scheduler(object):
     """Returns the compiled ROP chain"""
     return self.chain
 
-  def find_load_stack_gadget(self, register, no_clobber = None):
-    """This method finds the best gadget (lowest complexity) to load a register from the stack"""
-    best = best_complexity = None
-    for gadget in self.gadgets:
-      if (type(gadget) == ga.LoadMem and gadget.inputs[0] == self.arch.registers['sp'][0] # It's a load from the stack (most likely a pop)
-        and register == gadget.output # and it's for the correct register
-        and (no_clobber == None or not gadget.clobbers_registers(no_clobber))
-        and (best == None or best_complexity < gadget.complexity())): # and it's got a better complexity than the current one
-          best = gadget
-          best_complexity = best.complexity()
-
-    if best != None:
-      self.logger.debug("Found LoadStack %s Gadget: %s", self.reg_name(register), best)
-
-    # TODO Synthesize gadgets for missing types
-    return best
-
-  def find_gadget(self, gadget_type, input_registers = None, output_register = None, no_clobber = None):
-    """This method will find the best gadget (lowest complexity) given the search criteria"""
-    best = best_complexity = None
-    for gadget in self.gadgets:
-      if (type(gadget) == gadget_type # Match the requested type
-        and (input_registers == None # Not looking for a gadget with a specific register as input
-          or (gadget.inputs[0] == input_registers[0] # Only looking for one specific input
-            and (len(gadget.inputs) == 1 or gadget.inputs[1] == input_registers[1]))) # Also looking to match the second input
-        and (output_register == None or gadget.output == output_register) # looking to match the output
-        and (no_clobber == None or not gadget.clobbers_registers(no_clobber)) # Can't clobber anything we need
-        and (best == None or best_complexity > gadget.complexity())): # and it's got a better complexity than the current one
-          best = gadget
-          best_complexity = best.complexity()
-
-    if best != None:
-      self.logger.debug("Found %s %s Gadget: %s", gadget_type.__name__, self.reg_name(best.inputs[0]), best)
-
-    # TODO Synthesize gadgets for missing types
-    return best
-
   def find_store_mem_gadgets(self, addr_reg, value_reg):
     """This method finds a gadget that writes the value in one register to the address in another"""
     if value_reg in self.store_mem_gadgets[addr_reg]:
       return self.store_mem_gadgets[addr_reg][value_reg]
 
     best = None
-    for gadget in self.gadgets:
-      if type(gadget) != ga.StoreMem:
-        continue
-
-      if (type(gadget) == ga.StoreMem
-        and addr_reg == gadget.inputs[0]
+    for gadget in self.gadget_list.foreach_type(ga.StoreMem):
+      if (addr_reg == gadget.inputs[0]
         and value_reg == gadget.inputs[1]
         and (best == None or best.complexity() > gadget.complexity())): # and it's got a better complexity than the current one
           best = gadget
@@ -131,7 +90,7 @@ class Scheduler(object):
     self.write_memory_chains = []
     for addr_reg in self.get_all_registers():
       # First find a gadget to set the address register
-      load_addr_gadget = self.find_load_stack_gadget(addr_reg)
+      load_addr_gadget = self.gadget_list.find_load_stack_gadget(addr_reg)
       if load_addr_gadget == None:
         continue
 
@@ -140,7 +99,7 @@ class Scheduler(object):
           continue
 
         # Then find a gadget to set the value register
-        load_value_gadget = self.find_load_stack_gadget(value_reg, [addr_reg])
+        load_value_gadget = self.gadget_list.find_load_stack_gadget(value_reg, [addr_reg])
         if load_value_gadget == None:
           continue
 
@@ -188,7 +147,7 @@ class Scheduler(object):
     no_clobber = []
     for i in range(len(goal.arguments)):
       reg = self.reg_number(self.func_calling_convention[self.arch.name][i])
-      arg_gadget = self.find_load_stack_gadget(reg, no_clobber)
+      arg_gadget = self.gadget_list.find_load_stack_gadget(reg, no_clobber)
       if arg_gadget == None:
         # TODO Rearrange the order of setting gadgets so we can still use gadgets that clobber another register
         msg = "No gadget found to set {} register during function call to {}".format(self.reg_name(reg), goal.name)
@@ -201,7 +160,7 @@ class Scheduler(object):
     if 'lr' in self.arch.registers:
       # We need an extra gadget to set the function's return address, since this architecture doesn't push them
       reg = self.reg_number('lr')
-      lr_gadget = self.find_load_stack_gadget(reg, no_clobber)
+      lr_gadget = self.gadget_list.find_load_stack_gadget(reg, no_clobber)
       if lr_gadget == None:
         # TODO Rearrange the order of setting gadgets so we can still use gadgets that clobber another register
         msg = "No gadget found to set lr register during function call to {}".format(goal.name)
@@ -238,12 +197,12 @@ class Scheduler(object):
         if addr_reg == jump_reg: continue
 
         # Find a gadget to read from memory
-        read_gadget = self.find_gadget(ga.LoadMem, input_registers = [addr_reg], output_register = jump_reg)
+        read_gadget = self.gadget_list.find_gadget(ga.LoadMem, input_registers = [addr_reg], output_register = jump_reg)
         if read_gadget == None:
           continue
 
         # Then find a gadget that will let you set the address register for that read
-        set_read_addr_gadget = self.find_load_stack_gadget(read_gadget.inputs[0], [jump_reg])
+        set_read_addr_gadget = self.gadget_list.find_load_stack_gadget(read_gadget.inputs[0], [jump_reg])
         if set_read_addr_gadget == None:
           continue
         break
@@ -252,7 +211,7 @@ class Scheduler(object):
         continue
 
       # Then find a gadget that will let you jump to that register
-      jump_gadget = self.find_gadget(ga.Jump, [jump_reg])
+      jump_gadget = self.gadget_list.find_gadget(ga.Jump, [jump_reg])
       if jump_gadget == None:
         continue
 
@@ -262,15 +221,15 @@ class Scheduler(object):
         if add_reg == jump_reg: continue
 
         # Then find a gadget that will let you add to that register
-        add_jump_reg_gadget = self.find_gadget(ga.AddGadget, [jump_reg, add_reg], jump_reg)
+        add_jump_reg_gadget = self.gadget_list.find_gadget(ga.AddGadget, [jump_reg, add_reg], jump_reg)
         if add_jump_reg_gadget == None: # If we can't find an AddGadget, try finding a SubGadget and negating
-          add_jump_reg_gadget = self.find_gadget(ga.SubGadget, [jump_reg, add_reg], jump_reg)
+          add_jump_reg_gadget = self.gadget_list.find_gadget(ga.SubGadget, [jump_reg, add_reg], jump_reg)
           offset = -offset
           if add_jump_reg_gadget == None:
             continue
 
         # Next, find a gadget that will let you set what you're adding to that register
-        set_add_reg_gadget = self.find_load_stack_gadget(add_reg, [jump_reg])
+        set_add_reg_gadget = self.gadget_list.find_load_stack_gadget(add_reg, [jump_reg])
         if set_add_reg_gadget == None:
           continue
         break
@@ -283,16 +242,12 @@ class Scheduler(object):
       no_clobber = [jump_reg]
       for i in range(len(arguments)):
         reg = self.reg_number(self.func_calling_convention[self.arch.name][i])
-        arg_gadget = self.find_load_stack_gadget(reg, no_clobber)
+        arg_gadget = self.gadget_list.find_load_stack_gadget(reg, no_clobber)
         if arg_gadget != None:
           arg_gadgets.append(arg_gadget)
         no_clobber.append(reg)
 
-      if len(arg_gadgets) == len(arguments) and (
-          read_gadget.stack_offset + set_read_addr_gadget.stack_offset + jump_gadget.stack_offset +
-          add_jump_reg_gadget.stack_offset + set_add_reg_gadget.stack_offset +
-          sum([x.stack_offset for x in arg_gadgets])
-        ) < 0x1000:
+      if len(arg_gadgets) == len(arguments):
         break
       arg_gadgets = []
 

@@ -1,4 +1,59 @@
-import math, struct
+import math, struct, collections
+
+class GadgetList(object):
+  def __init__(self, gadgets = None):
+    self.arch = None
+    self.gadgets = collections.defaultdict(list, {})
+    self.gadgets_per_output = collections.defaultdict(lambda : collections.defaultdict(list, []), {})
+    if gadgets != None:
+      self.add_gadgets(gadgets)
+
+  def add_gadget(self, gadget):
+    self.gadgets[type(gadget)].append(gadget)
+    self.gadgets_per_output[type(gadget)][gadget.output].append(gadget)
+    if type(self.arch) == type(None):
+      self.arch = gadget.arch
+
+  def add_gadgets(self, gadgets):
+    for gadget in gadgets:
+      self.add_gadget(gadget)
+
+  def copy_gadgets(self, gadget_list):
+    for gadget in gadget_list.foreach():
+      self.add_gadget(gadget)
+
+  def foreach(self):
+    for gadget_type, gadgets in self.gadgets.items():
+      for gadget in gadgets:
+        yield gadget
+
+  def foreach_type(self, gadget_type):
+    for gadget in self.gadgets[gadget_type]:
+      yield gadget
+
+  def foreach_type_output(self, gadget_type, output):
+    for gadget in self.gadgets_per_output[gadget_type][output]:
+      yield gadget
+
+  def find_gadget(self, gadget_type, input_registers = None, output_register = None, no_clobber = None):
+    """This method will find the best gadget (lowest complexity) given the search criteria"""
+    best = best_complexity = None
+    for gadget in self.foreach_type(gadget_type):
+      if ((input_registers == None # Not looking for a gadget with a specific register as input
+          or (gadget.inputs[0] == input_registers[0] # Only looking for one specific input
+            and (len(gadget.inputs) == 1 or gadget.inputs[1] == input_registers[1]))) # Also looking to match the second input
+        and (output_register == None or gadget.output == output_register) # looking to match the output
+        and (no_clobber == None or not gadget.clobbers_registers(no_clobber)) # Can't clobber anything we need
+        and (best == None or best_complexity > gadget.complexity())): # and it's got a better complexity than the current one
+          best = gadget
+          best_complexity = best.complexity()
+
+    # TODO Synthesize gadgets for missing types
+    return best
+
+  def find_load_stack_gadget(self, register, no_clobber = None):
+    """This method finds the best gadget (lowest complexity) to load a register from the stack"""
+    return self.find_gadget(LoadMem, [self.arch.registers['sp'][0]], register, no_clobber)
 
 class GadgetBase(object):
   def clobbers_register(self, reg):

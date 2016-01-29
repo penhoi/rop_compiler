@@ -3,7 +3,7 @@ from elftools.elf.constants import P_FLAGS
 import archinfo
 import logging, collections
 
-import classifier as cl
+import classifier as cl, gadget as ga
 
 class Finder(object):
   """This class parses an ELF files to obtain any gadgets inside their executable sections"""
@@ -35,10 +35,10 @@ class Finder(object):
 
   def find_gadgets(self):
     """Iterates over the defined files and return any gadgets"""
-    gadgets = []
+    gadget_list = ga.GadgetList()
     for segment in self.iter_executable_segments():
-      gadgets.extend(self.get_gadgets_for_segment(segment))
-    return gadgets
+      self.get_gadgets_for_segment(segment, gadget_list)
+    return gadget_list
 
   def iter_executable_segments(self):
     """Any iterator that only returns the executable sections in the ELF file"""
@@ -46,22 +46,18 @@ class Finder(object):
       if seg.header.p_flags & P_FLAGS.PF_X != 0:
         yield seg
 
-  def get_gadgets_for_segment(self, segment):
+  def get_gadgets_for_segment(self, segment, gadget_list):
     """Iteratively step through an executable section looking for gadgets at each address"""
     if self.base_address == 0 and segment.header.p_paddr == 0: # libraries and PIE executable, don't have the p_paddr in the header set to 0
       self.logger.warning("No base address given for library or PIE executable.  Addresses may be wrong")
 
     classifier = cl.GadgetClassifier(self.arch, self.level)
-    gadgets = []
     data = segment.data()
     for i in range(0, len(data), self.STEP[self.arch]):
       end = i + self.MAX_GADGET_SIZE[self.arch]
       code = data[i:end]
       address = self.base_address + segment.header.p_paddr + i
-
-      gadgets.extend(classifier.create_gadgets_from_instructions(code, address))
-
-    return gadgets
+      gadget_list.add_gadgets(classifier.create_gadgets_from_instructions(code, address))
 
 if __name__ == "__main__":
   import argparse
@@ -73,8 +69,8 @@ if __name__ == "__main__":
   args = parser.parse_args()
 
   finder = Finder(args.target, archinfo.ArchAMD64, int(args.base_address, 16), logging.DEBUG if args.v else logging.WARNING)
-  gadgets = finder.find_gadgets()
+  gadget_list = finder.find_gadgets()
 
-  for gadget in gadgets:
+  for gadget in gadget_list.foreach():
     print gadget, gadget.complexity()
 
