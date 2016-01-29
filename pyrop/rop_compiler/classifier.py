@@ -1,5 +1,3 @@
-# This file holds the gadget classifier and various gadget type classes.
-
 import collections, logging, random, sys
 import pyvex, archinfo
 
