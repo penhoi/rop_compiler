@@ -1,12 +1,22 @@
-import math, struct, collections
+import math, struct, collections, logging, sys
+import archinfo
+import synthesizer as sy
 
 class GadgetList(object):
-  def __init__(self, gadgets = None):
+
+  def __init__(self, gadgets = None, log_level = logging.WARNING):
+    logging.basicConfig(format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+    self.logger = logging.getLogger(self.__class__.__name__)
+    self.logger.setLevel(log_level)
+
     self.arch = None
     self.gadgets = collections.defaultdict(list, {})
     self.gadgets_per_output = collections.defaultdict(lambda : collections.defaultdict(list, []), {})
     if gadgets != None:
       self.add_gadgets(gadgets)
+
+  def tr(self, reg):
+    return self.arch.translate_register_name(reg)
 
   def add_gadget(self, gadget):
     self.gadgets[type(gadget)].append(gadget)
@@ -27,13 +37,15 @@ class GadgetList(object):
       for gadget in gadgets:
         yield gadget
 
-  def foreach_type(self, gadget_type):
+  def foreach_type(self, gadget_type, no_clobbers = None):
     for gadget in self.gadgets[gadget_type]:
-      yield gadget
+      if no_clobbers == None or not gadget.clobbers_registers(no_clobbers):
+        yield gadget
 
-  def foreach_type_output(self, gadget_type, output):
+  def foreach_type_output(self, gadget_type, output, no_clobbers = None):
     for gadget in self.gadgets_per_output[gadget_type][output]:
-      yield gadget
+      if no_clobbers == None or not gadget.clobbers_registers(no_clobbers):
+        yield gadget
 
   def find_gadget(self, gadget_type, input_registers = None, output_register = None, no_clobber = None):
     """This method will find the best gadget (lowest complexity) given the search criteria"""
@@ -48,12 +60,53 @@ class GadgetList(object):
           best = gadget
           best_complexity = best.complexity()
 
-    # TODO Synthesize gadgets for missing types
+    if best == None:
+      return self.create_new_gadgets(gadget_type, input_registers, output_register, no_clobber)
     return best
 
   def find_load_stack_gadget(self, register, no_clobber = None):
     """This method finds the best gadget (lowest complexity) to load a register from the stack"""
     return self.find_gadget(LoadMem, [self.arch.registers['sp'][0]], register, no_clobber)
+
+  def create_new_gadgets(self, gadget_type, inputs, output, no_clobbers):
+    return getattr(self, gadget_type.__name__)(inputs, output, no_clobbers)
+
+  def LoadMem(self, inputs, output, no_clobbers):
+    gadget = self.LoadMemFromMoveReg(inputs, output, no_clobbers)
+    if gadget == None:
+      gadget = self.LoadMemFromLoadMemJump(inputs, output, no_clobbers)
+    return gadget
+
+  def LoadMemFromMoveReg(self, inputs, output, no_clobbers):
+    best_move = best_load = None
+    best_complexity = sys.maxint
+    for move_gadget in self.foreach_type_output(MoveReg, output, no_clobbers):
+      for load_mem in self.foreach_type_output(LoadMem, move_gadget.inputs[0], no_clobbers):
+        if inputs == None or len(inputs) < 1 or load_mem.inputs[0] == inputs[0]:
+          complexity = move_gadget.complexity() + load_mem.complexity()
+          if complexity < best_complexity:
+            best_complexity = complexity
+            (best_move, best_load) = (move_gadget, load_mem)
+    if best_move != None:
+      self.logger.debug("Creating new LoadMem[{}] from: {}{}".format(self.tr(output), best_move, best_load))
+      return CombinedGadget([best_move, best_load])
+    return None
+
+  def LoadMemFromLoadMemJump(self, inputs, output, no_clobbers):
+    best_load_mem_jump = best_load_mem = None
+    best_complexity = sys.maxint
+    for load_mem_jump in self.foreach_type_output(LoadMemJump, output, no_clobbers):
+      if not (inputs == None or len(inputs) < 1 or load_mem_jump.inputs[0] == inputs[0]):
+        continue
+      for load_mem in self.foreach_type_output(LoadMem, load_mem_jump.inputs[1], no_clobbers):
+        complexity = load_mem_jump.complexity() + load_mem.complexity()
+        if complexity < best_complexity:
+          best_complexity = complexity
+          (best_load_mem_jump, best_load_mem) = (load_mem_jump, load_mem)
+    if best_load_mem_jump != None:
+      self.logger.debug("Creating new LoadMem[{}] from: {} and {}".format(self.tr(output), best_load_mem_jump, best_load_mem))
+      return CombinedGadget([best_load_mem, best_load_mem_jump])
+    return None
 
 class GadgetBase(object):
   def clobbers_register(self, reg):
@@ -108,7 +161,13 @@ class CombinedGadget(GadgetBase):
   def validate(self):
     return all([g.validate() for g in self.gadgets])
 
-  def chain(self, next_address, input_value = None): 
+  def chain(self, next_address, input_value = None):
+    types = [type(g) for g in self.gadgets]
+    if types == [LoadMem, LoadMemJump]:
+      chain = self.gadgets[0].chain(self.gadgets[1].address, next_address)
+      chain += self.gadgets[1].chain(None, input_value)
+      return chain
+
     chain = ""
     for i in range(len(self.gadgets)):
       next_gadget_address = next_address
@@ -149,6 +208,9 @@ class Gadget(GadgetBase):
       ip = "0x{:x}".format(self.ip_in_stack_offset)
     return "{}(Address: 0x{:x}, Complexity {}, Stack 0x{:x}, Ip {}{}{}{}{})".format(self.__class__.__name__,
       self.address, self.complexity(), self.stack_offset, ip, output, inputs, clobber, params)
+
+  def _is_stack_reg(self, reg):
+    return reg == self.arch.registers['sp'][0]
 
   def clobbers_register(self, reg):
     """Check if the gadget clobbers the specified register"""
@@ -200,7 +262,10 @@ class Gadget(GadgetBase):
     chain += (self.stack_offset - len(chain)) * "J"
     return chain
 
-# The various Gadget types
+###########################################################################################################
+## The various Gadget types ###############################################################################
+###########################################################################################################
+
 class Jump(Gadget):
   def chain(self, next_address = None, input_value = None): 
     return self.stack_offset * "H" # No parameters or IP in stack, just fill the stack offset
@@ -211,17 +276,19 @@ class LoadConst(Gadget):       pass
 class LoadMem(Gadget):
   def chain(self, next_address, input_value = None): 
     chain = ""
+    input_from_stack = self._is_stack_reg(self.inputs[0]) and input_value != None
 
-    # If our input value is supposed to come before the next PC address, add it to the chain now
-    if input_value != None and self.params[0] < self.ip_in_stack_offset:
+    # If our input value is coming from the stack, and it's supposed to come before the next PC address, add it to the chain now
+    if input_from_stack and (self.ip_in_stack_offset == None or self.params[0] < self.ip_in_stack_offset):
       chain += self.params[0] * "A"
       chain += self.ap(input_value)
 
-    chain += (self.ip_in_stack_offset - len(chain)) * "B"
-    chain += self.ap(next_address)
+    if self.ip_in_stack_offset != None:
+      chain += (self.ip_in_stack_offset - len(chain)) * "B"
+      chain += self.ap(next_address)
 
-    # If our input value is supposed to come after the next PC address, add it to the chain now
-    if input_value != None and self.params[0] > self.ip_in_stack_offset:
+    # If our input value is coming from the stack, and it's supposed to come after the next PC address, add it to the chain now
+    if input_from_stack and self.ip_in_stack_offset != None and self.params[0] > self.ip_in_stack_offset:
       chain += (self.params[0] - len(chain)) * "A"
       chain += self.ap(input_value)
 
@@ -256,3 +323,66 @@ class StoreMulGadget(ArithmeticStore):   pass
 class StoreAndGadget(ArithmeticStore):   pass
 class StoreOrGadget(ArithmeticStore):    pass
 class StoreXorGadget(ArithmeticStore):   pass
+
+# The Loads memory then jumps to a register
+class LoadMemJump(LoadMem): pass
+
+
+
+if __name__ == "__main__":
+  def x(a, r):
+    return a.registers[r][0]
+
+  class FakeIrsb:
+    def __init__(self, arch):
+      self._addr = 0x40000
+      self.arch = arch
+
+  # A simple set of tests to ensure we can correctly synthesize some example gadgets
+  amd64 = archinfo.ArchAMD64
+  mips = archinfo.ArchMIPS64
+  ppc = archinfo.ArchPPC32
+  arm = archinfo.ArchARM
+
+  rax, rbx, rsp = x(amd64,'rax'), x(amd64,'rbx'), x(amd64,'rsp')
+
+  tests = {
+    amd64 : {
+      (LoadMem, (), rax, ()) : GadgetList([
+        MoveReg(archinfo.ArchAMD64(), FakeIrsb(amd64), [rbx], rax, [], [], 8, 4),
+        LoadMem(archinfo.ArchAMD64(), FakeIrsb(amd64), [rsp], rbx, [], [], 8, 4)
+      ], logging.DEBUG),
+      (LoadMem, (rsp,), rax, ()) : GadgetList([
+        LoadMemJump(archinfo.ArchAMD64(), FakeIrsb(amd64), [rsp, rbx], rax, [], [], 8, None),
+        LoadMem(archinfo.ArchAMD64(),     FakeIrsb(amd64), [rsp],      rbx, [], [], 8, 4)
+      ], logging.DEBUG)
+    },
+    mips: {
+    },
+    ppc : {
+    },
+    arm : {
+    }
+  }
+  import sys
+  if len(sys.argv) > 1:
+    arches = { "AMD64" : archinfo.ArchAMD64, "MIPS" : archinfo.ArchMIPS64, "PPC" : archinfo.ArchPPC32, "ARM" : archinfo.ArchARM}
+    arch = arches[sys.argv[1].upper()]
+    tests = { arch : tests[arch] }
+
+  fail = False
+  for arch, arch_tests in tests.items():
+    print "\n{} Tests:".format(arch.name)
+
+    for ((desired_type, inputs, output, no_clobbers), gadget_list) in arch_tests.items():
+      result_gadget = gadget_list.create_new_gadgets(desired_type, inputs, output, no_clobbers)
+      if result_gadget == None: # If we didn't get the gadget we want
+        fail = True
+        print "\nCouldn't create the gadget {}({}) from:".format(desired_type.__name__,arch().translate_register_name(output))
+        print "\n".join(["\n".join([str(g) for g in gl]) for t,gl in gadget_list.gadgets.items()])
+
+  if fail:
+    print "\nFAILURE!!! One or more incorrectly classified gadgets"
+  else:
+    print "\nSUCCESS, all gadgets correctly classified"
+

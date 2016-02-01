@@ -1,7 +1,7 @@
 # This file contains the logic to combine a set of gadgets and implement the desired goals
 import struct, logging, collections
-import goal as go, gadget as ga
 import archinfo
+import goal as go, gadget as ga
 
 PAGE_MASK = 0xfffffffffffff000
 PROT_RWX = 7
@@ -42,7 +42,8 @@ class Scheduler(object):
       registers.pop(reg)
     reg_numbers = []
     for name, (number, size) in registers.items():
-      reg_numbers.append(number)
+      if number not in reg_numbers and number not in [self.arch.registers['sp'][0], self.arch.registers['ip'][0]]:
+        reg_numbers.append(number)
     return reg_numbers
 
   def reg_name(self, reg_number):
@@ -54,6 +55,11 @@ class Scheduler(object):
   def get_chain(self):
     """Returns the compiled ROP chain"""
     return self.chain
+
+  def print_gadgets(self, caption, gadgets):
+    self.logger.debug(caption)
+    for gadget in gadgets:
+      self.logger.debug(gadget)
 
   def find_store_mem_gadgets(self, addr_reg, value_reg):
     """This method finds a gadget that writes the value in one register to the address in another"""
@@ -155,6 +161,7 @@ class Scheduler(object):
         raise RuntimeError(msg)
       arg_gadgets.append(arg_gadget)
       no_clobber.append(reg)
+    self.print_gadgets("Found all necessary gadgets for calling function %s(0x%x):" % (goal.name, goal.address), arg_gadgets)
 
     lr_gadget = None
     if 'lr' in self.arch.registers:
@@ -166,6 +173,7 @@ class Scheduler(object):
         msg = "No gadget found to set lr register during function call to {}".format(goal.name)
         self.logger.critical(msg)
         raise RuntimeError(msg)
+      self.print_gadgets("Found LR gadget:", [lr_gadget])
       next_address = lr_gadget.address
 
     # Set the arguments for the function
@@ -255,9 +263,9 @@ class Scheduler(object):
     if len(arg_gadgets) != len(arguments):
       return (None, None)
 
-    self.logger.debug("Found all necessary gadgets for reading the GOT and calling a different function:")
-    for gadget in [set_read_addr_gadget, read_gadget, set_add_reg_gadget, add_jump_reg_gadget, arg_gadgets[0], arg_gadgets[1], arg_gadgets[2], jump_gadget]:
-      self.logger.debug(gadget)
+    self.print_gadgets("Found all necessary gadgets for reading the GOT and calling a different function:",
+        [set_read_addr_gadget, read_gadget, set_add_reg_gadget, add_jump_reg_gadget, arg_gadgets[0],
+          arg_gadgets[1], arg_gadgets[2], jump_gadget])
 
     # Start building the chain
     start_of_function_address = jump_gadget.address

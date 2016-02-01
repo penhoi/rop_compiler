@@ -35,7 +35,7 @@ class Finder(object):
 
   def find_gadgets(self):
     """Iterates over the defined files and return any gadgets"""
-    gadget_list = ga.GadgetList()
+    gadget_list = ga.GadgetList(log_level = self.level)
     for segment in self.iter_executable_segments():
       self.get_gadgets_for_segment(segment, gadget_list)
     return gadget_list

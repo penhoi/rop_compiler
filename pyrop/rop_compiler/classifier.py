@@ -82,10 +82,12 @@ class GadgetClassifier(object):
     if stack_offset < 0:
       return []
 
-    ip_in_stack_offset = None
+    ip_in_stack_offset = ip_from_reg = None
     for (gadget_type, inputs, output, params) in possible_types: # Find the offset of rip in the stack for these gadgets
       if gadget_type == LoadMem and output == ip_reg and inputs[0] == sp_reg:
         ip_in_stack_offset = params[0]
+      if gadget_type == MoveReg and output == ip_reg:
+        ip_from_reg = inputs[0]
 
     gadgets = []
     for (gadget_type, inputs, output, params) in possible_types:
@@ -94,7 +96,7 @@ class GadgetClassifier(object):
         (output == ip_reg and gadget_type != Jump)
 
         # Except for Jump, all the gadgets must load rip from the stack
-        or (ip_in_stack_offset == None and gadget_type != Jump)
+        or ((ip_in_stack_offset == None and gadget_type != Jump) and not (ip_from_reg != None and gadget_type == LoadMem))
 
         # We don't care about finding gadgets that set the flags
         or self.is_ignored_register(output)
@@ -108,6 +110,10 @@ class GadgetClassifier(object):
       for oreg in self.out_regs.keys():
         if oreg != output and oreg != ip_reg and oreg != sp_reg and not self.is_ignored_register(oreg):
           clobber.append(oreg)
+
+      if ip_from_reg != None and gadget_type == LoadMem:
+        gadget_type = LoadMemJump
+        inputs.append(ip_from_reg)
 
       gadget = gadget_type(self.arch, irsb, inputs, output, params, clobber, stack_offset, ip_in_stack_offset)
       if gadget != None and gadget.validate():
@@ -328,14 +334,17 @@ class GadgetClassifier(object):
     return getattr(self, expr.op)(left, right)
 
   def Iop_And64(self, left, right): return left & right
+  def Iop_And32(self, left, right): return left & right
 
   def Iop_Xor64(self, left, right): return left ^ right
+  def Iop_Xor32(self, left, right): return left ^ right
 
   def Iop_Add64(self, left, right): return self.mask(left + right)
   def Iop_Add32(self, left, right): return self.mask(left + right, 32)
   def Iop_Add8(self, left, right):  return self.mask(left + right, 8)
 
   def Iop_Sub64(self, left, right): return self.mask(left - right)
+  def Iop_Sub32(self, left, right): return self.mask(left - right, 32)
 
   def Iop_Shl64(self, left, right): return self.mask(left << right)
   def Iop_Shl32(self, left, right): return self.mask(left << right, 32)
@@ -344,6 +353,7 @@ class GadgetClassifier(object):
   def Iop_CmpEQ32(self, left, right): return 1 if self.mask(left, 32) == self.mask(right, 32) else 0
 
   def Iop_CmpNE64(self, left, right): return 1 if self.mask(left, 64) != self.mask(right, 64) else 0
+  def Iop_CmpNE32(self, left, right): return 1 if self.mask(left, 32) != self.mask(right, 32) else 0
 
 if __name__ == "__main__":
   # A simple set of tests to ensure we can correctly classify some example gadgets
@@ -365,6 +375,8 @@ if __name__ == "__main__":
       ({},                    '\x5e'),                                                    # pop rsi
       ({},                    '\x8b\x04\xc5\xc0\x32\x45\x00\xc3'),                        # mov rax,QWORD PTR [rax*8+0x4532c0]
       ({LoadMem : 1, LoadConst : 1}, '\x59\x48\x89\xcb\x48\xc7\xc1\x05\x00\x00\x00\xc3'), # pop rcx; mov rbx,rcx; mov rcx,0x5; ret
+      ({},                    '\x48\x8b\x85\xf0\xfd\xff\xff\x48\x83\xc0'),
+
     ],
     archinfo.ArchMIPS64 : [
       ({LoadMem : 1},
@@ -373,25 +385,32 @@ if __name__ == "__main__":
         '\x03\xe0\x00\x08' + # jr ra
         '\x00\x00\x00\x00')  # nop
     ],
-    archinfo.ArchPPC64 : [
+    archinfo.ArchPPC32 : [
       ({LoadMem : 1},
-        '\x83\xe1\x00\x08' + # lwz r31,8(r1)
-        '\x80\x01\x00\x04' + # lwz r0,4(r1)
-        '\x7c\x08\x03\xa6' + # mtlr r0
-        '\x4e\x80\x00\x20')  # blr
+        '\x08\x00\xe1\x83' + # lwz r31,8(r1)
+        '\x04\x00\x01\x80' + # lwz r0,4(r1)
+        '\xa6\x03\x08\x7c' + # mtlr r0
+        '\x20\x00\x80\x4e')  # blr
     ],
     archinfo.ArchARM : [
-      ({LoadMem : 1}, '\x08\x80\xbd\xe8'),                 # pop {r3, pc}
-      ({MoveReg : 1}, '\x02\x00\xa0\xe1\x04\xf0\x9d\xe4'), # mov r0, r2; pop {pc}
-      ({LoadMem : 7}, '\xf0\x87\xbd\xe8'),                 # pop {r4, r5, r6, r7, r8, r9, sl, pc}
-      ({LoadMem : 2}, '\x04\xe0\x9d\xe5\x08\xd0\x8d\xe2'   # ldr lr, [sp, #4]; add sp, sp, #8
-                    + '\x0c\x00\xbd\xe8\x1e\xff\x2f\xe1'), # pop {r2, r3}; bx lr
+      ({LoadMem     : 1}, '\x08\x80\xbd\xe8'),                 # pop {r3, pc}
+      ({MoveReg     : 1}, '\x02\x00\xa0\xe1\x04\xf0\x9d\xe4'), # mov r0, r2; pop {pc}
+      ({LoadMem     : 7}, '\xf0\x87\xbd\xe8'),                 # pop {r4, r5, r6, r7, r8, r9, sl, pc}
+      ({LoadMem     : 2}, '\x04\xe0\x9d\xe5\x08\xd0\x8d\xe2'   # ldr lr, [sp, #4]; add sp, sp, #8
+                        + '\x0c\x00\xbd\xe8\x1e\xff\x2f\xe1'), # pop {r2, r3}; bx lr
+      ({LoadMemJump : 6, Jump : 1},
+                          '\x1f\x40\xbd\xe8\x1c\xff\x2f\xe1'), # pop {r0, r1, r2, r3, r4, lr}; bx r12
+      ({LoadMemJump : 1, Jump : 1},
+                          '\x04\xe0\x9d\xe4\x13\xff\x2f\xe1'), # pop {lr}; bx r3
     ]
   }
-  #import sys
-  #arch = archinfo.ArchAMD64
-  #tests = { arch : [tests[arch][int(sys.argv[1])]] }
-  #tests = { arch : tests[arch] }
+  import sys
+  if len(sys.argv) > 1:
+    arches = { "AMD64" : archinfo.ArchAMD64, "MIPS" : archinfo.ArchMIPS64, "PPC" : archinfo.ArchPPC32, "ARM" : archinfo.ArchARM}
+    arch = arches[sys.argv[1].upper()]
+    tests = { arch : tests[arch] }
+    if len(sys.argv) > 2:
+      tests = { arch : [tests[arch][int(sys.argv[2])]] }
 
   fail = False
   for arch, arch_tests in tests.items():
