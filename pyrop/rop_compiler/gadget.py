@@ -1,13 +1,18 @@
 import math, struct, collections, logging, sys
 import archinfo
 import synthesizer as sy
+import cPickle as pickle
 
 class GadgetList(object):
 
+  @classmethod
+  def from_string(cls, data, log_level = logging.WARNING):
+    gadgets_dict = pickle.loads(data)
+    gadgets_list = [item for sublist in gadgets_dict.values() for item in sublist] # Flatten list of lists
+    return GadgetList(gadgets_list, log_level)
+
   def __init__(self, gadgets = None, log_level = logging.WARNING):
-    logging.basicConfig(format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
-    self.logger = logging.getLogger(self.__class__.__name__)
-    self.logger.setLevel(log_level)
+    self.setup_logging(log_level)
 
     self.arch = None
     self.gadgets = collections.defaultdict(list, {})
@@ -17,6 +22,15 @@ class GadgetList(object):
 
   def tr(self, reg):
     return self.arch.translate_register_name(reg)
+
+  def setup_logging(self, log_level):
+    self.log_level = log_level
+    logging.basicConfig(format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+    self.logger = logging.getLogger(self.__class__.__name__)
+    self.logger.setLevel(log_level)
+
+  def to_string(self):
+    return pickle.dumps(self.gadgets)
 
   def add_gadget(self, gadget):
     self.gadgets[type(gadget)].append(gadget)
@@ -67,6 +81,10 @@ class GadgetList(object):
   def find_load_stack_gadget(self, register, no_clobber = None):
     """This method finds the best gadget (lowest complexity) to load a register from the stack"""
     return self.find_gadget(LoadMem, [self.arch.registers['sp'][0]], register, no_clobber)
+
+###########################################################################################################
+## Synthesizing Gadgets ###################################################################################
+###########################################################################################################
 
   def create_new_gadgets(self, gadget_type, inputs, output, no_clobbers):
     return getattr(self, gadget_type.__name__)(inputs, output, no_clobbers)
