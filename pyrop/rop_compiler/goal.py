@@ -238,7 +238,7 @@ def create_from_arguments(filenames_and_addresses, libraries, goals, level = log
   """This convenience method accepts a list of (filename, address) of files to search for gadgets, libraries to gather metadata
     for, and a list of goals and creates a GoalResolver method.  This method provides an alternative to the json interface"""
   files = []
-  for (filename, address) in filenames_and_addresses:
+  for (filename, gadget_file, address) in filenames_and_addresses:
     files.append('[ "{}", "0x{:x}" ]'.format(filename, address))
 
   json = '{ "files" : [ %s ], "libraries" : [ "%s" ], "goals" : %s }' % (",".join(files), 

@@ -1,7 +1,7 @@
 # This file contains the logic to combine a set of gadgets and implement the desired goals
 import struct, logging, collections
 import archinfo
-import goal as go, gadget as ga
+import goal as go, gadget as ga, utils
 
 PAGE_MASK = 0xfffffffffffff000
 PROT_RWX = 7
@@ -131,15 +131,6 @@ class Scheduler(object):
       raise RuntimeError("Could not find a way to write to memory")
     return best
 
-  def ap(self, address):
-    """Packs an address into a string. ap is short for Address Pack"""
-    formats = { 32 : "I", 64 : "Q" }
-    if type(address) == str: # Assume already packed
-      return address
-    if address < 0:
-      address = (2 ** self.arch.bits) + address
-    return struct.pack(formats[self.arch.bits], address)
-
   def create_function_chain(self, goal, end_address = 0x4444444444444444):
     """This method returns a ROP chain that will call a function"""
     self.logger.info("Creating function chain for %s(%s) and finishing with a return to 0x%x", goal.name,
@@ -187,7 +178,7 @@ class Scheduler(object):
     if lr_gadget != None:
       chain += lr_gadget.chain(goal.address, end_address)
     else:
-      chain += self.ap(end_address)
+      chain += utils.ap(end_address, self.arch)
     return (chain, arg_gadgets[0].address)
 
   def create_read_add_jmp_function_chain(self, address, offset, arguments, end_address):
@@ -286,7 +277,7 @@ class Scheduler(object):
 
     # Finally, jump to the function
     chain += jump_gadget.chain()
-    chain += self.ap(end_address)
+    chain += utils.ap(end_address, self.arch)
     return (chain, set_read_addr_gadget.address)
 
   def create_shellcode_address_chain(self, goal):
@@ -396,5 +387,5 @@ class Scheduler(object):
 
       chain = goal_chain + chain
 
-    return self.ap(next_address) + chain
+    return utils.ap(next_address, self.arch) + chain
 

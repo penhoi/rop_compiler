@@ -19,25 +19,39 @@ class Finder(object):
   STEP = { archinfo.ArchX86 : 1, archinfo.ArchAMD64 : 1, archinfo.ArchMIPS64 : 4, archinfo.ArchMIPS32 : 4,
     archinfo.ArchPPC32 : 4, archinfo.ArchPPC64 : 4, archinfo.ArchARM : 4 }
 
-  def __init__(self, filename, arch, base_address = 0, level = logging.WARNING):
+  def __init__(self, filename, gadget_file, arch, base_address = 0, level = logging.WARNING):
     logging.basicConfig(format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
     self.logger = logging.getLogger(self.__class__.__name__)
     self.logger.setLevel(level)
     self.level = level
 
-    self.fd = open(filename, "rb")
-    self.elffile = ELFFile(self.fd)
     self.base_address = base_address
     self.arch = arch
 
+    self.elffile = self.fd = None
+    if filename != None:
+      self.fd = open(filename, "rb")
+      self.elffile = ELFFile(self.fd)
+
+    self.gadget_file_fd = None
+    if gadget_file != None:
+      self.gadget_file_fd = open(gadget_file, "rb")
+
   def __del__(self):
-    self.fd.close()
+    if self.fd != None:
+      self.fd.close()
+    if self.gadget_file_fd != None:
+      self.gadget_file_fd.close()
 
   def find_gadgets(self):
     """Iterates over the defined files and return any gadgets"""
-    gadget_list = ga.GadgetList(log_level = self.level)
-    for segment in self.iter_executable_segments():
-      self.get_gadgets_for_segment(segment, gadget_list)
+    if self.gadget_file_fd != None: # there is a saved gadgets file
+      gadget_list = ga.from_string(self.gadget_file_fd.read(), self.level, self.base_address)
+    else: # No gadget file, try to find them
+      gadget_list = ga.GadgetList(log_level = self.level)
+      for segment in self.iter_executable_segments():
+        self.get_gadgets_for_segment(segment, gadget_list)
+    self.logger.debug("Found %d (%d LoadMem) gadgets", len([x for x in gadget_list.foreach()]), len([x for x in gadget_list.foreach_type(ga.LoadMem)]))
     return gadget_list
 
   def iter_executable_segments(self):
@@ -63,14 +77,23 @@ if __name__ == "__main__":
   import argparse
 
   parser = argparse.ArgumentParser(description="Run the gadget locator on the supplied binary")
-  parser.add_argument('target', type=str, help='The file (executable/library) to find gadgets in')
-  parser.add_argument('-base_address', type=str, default="0", help='The address the file is loaded at (in hex).  Only needed for PIE/PIC binaries')
+  parser.add_argument('-target', type=str, default=None, help='The file (executable/library) to find gadgets in')
+  parser.add_argument('-gadgets_file', type=str, default=None, help='The file (executable/library) to find gadgets in')
+  parser.add_argument('-base_address', type=str, default="0", help='The address the file is loaded at (in hex). Only needed'
+    + ' for PIE/PIC binaries.  When creating a reusable gadgets file, do not specify')
+  parser.add_argument('-arch', type=str, default="AMD64", help='The architecture of the binary')
   parser.add_argument('-v', required=False, action='store_true', help='Verbose mode')
+  parser.add_argument('-o', type=str, default=None, help='File to write the gadgets to')
   args = parser.parse_args()
 
-  finder = Finder(args.target, archinfo.ArchAMD64, int(args.base_address, 16), logging.DEBUG if args.v else logging.WARNING)
+  finder = Finder(args.target, args.gadgets_file, archinfo.arch_from_id(args.arch).__class__, int(args.base_address, 16), logging.DEBUG if args.v else logging.WARNING)
   gadget_list = finder.find_gadgets()
 
-  for gadget in gadget_list.foreach():
-    print gadget, gadget.complexity()
+  if args.o == None:
+    for gadget in gadget_list.foreach():
+      print gadget, gadget.complexity()
+  else:
+    fd = open(args.o, "w")
+    fd.write(gadget_list.to_string())
+    fd.close()
 

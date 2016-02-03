@@ -98,6 +98,9 @@ class GadgetClassifier(object):
         # Except for Jump, all the gadgets must load rip from the stack
         or ((ip_in_stack_offset == None and gadget_type != Jump) and not (ip_from_reg != None and gadget_type == LoadMem))
 
+        # If the stack doesn't get adjusted
+        or (ip_in_stack_offset != None and ((gadget_type == LoadMem and params[0] > stack_offset) or ip_in_stack_offset > stack_offset))
+
         # We don't care about finding gadgets that set the flags
         or self.is_ignored_register(output)
 

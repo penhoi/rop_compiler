@@ -1,15 +1,17 @@
 import math, struct, collections, logging, sys
 import archinfo
-import synthesizer as sy
+import utils
 import cPickle as pickle
 
-class GadgetList(object):
+def from_string(data, log_level = logging.WARNING, address_offset = None):
+  gadgets_dict = pickle.loads(data)
+  gadgets_list = [item for sublist in gadgets_dict.values() for item in sublist] # Flatten list of lists
+  gl = GadgetList(gadgets_list, log_level)
+  if address_offset != None:
+    gl.adjust_base_address(address_offset)
+  return gl
 
-  @classmethod
-  def from_string(cls, data, log_level = logging.WARNING):
-    gadgets_dict = pickle.loads(data)
-    gadgets_list = [item for sublist in gadgets_dict.values() for item in sublist] # Flatten list of lists
-    return GadgetList(gadgets_list, log_level)
+class GadgetList(object):
 
   def __init__(self, gadgets = None, log_level = logging.WARNING):
     self.setup_logging(log_level)
@@ -33,14 +35,18 @@ class GadgetList(object):
     return pickle.dumps(self.gadgets)
 
   def add_gadget(self, gadget):
-    self.gadgets[type(gadget)].append(gadget)
-    self.gadgets_per_output[type(gadget)][gadget.output].append(gadget)
+    self.gadgets[gadget.__class__.__name__].append(gadget)
+    self.gadgets_per_output[gadget.__class__.__name__][gadget.output].append(gadget)
     if type(self.arch) == type(None):
       self.arch = gadget.arch
 
   def add_gadgets(self, gadgets):
     for gadget in gadgets:
       self.add_gadget(gadget)
+
+  def adjust_base_address(self, address_offset):
+    for gadget in self.foreach():
+      gadget.address += address_offset
 
   def copy_gadgets(self, gadget_list):
     for gadget in gadget_list.foreach():
@@ -52,12 +58,12 @@ class GadgetList(object):
         yield gadget
 
   def foreach_type(self, gadget_type, no_clobbers = None):
-    for gadget in self.gadgets[gadget_type]:
+    for gadget in self.gadgets[gadget_type.__name__]:
       if no_clobbers == None or not gadget.clobbers_registers(no_clobbers):
         yield gadget
 
   def foreach_type_output(self, gadget_type, output, no_clobbers = None):
-    for gadget in self.gadgets_per_output[gadget_type][output]:
+    for gadget in self.gadgets_per_output[gadget_type.__name__][output]:
       if no_clobbers == None or not gadget.clobbers_registers(no_clobbers):
         yield gadget
 
@@ -87,7 +93,9 @@ class GadgetList(object):
 ###########################################################################################################
 
   def create_new_gadgets(self, gadget_type, inputs, output, no_clobbers):
-    return getattr(self, gadget_type.__name__)(inputs, output, no_clobbers)
+    if hasattr(self, gadget_type.__name__):
+      return getattr(self, gadget_type.__name__)(inputs, output, no_clobbers)
+    return None
 
   def LoadMem(self, inputs, output, no_clobbers):
     gadget = self.LoadMemFromMoveReg(inputs, output, no_clobbers)
@@ -126,6 +134,10 @@ class GadgetList(object):
       return CombinedGadget([best_load_mem, best_load_mem_jump])
     return None
 
+###########################################################################################################
+## Gadget Classess ########################################################################################
+###########################################################################################################
+
 class GadgetBase(object):
   def clobbers_register(self, reg):
     raise RuntimeError("Not Implemented")
@@ -141,15 +153,6 @@ class GadgetBase(object):
 
   def validate(self):
     raise RuntimeError("Not Implemented")
-
-  def ap(self, address):
-    """Packs an address into a string. ap is short for Address Pack"""
-    formats = { 32 : "I", 64 : "Q" }
-    if type(address) == str: # Assume already packed
-      return address
-    if address < 0:
-      address = (2 ** self.arch.bits) + address
-    return struct.pack(formats[self.arch.bits], address)
 
   def chain(self, next_address, input_value = None): 
     raise RuntimeError("Not Implemented")
@@ -225,7 +228,7 @@ class Gadget(GadgetBase):
     if self.ip_in_stack_offset != None:
       ip = "0x{:x}".format(self.ip_in_stack_offset)
     return "{}(Address: 0x{:x}, Complexity {}, Stack 0x{:x}, Ip {}{}{}{}{})".format(self.__class__.__name__,
-      self.address, self.complexity(), self.stack_offset, ip, output, inputs, clobber, params)
+      self.address, round(self.complexity(), 2), self.stack_offset, ip, output, inputs, clobber, params)
 
   def _is_stack_reg(self, reg):
     return reg == self.arch.registers['sp'][0]
@@ -249,7 +252,7 @@ class Gadget(GadgetBase):
     for an_input in self.inputs:
       if type(an_input) == Register and an_input.name == name:
         return True
-    return self.clobbers_register(name) or (type(self.output) == Register and self.output.name == name)
+    return self.clobbers_register(name) or self.output == name
 
   def complexity(self):
     """Return a rough complexity measure for a gadget that can be used to select the best gadget in a set.  Our simple formula
@@ -276,7 +279,7 @@ class Gadget(GadgetBase):
   def chain(self, next_address, input_value = None): 
     """Default ROP Chain generation, uses no parameters"""
     chain = self.ip_in_stack_offset * "I"
-    chain += self.ap(next_address)
+    chain += utils.ap(next_address, self.arch)
     chain += (self.stack_offset - len(chain)) * "J"
     return chain
 
@@ -299,16 +302,16 @@ class LoadMem(Gadget):
     # If our input value is coming from the stack, and it's supposed to come before the next PC address, add it to the chain now
     if input_from_stack and (self.ip_in_stack_offset == None or self.params[0] < self.ip_in_stack_offset):
       chain += self.params[0] * "A"
-      chain += self.ap(input_value)
+      chain += utils.ap(input_value, self.arch)
 
     if self.ip_in_stack_offset != None:
       chain += (self.ip_in_stack_offset - len(chain)) * "B"
-      chain += self.ap(next_address)
+      chain += utils.ap(next_address, self.arch)
 
     # If our input value is coming from the stack, and it's supposed to come after the next PC address, add it to the chain now
     if input_from_stack and self.ip_in_stack_offset != None and self.params[0] > self.ip_in_stack_offset:
       chain += (self.params[0] - len(chain)) * "A"
-      chain += self.ap(input_value)
+      chain += utils.ap(input_value, self.arch)
 
     chain += (self.stack_offset - len(chain)) * "C"
     return chain
@@ -400,7 +403,7 @@ if __name__ == "__main__":
         print "\n".join(["\n".join([str(g) for g in gl]) for t,gl in gadget_list.gadgets.items()])
 
   if fail:
-    print "\nFAILURE!!! One or more incorrectly classified gadgets"
+    print "\nFAILURE!!! One or more incorrectly synthesized gadgets"
   else:
-    print "\nSUCCESS, all gadgets correctly classified"
+    print "\nSUCCESS, all gadgets correctly synthesized"
 

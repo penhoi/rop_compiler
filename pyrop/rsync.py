@@ -19,7 +19,7 @@ shellcode = ( # http://shell-storm.org/shellcode/files/shellcode-603.php
 )
 
 print "Finding gadgets and generating rop chain"
-files = [(filename, 0)] # use address 0 for non-PIE binaries (it'll autodetect the real one)
+files = [(filename, None, 0)] # use address 0 for non-PIE binaries (it'll autodetect the real one)
 goal_resolver = goal.create_from_arguments(files, ["/lib/x86_64-linux-gnu/libc.so.6"], [["shellcode_hex", binascii.hexlify(shellcode)]])
 rop = ropme.rop(files, goal_resolver, archinfo.ArchAMD64, logging.DEBUG)
 
