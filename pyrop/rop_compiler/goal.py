@@ -17,7 +17,17 @@ class FunctionGoal(Goal):
     self.arguments = arguments
 
   def __str__(self):
-    return "{}({}) == 0x{:x}".format(self.name, ",".join([str(x) for x in self.arguments]), self.address) 
+    return "{}({}) == 0x{:x}".format(self.name, ",".join([str(x) for x in self.arguments]), self.address)
+
+class ExecveGoal(FunctionGoal):
+  """This class represents a call to execve to start another program"""
+
+  def __init__(self, name, address, arguments):
+    super(ExecveGoal, self).__init__(name, address, [])
+    for arg in arguments:
+      if type(arg) not in [int, long]:
+        arg = str(arg)
+      self.arguments.append(arg)
 
 class ShellcodeGoal(Goal):
   """This class reprsents the goal of executing the given shellcode that doesn't already exist in memory"""
@@ -49,8 +59,8 @@ class GoalResolver(object):
           [ "main_binary to find gadgets in", "Address of binary in hex" ],
           [ "additional library to find gadgets in", "Address of binary in hex" ]
           ...
-        ], 
-      "libraries" : [ 
+        ],
+      "libraries" : [
           "library for reading metadata from (but not gadgets)",
           "another library for reading metadata from (but not gadgets)",
           ...
@@ -102,7 +112,7 @@ class GoalResolver(object):
 
   def is_address(self, string):
     """Determines if the specified string is a properly formated hex address"""
-    try: 
+    try:
         int(string, 16)
         return True
     except ValueError:
@@ -172,19 +182,23 @@ class GoalResolver(object):
     fd.close()
     return contents
 
+  def get_function_address(self, name):
+    if self.is_address(name):
+      address = int(name, 16)
+    else:
+      address = self.resolve_function(name)
+    return address
+
+
   def interpret_goals(self):
     """This method converts the goals json to a list of Goal classes"""
 
     self.goals = []
     for goal in self.json['goals']:
       if goal[0] == "function":
-        address = goal[1]
-        if self.is_address(address):
-          address = int(address, 16)
-        else:
-          address = self.resolve_function(address)
-
-        self.goals.append(FunctionGoal(goal[1], address, goal[2:]))
+        self.goals.append(FunctionGoal(goal[1], self.get_function_address(goal[1]), goal[2:]))
+      elif goal[0] == "execve":
+        self.goals.append(ExecveGoal(goal[0], self.get_function_address(goal[0]), goal[1:]))
       elif goal[0] == "shellcode":
         shellcode_address = int(goal[1], 16)
         self.goals.append(ShellcodeAddressGoal(shellcode_address))
@@ -195,7 +209,7 @@ class GoalResolver(object):
         shellcode = binascii.unhexlify(goal[1])
         self.goals.append(ShellcodeGoal(shellcode))
       else:
-        raise RuntimeError("Unknown goal") 
+        raise RuntimeError("Unknown goal")
 
   def symbol_number(self, elffile, name):
     """This method determines the symbol index of a symbol inside of an ELFFile"""
@@ -241,7 +255,7 @@ def create_from_arguments(filenames_and_addresses, libraries, goals, level = log
   for (filename, gadget_file, address) in filenames_and_addresses:
     files.append('[ "{}", "0x{:x}" ]'.format(filename, address))
 
-  json = '{ "files" : [ %s ], "libraries" : [ "%s" ], "goals" : %s }' % (",".join(files), 
+  json = '{ "files" : [ %s ], "libraries" : [ "%s" ], "goals" : %s }' % (",".join(files),
     '","'.join(libraries), str(goals).replace("'",'"'))
   return GoalResolver(json, level)
 

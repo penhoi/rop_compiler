@@ -31,10 +31,11 @@ class Scheduler(object):
     self.gadget_list = gadget_list
     self.write_memory_chains = []
     self.store_mem_gadgets = collections.defaultdict(dict)
+    self.alignment = self.arch.bits / 8
 
+    self.chain = None
     self.goal_resolver = goal_resolver
     self.goals = goal_resolver.get_goals()
-    self.chain = self.chain_gadgets()
 
   def get_all_registers(self):
     registers = dict(self.arch.registers)
@@ -54,6 +55,8 @@ class Scheduler(object):
 
   def get_chain(self):
     """Returns the compiled ROP chain"""
+    if self.chain == None:
+      self.chain = self.chain_gadgets()
     return self.chain
 
   def print_gadgets(self, caption, gadgets):
@@ -322,7 +325,7 @@ class Scheduler(object):
 
     raise RuntimeError("Failed finding necessary gadgets for shellcode address goal")
 
-  def create_write_memory_chain(self, buf, address, next_address):
+  def create_write_8byte_memory_chain(self, buf, address, next_address):
     """This method generates a chain that will write the buffer to the given address.  Similar to ROPC we limit ourselves to one
       memory size for simplicity.  Thus, the buffer must be arch.bits/8 bytes long"""
     if len(buf) != (self.arch.bits/8):
@@ -340,19 +343,21 @@ class Scheduler(object):
 
     return (chain, load_addr_gadget.address)
 
-  def create_write_shellcode_chain(self, shellcode, address, next_address):
-    """This function returns a ROP chain implemented to write shellcode to a given address"""
-    alignment = self.arch.bits / 8
-    if len(shellcode) % alignment != 0:
-      shellcode += (alignment - (len(shellcode) % alignment)) * "K" # pad it to the correct alignment (for simplicity)
+  def align_to_8bytes(self, buf, padding = "K"):
+    if len(buf) % self.alignment != 0:
+      buf += (self.alignment - (len(buf) % self.alignment)) * padding # pad it to the correct alignment (for simplicity)
+    return buf
 
+  def create_write_memory_chain(self, buf, address, next_address, padding = "K"):
+    """This function returns a ROP chain implemented to write a buffer to a given address"""
     chain = ""
     addr = address
-    for i in range(0, len(shellcode), alignment):
-      # Iteratively create the ROP chain for each byte chunk of the shellcode
-      single_write_chain, next_address = self.create_write_memory_chain(shellcode[i:i+alignment], addr, next_address)
+    buf = self.align_to_8bytes(buf, padding)
+    for i in range(0, len(buf), self.alignment):
+      # Iteratively create the ROP chain for each byte chunk of the buffer
+      single_write_chain, next_address = self.create_write_8byte_memory_chain(buf[i:i+self.alignment], addr, next_address)
       chain = single_write_chain + chain
-      addr += alignment
+      addr += self.alignment
     return chain, next_address
 
   def create_shellcode_chain(self, goal):
@@ -366,24 +371,65 @@ class Scheduler(object):
     shellcode_chain, next_address = self.create_shellcode_address_chain(shellcode_goal)
 
     # Create a ROP chain that will write our shellcode to memory
-    chain, next_address = self.create_write_shellcode_chain(goal.shellcode, shellcode_address, next_address)
+    chain, next_address = self.create_write_memory_chain(goal.shellcode, shellcode_address, next_address)
 
     # Combine the two to write our shellcode to memory and execute it
     return (chain + shellcode_chain), next_address
+
+  def create_execve_chain(self, goal):
+    """This function returns a ROP chain implemented for a ExecveGoal.  It first writes the arguments for execve, then calls
+      execve"""
+    argument_address = self.goal_resolver.get_writable_memory()
+    self.find_write_memory_gadgets()
+
+    print "ARGS:",goal.arguments
+    argument_addresses = []
+    current_arg_address = argument_address
+    for arg in goal.arguments:
+      argument_addresses.append(current_arg_address)
+      current_arg_address += len(self.align_to_8bytes(arg))
+    argv_address = current_arg_address
+
+    function_goal = go.FunctionGoal(goal.name, goal.address, [argument_address, argv_address, 0])
+    function_chain, next_address = self.create_function_chain(function_goal, 0x4444444444444444)
+
+    chain = ""
+    for i in range(len(argument_addresses)):
+      packed_args_address = utils.ap(argument_addresses[i], self.arch)
+      argv_chain, next_address = self.create_write_memory_chain(packed_args_address, argv_address, next_address, "\x00")
+      argv_address += len(packed_args_address)
+      chain = argv_chain + chain
+    print len(chain)
+
+    null_chain, next_address = self.create_write_memory_chain("\x00", argv_address, next_address, "\x00")
+    chain = null_chain + chain
+    print len(chain)
+
+    for i in range(len(goal.arguments)):
+      arg_chain, next_address = self.create_write_memory_chain(goal.arguments[i], argument_addresses[i], next_address, "\x00")
+      chain = arg_chain + chain
+
+    print len(chain)
+
+    return (chain + function_chain), next_address
 
   def chain_gadgets(self):
     """This function returns a ROP chain implemented for the given goals."""
     chain = ""
     next_address = 0x4444444444444444
-    for i in range(len(self.goals)-1, -1, -1):
+    for i in range(len(self.goals) - 1, -1, -1):
       goal = self.goals[i]
       if type(goal) == go.FunctionGoal:
         goal_chain, next_address = self.create_function_chain(goal, next_address)
         self.logger.debug("Function call to %s's first gadget is at 0x%x", goal.name, next_address)
+      elif type(goal) == go.ExecveGoal:
+        goal_chain, next_address = self.create_execve_chain(goal)
       elif type(goal) == go.ShellcodeAddressGoal:
         goal_chain, next_address = self.create_shellcode_address_chain(goal)
       elif type(goal) == go.ShellcodeGoal:
         goal_chain, next_address = self.create_shellcode_chain(goal)
+      else:
+        raise RuntimeError("Unknown goal in scheduler.")
 
       chain = goal_chain + chain
 
