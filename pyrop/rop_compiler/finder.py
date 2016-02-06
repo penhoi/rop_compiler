@@ -28,7 +28,7 @@ class Finder(object):
       self.parser = parser_type(name, base_address, level)
 
   def find_gadgets(self):
-    """Iterates over the defined files and return any gadgets"""
+    """Finds gadgets in the specified file"""
     raise RuntimeError("Not Implemented")
 
 if __name__ == "__main__":
@@ -51,7 +51,7 @@ if __name__ == "__main__":
 
   if args.o == None:
     for gadget in gadget_list.foreach():
-      print gadget, gadget.complexity()
+      print gadget
   else:
     fd = open(args.o, "w")
     fd.write(gadget_list.to_string())

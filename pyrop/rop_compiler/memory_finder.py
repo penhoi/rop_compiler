@@ -1,6 +1,3 @@
-from elftools.elf.elffile import ELFFile
-from elftools.elf.constants import P_FLAGS
-import archinfo
 import logging, collections
 
 import classifier as cl, gadget as ga, finder
@@ -10,14 +7,9 @@ class MemoryFinder(finder.Finder):
 
   def __init__(self, name, arch, base_address = 0, level = logging.WARNING, parser_type = None):
     super(MemoryFinder, self).__init__(name, arch, base_address, level, parser_type)
-    self.fd = open(name, "rb")
-    self.elffile = ELFFile(self.fd)
-
-  def __del__(self):
-    self.fd.close()
 
   def find_gadgets(self):
-    """Iterates over the defined files and return any gadgets"""
+    """Finds gadgets in the specified file"""
     gadget_list = ga.GadgetList(log_level = self.level)
     for segment in self.parser.iter_executable_segments():
       self.get_gadgets_for_segment(segment, gadget_list)

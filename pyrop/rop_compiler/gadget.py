@@ -6,6 +6,11 @@ import cPickle as pickle
 def from_string(data, log_level = logging.WARNING, address_offset = None):
   gadgets_dict = pickle.loads(data)
   gadgets_list = [item for sublist in gadgets_dict.values() for item in sublist] # Flatten list of lists
+
+  # Turn the names of the arch back into archinfo classes (Which aren't pickle-able)
+  for gadget in gadgets_list:
+    gadget.arch = archinfo.arch_from_id(gadget.arch)
+
   gl = GadgetList(gadgets_list, log_level)
   if address_offset != None:
     gl.adjust_base_address(address_offset)
@@ -32,6 +37,10 @@ class GadgetList(object):
     self.logger.setLevel(log_level)
 
   def to_string(self):
+    """Turns the gadget list into a pickle'd object. This method transforms the gadget list in the process, and thus this instance
+      should not be used afterwards."""
+    for gadget in self.foreach():
+      gadget.arch = gadget.arch.name
     return pickle.dumps(self.gadgets)
 
   def add_gadget(self, gadget):
@@ -200,10 +209,9 @@ class CombinedGadget(GadgetBase):
 class Gadget(GadgetBase):
   """This class wraps a set of instructions and holds the associated metadata that makes up a gadget"""
 
-  def __init__(self, arch, irsb, inputs, output, params, clobber, stack_offset, ip_in_stack_offset):
+  def __init__(self, arch, address, inputs, output, params, clobber, stack_offset, ip_in_stack_offset):
     self.arch = arch
-    self.irsb = irsb
-    self.address = irsb._addr
+    self.address = address
     self.inputs = inputs
     self.output = output
     self.params = params

@@ -118,7 +118,7 @@ class GadgetClassifier(object):
         gadget_type = LoadMemJump
         inputs.append(ip_from_reg)
 
-      gadget = gadget_type(self.arch, irsb, inputs, output, params, clobber, stack_offset, ip_in_stack_offset)
+      gadget = gadget_type(self.arch, address, inputs, output, params, clobber, stack_offset, ip_in_stack_offset)
       if gadget != None and gadget.validate():
         self.logger.debug("Found gadget: %s", str(gadget))
         gadgets.append(gadget)
