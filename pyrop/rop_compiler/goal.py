@@ -125,37 +125,6 @@ class GoalResolver(object):
       return data_section.header.sh_addr
     raise RuntimeError("Couldn't find a .data section when looking for writable memory")
 
-  def get_dynamic_segment(self, elffile):
-    """Finds the dynamic segment in an ELFFile"""
-    found = None
-    for segment in elffile.iter_segments():
-      if isinstance(segment, DynamicSegment):
-        found = segment
-    return found
-
-  def find_symbol(self, elffile, address, container, name):
-    """Given an ELFFile, the ELFFile's base address, and a section/segment, this function searches the ELFFile to determine the
-      address of a function"""
-    for symbol in container.iter_symbols():
-      if symbol.name == name and symbol.entry.st_value != 0:
-        if self.get_dynamic_segment(elffile) != None: # if the file has a dynamic section, it's probably ASLR
-          return address + symbol.entry.st_value # so include the address.  Note, this isn't the best heuristic though.
-        else:
-          return symbol.entry.st_value # otherwise, the offset is absolute and we don't need it
-    return None
-
-  def resolve_function_in_file(self, elffile, address, name):
-    """Given an ELFFile and the ELFFile's base address, this function searches the ELFFile to determine the address of a
-      function"""
-    containers = [elffile.get_section_by_name('.symtab'), elffile.get_section_by_name('.dynsym'),
-      self.get_dynamic_segment(elffile)]
-    for container in containers:
-      if container and (isinstance(container, SymbolTableSection) or isinstance(container, DynamicSegment)):
-        symbol_address = self.find_symbol(elffile, address, container, name)
-        if symbol_address != None:
-          return symbol_address
-    return None
-
   def resolve_function(self, name):
     """This function searches the defined files for the address of a function"""
     for elffile, address in self.file_list:
@@ -164,31 +133,12 @@ class GoalResolver(object):
         return symbol_address
     raise RuntimeError("Could not resolve the address of function {}.".format(name))
 
-  def resolve_functions(self, names):
-    """This function searches the defined files for a series of functions"""
-    addresses = {}
-    for name in names:
-      try:
-        address = self.resolve_function(name)
-      except:
-        address = None
-      addresses[name] = address
-    return addresses
-
-  def get_contents(self, filename):
-    """Convenience method that reads a file on disk and returns the contents"""
-    fd = open(filename, "r")
-    contents = fd.read()
-    fd.close()
-    return contents
-
   def get_function_address(self, name):
     if self.is_address(name):
       address = int(name, 16)
     else:
       address = self.resolve_function(name)
     return address
-
 
   def interpret_goals(self):
     """This method converts the goals json to a list of Goal classes"""

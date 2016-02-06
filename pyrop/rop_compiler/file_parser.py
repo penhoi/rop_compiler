@@ -1,5 +1,5 @@
 import logging
-import parser_factory
+import factories
 
 class FileParser(object):
   """This class parses an executable file to obtain information about it"""
@@ -48,8 +48,9 @@ if __name__ == "__main__":
   parser.add_argument('symbol', nargs="*", type=str, help='Verbose mode')
   args = parser.parse_args()
 
-  parser_type = parser_factory.get_class_from_name(args.parser_type)
-  parser = parser_type(args.target, int(args.base_address, 16), logging.DEBUG if args.v else logging.WARNING)
+  parser_type = factories.get_parser_from_name(args.parser_type)
+  logging_level = logging.DEBUG if args.v else logging.WARNING
+  parser = parser_type(args.target, int(args.base_address, 16), logging_level)
   for symbol in args.symbol:
     address = parser.get_symbol_address(symbol)
     if address != None: address = hex(address)

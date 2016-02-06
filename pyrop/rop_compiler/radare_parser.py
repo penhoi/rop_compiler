@@ -26,9 +26,9 @@ class RadareFinder(file_parser.FileParser):
 
   def iter_executable_segments(self):
     """Any iterator that only returns the executable sections in the ELF file"""
-    EXECUTABLE = 1
+    EXECUTABLE_SEGMENT = 0x11
     for seg in self.b.get_sections():
-      if seg.srwx & EXECUTABLE != 0:
+      if seg.srwx & (EXECUTABLE_SEGMENT) == EXECUTABLE_SEGMENT:
         yield seg
 
   def get_segment_bytes_address(self, seg):

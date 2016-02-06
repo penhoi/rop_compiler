@@ -8,3 +8,11 @@ def ap(address, arch):
   if address < 0:
     address = (2 ** arch.bits) + address
   return struct.pack(formats[arch.bits], address)
+
+def get_contents(filename):
+  """Convenience method that reads a file on disk and returns the contents"""
+  fd = open(filename, "r")
+  contents = fd.read()
+  fd.close()
+  return contents
+

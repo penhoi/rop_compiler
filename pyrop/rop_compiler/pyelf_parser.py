@@ -22,9 +22,9 @@ class PyelfParser(file_parser.FileParser):
       if seg.header.p_flags & P_FLAGS.PF_X != 0:
         yield seg
 
-  def get_segment_bytes_address(self, seg):
+  def get_segment_bytes_address(self, segment):
     """Returns a segments bytes and the address of the segment"""
-    return segment.data(), segment.header.p_addr
+    return segment.data(), segment.header.p_vaddr
 
   def get_dynamic_segment(self, elffile):
     """Finds the dynamic segment in an ELFFile"""
