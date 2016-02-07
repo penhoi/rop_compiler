@@ -24,7 +24,7 @@ class PyelfParser(file_parser.FileParser):
 
   def get_segment_bytes_address(self, segment):
     """Returns a segments bytes and the address of the segment"""
-    return segment.data(), segment.header.p_vaddr
+    return segment.data(), segment.header.p_vaddr + self.base_address
 
   def get_dynamic_segment(self, elffile):
     """Finds the dynamic segment in an ELFFile"""
@@ -53,3 +53,23 @@ class PyelfParser(file_parser.FileParser):
         else:
           return symbol.entry.st_value # otherwise, the offset is absolute and we don't need it
     return None
+
+  def get_writable_memory(self):
+    data_section = self.elffile.get_section_by_name(".data") # Just return the start of the .data section
+    return data_section.header.sh_addr + self.base_address
+
+  def symbol_number(self, name):
+    """This method determines the symbol index of a symbol inside of a file"""
+    symbols_section = self.elffile.get_section_by_name('.dynsym')
+    for i in range(0, symbols_section.num_symbols()):
+      if symbols_section.get_symbol(i).name == name:
+        return i
+    return None
+
+  def find_symbol_got_entry(self, name):
+    got_addr = self.elffile.get_section_by_name(".got").header.sh_addr
+    symbol_num = self.symbol_number(name)
+    if symbol_num == None:
+      return None
+    return got_addr + 0x20 + ((symbol_num - 1) * (self.arch.bits/8))
+

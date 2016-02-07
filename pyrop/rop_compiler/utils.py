@@ -16,3 +16,5 @@ def get_contents(filename):
   fd.close()
   return contents
 
+def mask(value, size = 64):
+  return value & ((2 ** size) - 1)

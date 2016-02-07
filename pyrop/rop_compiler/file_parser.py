@@ -25,6 +25,14 @@ class FileParser(object):
     """Returns the address for a symbol, or None if the symbol can't be found"""
     raise RuntimeError("Not Implemented")
 
+  def get_writable_memory(self):
+    """Returns a writable area of memory"""
+    raise RuntimeError("Not Implemented")
+
+  def find_symbol_in_got(self, name):
+    """Find the address of a symbol in the GOT"""
+    raise RuntimeError("Not Implemented")
+
   def get_symbols_address(self, names):
     """This function tries to resolve a series of symbols"""
     addresses = {}
@@ -55,4 +63,3 @@ if __name__ == "__main__":
     address = parser.get_symbol_address(symbol)
     if address != None: address = hex(address)
     print symbol, address
-

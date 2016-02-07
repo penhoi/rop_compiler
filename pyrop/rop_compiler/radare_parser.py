@@ -34,13 +34,20 @@ class RadareFinder(file_parser.FileParser):
   def get_segment_bytes_address(self, seg):
     """Returns a segments bytes and the address of the segment"""
     self.fd.seek(seg.paddr)
-    return self.fd.read(seg.size), seg.vaddr
+    return self.fd.read(seg.size), seg.vaddr + self.base_address
 
   def get_symbol_address(self, name, recurse_with_imp = True):
     """Returns the address for a symbol, or None if the symbol can't be found"""
     for symbol in self.b.get_symbols():
       if symbol.name == name:
-        return int(symbol.vaddr)
+        return int(symbol.vaddr) + self.base_address
     if recurse_with_imp:
       return self.get_symbol_address("imp.{}".format(name), False)
     return None
+
+  def get_writable_memory(self):
+    WRITABLE_SEGMENT = 0x12
+    for seg in self.b.get_sections():
+      if seg.srwx & (WRITABLE_SEGMENT) == WRITABLE_SEGMENT:
+        return seg.vaddr + self.base_address
+

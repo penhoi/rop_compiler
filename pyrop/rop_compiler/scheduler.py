@@ -22,19 +22,20 @@ class Scheduler(object):
 
   MPROTECT_SYSCALL = { "AMD64" : 10 }
 
-  def __init__(self, gadget_list, goal_resolver, arch = archinfo.ArchAMD64, level = logging.WARNING):
+  def __init__(self, gadget_list, goal_resolver, file_handler, arch = archinfo.ArchAMD64, level = logging.WARNING):
     logging.basicConfig(format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
     self.logger = logging.getLogger(self.__class__.__name__)
     self.logger.setLevel(level)
 
     self.arch = arch()
     self.gadget_list = gadget_list
+    self.file_handler = file_handler
+
     self.write_memory_chains = []
     self.store_mem_gadgets = collections.defaultdict(dict)
     self.alignment = self.arch.bits / 8
 
     self.chain = None
-    self.goal_resolver = goal_resolver
     self.goals = goal_resolver.get_goals()
 
   def get_all_registers(self):
@@ -288,7 +289,7 @@ class Scheduler(object):
       shellcode's address."""
 
     # Look for the address of functions capable of fixing the memory protections
-    addresses = self.goal_resolver.resolve_functions(["mprotect", "syscall"])
+    addresses = self.file_handler.get_symbols_address(["mprotect", "syscall"])
 
     if addresses["mprotect"] != None:
       # If we've have mprotect, we're on easy street.  Create a chain to call mprotect()
@@ -311,7 +312,7 @@ class Scheduler(object):
     base_address_in_got = offset_in_libc = None
     for base in functions_in_got:
       # Find the address of the base function in libc, and the offset between it and mprotect
-      base_address_in_got, offset_in_libc = self.goal_resolver.resolve_symbol_from_got(base, "mprotect")
+      base_address_in_got, offset_in_libc = self.file_handler.resolve_symbol_from_got(base, "mprotect")
       if base_address_in_got != None and offset_in_libc != None:
         self.logger.info("Used %s to found the address of libc: 0x%x", base, base_address_in_got)
         break
@@ -363,7 +364,7 @@ class Scheduler(object):
   def create_shellcode_chain(self, goal):
     """This function returns a ROP chain implemented for a ShellcodeGoal.  It first writes the given shellcode to memory,
       then creates a ShellcodeAddressGoal and adds its ROP chain on."""
-    shellcode_address = self.goal_resolver.get_writable_memory()
+    shellcode_address = self.file_handler.get_writable_memory()
     self.find_write_memory_gadgets()
 
     # Create a ROP chain that will fix memory permissions and jump to our shellcode
@@ -379,7 +380,7 @@ class Scheduler(object):
   def create_execve_chain(self, goal):
     """This function returns a ROP chain implemented for a ExecveGoal.  It first writes the arguments for execve, then calls
       execve"""
-    argument_address = self.goal_resolver.get_writable_memory()
+    argument_address = self.file_handler.get_writable_memory()
     self.find_write_memory_gadgets()
 
     print "ARGS:",goal.arguments
