@@ -93,16 +93,21 @@ class GoalResolver(object):
         self.goals.append(FunctionGoal(goal[1], address, goal[2:]))
         self.logger.debug("Created a FunctionGoal to {} (0x{:x}) with arguments {}".format(goal[1], address, goal[2:]))
       elif goal[0] == "execve":
+        address = self.get_function_address(goal[0])
         self.goals.append(ExecveGoal(goal[0], self.get_function_address(goal[0]), goal[1:]))
+        self.logger.debug("Created a ExecveGoal to call execve (0x{:x}) with arguments {}".format(address, goal[1:]))
       elif goal[0] == "shellcode":
         shellcode_address = int(goal[1], 16)
         self.goals.append(ShellcodeAddressGoal(shellcode_address))
+        self.logger.debug("Created a ShellcodeAddressGoal to jump to shellcode at address 0x{:x}".format(shellcode_address))
       elif goal[0] == "shellcode_file":
         shellcode = self.get_contents(goal[1])
         self.goals.append(ShellcodeGoal(shellcode))
+        self.logger.debug("Created a ShellcodeGoal to run {} bytes of shellcode".format(len(shellcode)))
       elif goal[0] == "shellcode_hex":
         shellcode = binascii.unhexlify(goal[1])
         self.goals.append(ShellcodeGoal(shellcode))
+        self.logger.debug("Created a ShellcodeGoal to run {} bytes of shellcode".format(len(shellcode)))
       else:
         raise RuntimeError("Unknown goal")
 

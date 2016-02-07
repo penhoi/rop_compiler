@@ -383,7 +383,6 @@ class Scheduler(object):
     argument_address = self.file_handler.get_writable_memory()
     self.find_write_memory_gadgets()
 
-    print "ARGS:",goal.arguments
     argument_addresses = []
     current_arg_address = argument_address
     for arg in goal.arguments:
@@ -400,17 +399,13 @@ class Scheduler(object):
       argv_chain, next_address = self.create_write_memory_chain(packed_args_address, argv_address, next_address, "\x00")
       argv_address += len(packed_args_address)
       chain = argv_chain + chain
-    print len(chain)
 
     null_chain, next_address = self.create_write_memory_chain("\x00", argv_address, next_address, "\x00")
     chain = null_chain + chain
-    print len(chain)
 
     for i in range(len(goal.arguments)):
       arg_chain, next_address = self.create_write_memory_chain(goal.arguments[i], argument_addresses[i], next_address, "\x00")
       chain = arg_chain + chain
-
-    print len(chain)
 
     return (chain + function_chain), next_address
 

