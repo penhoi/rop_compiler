@@ -1,31 +1,13 @@
 # This file contains the logic to combine a set of gadgets and implement the desired goals
 import struct, logging, collections
 import archinfo
-import goal as go, gadget as ga, utils
+import goal as go, gadget as ga, utils, extra_archinfo
 
 PAGE_MASK = 0xfffffffffffff000
 PROT_RWX = 7
 
 class Scheduler(object):
   """This class takes a set of gadgets and combines them together to implement the given goals"""
-
-  func_calling_convention = collections.defaultdict(list, {
-    "AMD64" : ["rdi", "rsi", "rdx", "rcx", "r8", "r9"],
-    "ARMEL" : ["r0", "r1", "r2", "r3"]
-  })
-
-  #syscall_calling_convention = [ "rdi", "rsi", "rdx", "r10", "r8", "r9" ]  # TODO cover the syscall case
-
-  """Registers reported by pyvex that we don't care to look for, per architecture"""
-  IGNORED_REGISTERS = collections.defaultdict(list, {
-    "X86"   : ['bp', 'cc_dep1', 'cc_dep2', 'cc_ndep', 'cc_op', 'cs', 'd', 'ds', 'es', 'fc3210', 'fpround', 'fpu_regs',
-               'fpu_t0', 'fpu_t1', 'fpu_t2', 'fpu_t3', 'fpu_t4', 'fpu_t5', 'fpu_t6', 'fpu_t7', 'fpu_tags', 'fs', 'ftop', 'gdt',
-               'gs', 'id', 'ldt', 'mm0', 'mm1', 'mm2', 'mm3', 'mm4', 'mm5', 'mm6', 'mm7', 'ss', 'sseround', 'st0', 'st1',
-               'st2', 'st3', 'st4', 'st5', 'st6', 'st7', 'xmm0', 'xmm1', 'xmm2', 'xmm3', 'xmm4', 'xmm5', 'xmm6', 'xmm7'],
-    "AMD64" : [ "cc_dep1", "cc_dep2", "cc_ndep", "cc_op", "d", "fpround", "fs", "sseround"  ]
-  })
-
-  MPROTECT_SYSCALL = { "AMD64" : 10 }
 
   def __init__(self, gadget_list, goal_resolver, file_handler, arch = archinfo.ArchAMD64, level = logging.WARNING):
     logging.basicConfig(format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
@@ -52,7 +34,7 @@ class Scheduler(object):
 
   def get_all_registers(self):
     registers = dict(self.arch.registers)
-    for reg in self.IGNORED_REGISTERS[self.arch.name]:
+    for reg in extra_archinfo.IGNORED_REGISTERS[self.arch.name]:
       registers.pop(reg)
     reg_numbers = []
     for name, (number, size) in registers.items():
@@ -167,7 +149,7 @@ class Scheduler(object):
         goal.arguments[i] = address
 
     # Split the arguments into the ones passed via a register and those passed on the stack
-    num_reg_args = len(self.func_calling_convention[self.arch.name])
+    num_reg_args = len(extra_archinfo.func_calling_convention[self.arch.name])
     reg_arguments = goal.arguments[:num_reg_args]
     stack_arguments = goal.arguments[num_reg_args:]
 
@@ -176,7 +158,7 @@ class Scheduler(object):
     arg_gadgets = []
     no_clobber = []
     for i in range(len(reg_arguments)):
-      reg = self.reg_number(self.func_calling_convention[self.arch.name][i])
+      reg = self.reg_number(extra_archinfo.func_calling_convention[self.arch.name][i])
       arg_gadget = self.gadget_list.find_load_stack_gadget(reg, no_clobber)
       if arg_gadget == None and type(reg_arguments[i]) != str:
         arg_gadget = self.gadget_list.find_load_const_gadget(reg, reg_arguments[i], no_clobber)
@@ -292,7 +274,7 @@ class Scheduler(object):
       arg_gadgets = []
       no_clobber = [jump_reg]
       for i in range(len(arguments)):
-        reg = self.reg_number(self.func_calling_convention[self.arch.name][i])
+        reg = self.reg_number(extra_archinfo.func_calling_convention[self.arch.name][i])
         arg_gadget = self.gadget_list.find_load_stack_gadget(reg, no_clobber)
         if arg_gadget != None:
           arg_gadgets.append(arg_gadget)
@@ -347,7 +329,7 @@ class Scheduler(object):
     elif addresses["syscall"] != None:
       # If we've have the syscall function, slightly harder as it needs an extra argument. Create a chain to call syscall()
       self.logger.info("Found syscall(), using it to call mprotect to change shellcode permissions")
-      syscall_goal = go.FunctionGoal("syscall", addresses["syscall"], [self.MPROTECT_SYSCALL[self.arch.name],
+      syscall_goal = go.FunctionGoal("syscall", addresses["syscall"], [extra_archinfo.MPROTECT_SYSCALL[self.arch.name],
         goal.shellcode_address & PAGE_MASK, 0x1000, PROT_RWX])
       return self.create_function_chain(syscall_goal, goal.shellcode_address)
 

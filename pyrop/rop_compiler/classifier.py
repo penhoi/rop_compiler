@@ -2,22 +2,13 @@ import collections, logging, random, sys
 import pyvex, archinfo
 
 from gadget import *
-import utils
+import utils, extra_archinfo
 
 class GadgetClassifier(object):
   """This class is used to convert a set of instructions that represent a gadget into a Gadget class of the appropriate type"""
 
   """The number of times to emulate a gadget when classifying it"""
   NUM_VALIDATIONS = 5
-
-  """Registers reported by pyvex that we don't care to look for, per architecture"""
-  IGNORED_REGISTERS = collections.defaultdict(list, {
-    "X86"   : ['bp', 'cc_dep1', 'cc_dep2', 'cc_ndep', 'cc_op', 'cs', 'd', 'ds', 'es', 'fc3210', 'fpround', 'fpu_regs',
-               'fpu_t0', 'fpu_t1', 'fpu_t2', 'fpu_t3', 'fpu_t4', 'fpu_t5', 'fpu_t6', 'fpu_t7', 'fpu_tags', 'fs', 'ftop', 'gdt',
-               'gs', 'id', 'ldt', 'mm0', 'mm1', 'mm2', 'mm3', 'mm4', 'mm5', 'mm6', 'mm7', 'ss', 'sseround', 'st0', 'st1',
-               'st2', 'st3', 'st4', 'st5', 'st6', 'st7', 'xmm0', 'xmm1', 'xmm2', 'xmm3', 'xmm4', 'xmm5', 'xmm6', 'xmm7'],
-    "AMD64" : [ "cc_dep1", "cc_dep2", "cc_ndep", "cc_op", "d", "fpround", "fs", "sseround"  ]
-  })
 
   def __init__(self, arch, log_level = logging.WARNING):
     logging.basicConfig(format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
@@ -30,7 +21,7 @@ class GadgetClassifier(object):
     self.ip = self.arch.registers['ip'][0]
 
   def is_ignored_register(self, register):
-    return self.arch.translate_register_name(register) in self.IGNORED_REGISTERS[self.arch.name]
+    return self.arch.translate_register_name(register) in extra_archinfo.IGNORED_REGISTERS[self.arch.name]
 
   def get_irsb(self, code, address):
     irsb = None
@@ -268,10 +259,16 @@ class GadgetClassifier(object):
     return possible_types_with_clobber
 
 class EvaluateState(object):
+  def new_random_number(self):
+    num = random.randint(0, 2 ** (self.arch.bits - 2))
+    num = (num / self.arch.instruction_alignment) * self.arch.instruction_alignment
+    return num
+
   def __init__(self, arch):
     self.arch = arch
-    self.in_regs = collections.defaultdict(lambda: random.randint(0, 2 ** (arch.bits - 2)), {})
-    self.in_mem  = collections.defaultdict(lambda: random.randint(0, 2 ** (arch.bits - 2)), {})
+    self.in_regs = collections.defaultdict(self.new_random_number, {})
+    self.in_mem  = collections.defaultdict(self.new_random_number, {})
+
     self.out_regs = {}
     self.out_mem = {}
     self.tmps = {}
@@ -421,89 +418,15 @@ class PyvexEvaluator(object):
   def Iop_CmpNE32(self, left, right): return 1 if utils.mask(left, 32) != utils.mask(right, 32) else 0
 
 if __name__ == "__main__":
-  # A simple set of tests to ensure we can correctly classify some example gadgets
-  tests = {
-    archinfo.ArchAMD64 : [
-      ({Jump : 1},            '\xff\xe0'),                                                # jmp rax
-      ({MoveReg : 2},         '\x48\x93\xc3'),                                            # xchg rbx, rax; ret
-      ({MoveReg : 1},         '\x48\x89\xcb\xc3'),                                        # mov rbx,rcx; ret
-      ({LoadConst : 1},       '\x48\xbb\xff\xee\xdd\xcc\xbb\xaa\x99\x88\xc3'),            # movabs rbx,0x8899aabbccddeeff; ret
-      ({AddGadget : 1},       '\x48\x01\xc3\xc3'),                                        # add rbx, rax; reg
-      ({LoadMem : 1},         '\x48\x8b\x43\x08\xc3'),                                    # mov rax,QWORD PTR [rbx+0x8]; ret
-      ({LoadMem : 1},         '\x48\x8b\x07\xc3'),                                        # mov rax,QWORD PTR [rdi]; ret
-      ({StoreMem : 1},        '\x48\x89\x03\xc3'),                                        # mov QWORD PTR [rbx],rax; ret
-      ({StoreMem : 1},        '\x48\x89\x43\x08\xc3'),                                    # mov QWORD PTR [rbx+0x8],rax; ret
-      ({StoreMem : 1},        '\x48\x89\x44\x24\x08\xc3'),                                # mov QWORD PTR [rsp+0x8],rax; ret
-      ({LoadAddGadget: 1},    '\x48\x03\x44\x24\x08\xc3'),                                # add rax,QWORD PTR [rsp+0x8]
-      ({StoreAddGadget: 1},   '\x48\x01\x43\xf8\xc3'),                                    # add QWORD PTR [rbx-0x8],rax; ret
-      ({},                    '\x48\x39\xeb\xc3'),                                        # cmp rbx, rbp; ret
-      ({},                    '\x5e'),                                                    # pop rsi
-      ({},                    '\x8b\x04\xc5\xc0\x32\x45\x00\xc3'),                        # mov rax,QWORD PTR [rax*8+0x4532c0]
-      ({LoadMem : 1, LoadConst : 1}, '\x59\x48\x89\xcb\x48\xc7\xc1\x05\x00\x00\x00\xc3'), # pop rcx; mov rbx,rcx; mov rcx,0x5; ret
-      ({},                    '\x48\x8b\x85\xf0\xfd\xff\xff\x48\x83\xc0'),
-#      ({LoadMemJump : 1, },   '\x5a\xfc\xff\xd0'),                                        # pop rdx, cld, call rax
-    ],
-    archinfo.ArchMIPS64 : [
-      ({LoadMem : 1},
-        '\x8f\xbf\x00\x10' + # lw ra,16(sp)
-        '\x8f\xb0\x00\x08' + # lw s0,8(sp)
-        '\x03\xe0\x00\x08' + # jr ra
-        '\x00\x00\x00\x00')  # nop
-    ],
-    archinfo.ArchPPC32 : [
-      ({LoadMem : 1},
-        '\x08\x00\xe1\x83' + # lwz r31,8(r1)
-        '\x04\x00\x01\x80' + # lwz r0,4(r1)
-        '\xa6\x03\x08\x7c' + # mtlr r0
-        '\x20\x00\x80\x4e')  # blr
-    ],
-    archinfo.ArchARM : [
-      ({LoadMem     : 1}, '\x08\x80\xbd\xe8'),                 # pop {r3, pc}
-      ({MoveReg     : 1}, '\x02\x00\xa0\xe1\x04\xf0\x9d\xe4'), # mov r0, r2; pop {pc}
-      ({LoadMem     : 7}, '\xf0\x87\xbd\xe8'),                 # pop {r4, r5, r6, r7, r8, r9, sl, pc}
-      ({LoadMem     : 2}, '\x04\xe0\x9d\xe5\x08\xd0\x8d\xe2'   # ldr lr, [sp, #4]; add sp, sp, #8
-                        + '\x0c\x00\xbd\xe8\x1e\xff\x2f\xe1'), # pop {r2, r3}; bx lr
-      ({LoadMemJump : 6, Jump : 1},
-                          '\x1f\x40\xbd\xe8\x1c\xff\x2f\xe1'), # pop {r0, r1, r2, r3, r4, lr}; bx r12
-      ({LoadMemJump : 1, Jump : 1},
-                          '\x04\xe0\x9d\xe4\x13\xff\x2f\xe1'), # pop {lr}; bx r3
-    ]
-  }
   import sys
-  if len(sys.argv) > 1:
-    arches = { "AMD64" : archinfo.ArchAMD64, "MIPS" : archinfo.ArchMIPS64, "PPC" : archinfo.ArchPPC32, "ARM" : archinfo.ArchARM}
-    arch = arches[sys.argv[1].upper()]
-    tests = { arch : tests[arch] }
-    if len(sys.argv) > 2:
-      tests = { arch : [tests[arch][int(sys.argv[2])]] }
+  if len(sys.argv) < 3:
+    print "Usage: classifier.py architecture filename [-v]"
+    sys.exit(1)
 
-  fail = False
-  for arch, arch_tests in tests.items():
-    print "\n{} Tests:".format(arch.name)
+  arch = archinfo.arch_from_id(sys.argv[1]).__class__
+  code = utils.get_contents(sys.argv[2])
 
-    classifier = GadgetClassifier(arch, logging.DEBUG)
-    for (expected_types, code) in arch_tests:
-      gadgets = classifier.create_gadgets_from_instructions(code, 0x40000)
-      types = {}
-
-      # For each returned gadget, count the number of each gadget types
-      for g in gadgets:
-        if type(g) not in types: types[type(g)] = 0
-        types[type(g)] += 1
-
-      if types != expected_types: # If we got the wrong number of gagdets for any type, we've failed
-        fail = True
-        print "\nWrong Types Found.  Expected {}, got {}".format(
-          ",".join(["{} {}".format(t.__name__, c) for t,c in expected_types.items()]),
-          ",".join(["{} {}".format(t.__name__, c) for t,c in types.items()]))
-
-        print "Gadgets:"
-        for g in gadgets:
-          print g
-        print "\n"
-
-  if fail:
-    print "\nFAILURE!!! One or more incorrectly classified gadgets"
-  else:
-    print "\nSUCCESS, all gadgets correctly classified"
-
+  classifier = GadgetClassifier(arch, logging.DEBUG if len(sys.argv) > 3 else logging.WARNING)
+  gadgets = classifier.create_gadgets_from_instructions(code, 0x40000)
+  for g in gadgets:
+    print g

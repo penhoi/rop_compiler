@@ -24,7 +24,7 @@ class MemoryFinder(finder.Finder):
       self.logger.warning("No base address given for library or PIE executable.  Addresses may be wrong")
 
     classifier = cl.GadgetClassifier(self.arch, self.level)
-    for i in range(0, len(data), self.STEP[self.arch]):
+    for i in range(0, len(data), self.arch.instruction_alignment):
       end = i + self.MAX_GADGET_SIZE[self.arch]
       code = data[i:end]
       address = self.base_address + seg_address + i
