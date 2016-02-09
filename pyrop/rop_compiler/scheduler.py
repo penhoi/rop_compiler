@@ -31,12 +31,19 @@ class Scheduler(object):
     self.gadget_list = gadget_list
     self.file_handler = file_handler
 
-    self.write_memory_chains = []
+    self.write_memory_chains = None
     self.store_mem_gadgets = collections.defaultdict(dict)
     self.alignment = self.arch.bits / 8
 
     self.chain = None
     self.goals = goal_resolver.get_goals()
+    self.writable_memory = self.file_handler.get_writable_memory()
+
+  def get_writable_memory(self, number_of_bytes):
+    address = self.writable_memory
+    # Align the number of bytes and then Leave a little room between memory usages
+    self.writable_memory += number_of_bytes + (self.alignment - (number_of_bytes % self.alignment)) + self.alignment
+    return address
 
   def get_all_registers(self):
     registers = dict(self.arch.registers)
@@ -123,6 +130,8 @@ class Scheduler(object):
   def get_write_memory_gadget(self, avoid_registers = None):
     """This method iterates over write_memory_chains and finds the best gadget chain to write memory with, while excluding any
       specified registers"""
+    if self.write_memory_chains == None:
+      self.find_write_memory_gadgets()
 
     best = best_complexity = None
     for (chain, complexity) in self.write_memory_chains:
@@ -135,12 +144,10 @@ class Scheduler(object):
       raise RuntimeError("Could not find a way to write to memory")
     return best
 
-  def create_function_chain(self, goal, end_address = 0x4444444444444444):
+  def create_function_chain(self, goal, end_address = None):
     """This method returns a ROP chain that will call a function"""
-    self.logger.info("Creating function chain for %s(%s) and finishing with a return to 0x%x", goal.name,
-      ",".join([hex(x) for x in goal.arguments]), end_address)
-
-    # TODO add the ability to do strings arguments by writing the string to memory first, and then using the string's address
+    self.logger.info("Creating function chain for %s(%s) and finishing with a return to %s", goal.name,
+      ",".join([hex(x) if type(x)!=str else x for x in goal.arguments]), hex(end_address) if end_address != None else end_address)
 
     # Look for gadgets to set each of the arguments
     next_address = goal.address
@@ -149,6 +156,10 @@ class Scheduler(object):
     for i in range(len(goal.arguments)):
       reg = self.reg_number(self.func_calling_convention[self.arch.name][i])
       arg_gadget = self.gadget_list.find_load_stack_gadget(reg, no_clobber)
+      if arg_gadget == None and type(goal.arguments[i]) != str:
+        print "Looking for load const gadget",type(goal.arguments[i])
+        arg_gadget = self.gadget_list.find_load_const_gadget(reg, goal.arguments[i], no_clobber)
+
       if arg_gadget == None:
         # TODO Rearrange the order of setting gadgets so we can still use gadgets that clobber another register
         msg = "No gadget found to set {} register during function call to {}".format(self.reg_name(reg), goal.name)
@@ -159,7 +170,7 @@ class Scheduler(object):
     self.print_gadgets("Found all necessary gadgets for calling function %s(0x%x):" % (goal.name, goal.address), arg_gadgets)
 
     lr_gadget = None
-    if 'lr' in self.arch.registers:
+    if 'lr' in self.arch.registers and end_address != None:
       # We need an extra gadget to set the function's return address, since this architecture doesn't push them
       reg = self.reg_number('lr')
       lr_gadget = self.gadget_list.find_load_stack_gadget(reg, no_clobber)
@@ -171,19 +182,39 @@ class Scheduler(object):
       self.print_gadgets("Found LR gadget:", [lr_gadget])
       next_address = lr_gadget.address
 
-    # Set the arguments for the function
+    # Resolve any string arguments to where we're going to write those arguments too
+    argument_strings = {}
+    for i in range(len(goal.arguments)):
+      arg = goal.arguments[i]
+      if type(arg) == str:
+        address = self.get_writable_memory(len(arg))
+        argument_strings[arg] = address
+        goal.arguments[i] = address
+
     chain = ""
+    # Set the arguments for the function
+    first_address = next_address
     for i in range(len(arg_gadgets)):
       next_gadget_address = next_address
+      if i == 0:
+        first_address = arg_gadgets[0].address
       if i + 1 < len(goal.arguments):
         next_gadget_address = arg_gadgets[i + 1].address
       chain += arg_gadgets[i].chain(next_gadget_address, goal.arguments[i])
 
-    if lr_gadget != None:
-      chain += lr_gadget.chain(goal.address, end_address)
-    else:
-      chain += utils.ap(end_address, self.arch)
-    return (chain, arg_gadgets[0].address)
+    if end_address != None:
+      if lr_gadget != None:
+        chain += lr_gadget.chain(goal.address, end_address)
+      else:
+        chain += utils.ap(end_address, self.arch)
+
+    # Write any string arguments to memory
+    next_address = arg_gadgets[0].address
+    for arg, address in argument_strings.items():
+      arg_chain, first_address = self.create_write_memory_chain(arg, address, first_address, "\x00")
+      chain = arg_chain + chain
+
+    return (chain, first_address)
 
   def create_read_add_jmp_function_chain(self, address, offset, arguments, end_address):
     """This method creates a ROP chain that will read from a specified address, apply an offset, and then call that address with
@@ -364,8 +395,7 @@ class Scheduler(object):
   def create_shellcode_chain(self, goal):
     """This function returns a ROP chain implemented for a ShellcodeGoal.  It first writes the given shellcode to memory,
       then creates a ShellcodeAddressGoal and adds its ROP chain on."""
-    shellcode_address = self.file_handler.get_writable_memory()
-    self.find_write_memory_gadgets()
+    shellcode_address = self.get_writable_memory(len(goal.shellcode))
 
     # Create a ROP chain that will fix memory permissions and jump to our shellcode
     shellcode_goal = go.ShellcodeAddressGoal(shellcode_address)
@@ -380,17 +410,12 @@ class Scheduler(object):
   def create_execve_chain(self, goal):
     """This function returns a ROP chain implemented for a ExecveGoal.  It first writes the arguments for execve, then calls
       execve"""
-    argument_address = self.file_handler.get_writable_memory()
-    self.find_write_memory_gadgets()
-
     argument_addresses = []
-    current_arg_address = argument_address
     for arg in goal.arguments:
-      argument_addresses.append(current_arg_address)
-      current_arg_address += len(self.align_to_8bytes(arg))
-    argv_address = current_arg_address
+      argument_addresses.append(self.get_writable_memory(len(arg)))
+    argv_address = self.get_writable_memory(self.alignment)
 
-    function_goal = go.FunctionGoal(goal.name, goal.address, [argument_address, argv_address, 0])
+    function_goal = go.FunctionGoal(goal.name, goal.address, [argument_addresses[0], argv_address, 0])
     function_chain, next_address = self.create_function_chain(function_goal, 0x4444444444444444)
 
     chain = ""

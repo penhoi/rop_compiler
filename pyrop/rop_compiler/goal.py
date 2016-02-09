@@ -81,6 +81,8 @@ class GoalResolver(object):
       address = int(name, 16)
     else:
       address = self.file_handler.get_symbol_address(str(name))
+      if address == None:
+        raise RuntimeError("Could not locate address of function {}".format(name))
     return address
 
   def interpret_goals(self):

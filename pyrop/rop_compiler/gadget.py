@@ -97,6 +97,13 @@ class GadgetList(object):
     """This method finds the best gadget (lowest complexity) to load a register from the stack"""
     return self.find_gadget(LoadMem, [self.arch.registers['sp'][0]], register, no_clobber)
 
+  def find_load_const_gadget(self, register, value, no_clobber = None):
+    """This method finds the best gadget (lowest complexity) to load a register from the stack"""
+    for gadget in self.foreach_type_output(LoadConst, register, no_clobber):
+      if gadget.params[0] == value:
+        return gadget
+    return None
+
 ###########################################################################################################
 ## Synthesizing Gadgets ###################################################################################
 ###########################################################################################################
