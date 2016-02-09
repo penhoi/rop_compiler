@@ -157,7 +157,6 @@ class Scheduler(object):
       reg = self.reg_number(self.func_calling_convention[self.arch.name][i])
       arg_gadget = self.gadget_list.find_load_stack_gadget(reg, no_clobber)
       if arg_gadget == None and type(goal.arguments[i]) != str:
-        print "Looking for load const gadget",type(goal.arguments[i])
         arg_gadget = self.gadget_list.find_load_const_gadget(reg, goal.arguments[i], no_clobber)
 
       if arg_gadget == None:
