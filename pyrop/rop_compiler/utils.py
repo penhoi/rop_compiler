@@ -7,7 +7,8 @@ def ap(address, arch):
     return address
   if address < 0:
     address = (2 ** arch.bits) + address
-  return struct.pack(formats[arch.bits], address)
+  address = mask(address, arch.bits) # Mask it so struct.pack doesn't complain (probably not the best idea, but it's the
+  return struct.pack(formats[arch.bits], address) # caller's problem to check their arguments before calling)
 
 def get_contents(filename):
   """Convenience method that reads a file on disk and returns the contents"""

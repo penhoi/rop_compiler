@@ -16,7 +16,12 @@ class Scheduler(object):
 
   #syscall_calling_convention = [ "rdi", "rsi", "rdx", "r10", "r8", "r9" ]  # TODO cover the syscall case
 
+  """Registers reported by pyvex that we don't care to look for, per architecture"""
   IGNORED_REGISTERS = collections.defaultdict(list, {
+    "X86"   : ['bp', 'cc_dep1', 'cc_dep2', 'cc_ndep', 'cc_op', 'cs', 'd', 'ds', 'es', 'fc3210', 'fpround', 'fpu_regs',
+               'fpu_t0', 'fpu_t1', 'fpu_t2', 'fpu_t3', 'fpu_t4', 'fpu_t5', 'fpu_t6', 'fpu_t7', 'fpu_tags', 'fs', 'ftop', 'gdt',
+               'gs', 'id', 'ldt', 'mm0', 'mm1', 'mm2', 'mm3', 'mm4', 'mm5', 'mm6', 'mm7', 'ss', 'sseround', 'st0', 'st1',
+               'st2', 'st3', 'st4', 'st5', 'st6', 'st7', 'xmm0', 'xmm1', 'xmm2', 'xmm3', 'xmm4', 'xmm5', 'xmm6', 'xmm7'],
     "AMD64" : [ "cc_dep1", "cc_dep2", "cc_ndep", "cc_op", "d", "fpround", "fs", "sseround"  ]
   })
 
@@ -149,37 +154,8 @@ class Scheduler(object):
     self.logger.info("Creating function chain for %s(%s) and finishing with a return to %s", goal.name,
       ",".join([hex(x) if type(x)!=str else x for x in goal.arguments]), hex(end_address) if end_address != None else end_address)
 
-    # Look for gadgets to set each of the arguments
-    next_address = goal.address
-    arg_gadgets = []
-    no_clobber = []
-    for i in range(len(goal.arguments)):
-      reg = self.reg_number(self.func_calling_convention[self.arch.name][i])
-      arg_gadget = self.gadget_list.find_load_stack_gadget(reg, no_clobber)
-      if arg_gadget == None and type(goal.arguments[i]) != str:
-        arg_gadget = self.gadget_list.find_load_const_gadget(reg, goal.arguments[i], no_clobber)
-
-      if arg_gadget == None:
-        # TODO Rearrange the order of setting gadgets so we can still use gadgets that clobber another register
-        msg = "No gadget found to set {} register during function call to {}".format(self.reg_name(reg), goal.name)
-        self.logger.critical(msg)
-        raise RuntimeError(msg)
-      arg_gadgets.append(arg_gadget)
-      no_clobber.append(reg)
-    self.print_gadgets("Found all necessary gadgets for calling function %s(0x%x):" % (goal.name, goal.address), arg_gadgets)
-
-    lr_gadget = None
-    if 'lr' in self.arch.registers and end_address != None:
-      # We need an extra gadget to set the function's return address, since this architecture doesn't push them
-      reg = self.reg_number('lr')
-      lr_gadget = self.gadget_list.find_load_stack_gadget(reg, no_clobber)
-      if lr_gadget == None:
-        # TODO Rearrange the order of setting gadgets so we can still use gadgets that clobber another register
-        msg = "No gadget found to set lr register during function call to {}".format(goal.name)
-        self.logger.critical(msg)
-        raise RuntimeError(msg)
-      self.print_gadgets("Found LR gadget:", [lr_gadget])
-      next_address = lr_gadget.address
+    # Holds the ROP chain generated throughout the function
+    chain = ""
 
     # Resolve any string arguments to where we're going to write those arguments too
     argument_strings = {}
@@ -190,25 +166,67 @@ class Scheduler(object):
         argument_strings[arg] = address
         goal.arguments[i] = address
 
-    chain = ""
-    # Set the arguments for the function
+    # Split the arguments into the ones passed via a register and those passed on the stack
+    num_reg_args = len(self.func_calling_convention[self.arch.name])
+    reg_arguments = goal.arguments[:num_reg_args]
+    stack_arguments = goal.arguments[num_reg_args:]
+
+    # Look for gadgets to set each of the register arguments
+    next_address = goal.address
+    arg_gadgets = []
+    no_clobber = []
+    for i in range(len(reg_arguments)):
+      reg = self.reg_number(self.func_calling_convention[self.arch.name][i])
+      arg_gadget = self.gadget_list.find_load_stack_gadget(reg, no_clobber)
+      if arg_gadget == None and type(reg_arguments[i]) != str:
+        arg_gadget = self.gadget_list.find_load_const_gadget(reg, reg_arguments[i], no_clobber)
+
+      if arg_gadget == None:
+        # TODO Rearrange the order of setting gadgets and LR so we can still use gadgets that clobber another register
+        msg = "No gadget found to set {} register during function call to {}".format(self.reg_name(reg), goal.name)
+        self.logger.critical(msg)
+        raise RuntimeError(msg)
+      arg_gadgets.append(arg_gadget)
+      no_clobber.append(reg)
+    self.print_gadgets("Found all necessary gadgets for calling function %s(0x%x):" % (goal.name, goal.address), arg_gadgets)
+
+    # If we need an extra gadget to set the function's return address register, then find a gadget to do so
+    lr_gadget = None
+    if 'lr' in self.arch.registers and end_address != None:
+      reg = self.reg_number('lr')
+      lr_gadget = self.gadget_list.find_load_stack_gadget(reg, no_clobber)
+      if lr_gadget == None:
+        msg = "No gadget found to set lr register during function call to {}".format(goal.name)
+        self.logger.critical(msg)
+        raise RuntimeError(msg)
+      self.print_gadgets("Found LR gadget:", [lr_gadget])
+      next_address = lr_gadget.address
+
+    # Set the register arguments for the function
     first_address = next_address
     for i in range(len(arg_gadgets)):
       next_gadget_address = next_address
       if i == 0:
         first_address = arg_gadgets[0].address
-      if i + 1 < len(goal.arguments):
+      if i + 1 < len(reg_arguments):
         next_gadget_address = arg_gadgets[i + 1].address
-      chain += arg_gadgets[i].chain(next_gadget_address, goal.arguments[i])
+      chain += arg_gadgets[i].chain(next_gadget_address, reg_arguments[i])
 
+    # Add the function's address (and the LR gadget to set the gadget after this function if this architecture requires it)
     if end_address != None:
       if lr_gadget != None:
         chain += lr_gadget.chain(goal.address, end_address)
       else:
         chain += utils.ap(end_address, self.arch)
 
+    # Add the stack arguments
+    for arg in stack_arguments:
+      chain += utils.ap(arg, self.arch)
+
     # Write any string arguments to memory
-    next_address = arg_gadgets[0].address
+    next_address = goal.address
+    if len(arg_gadgets) > 0:
+      next_address = arg_gadgets[0].address
     for arg, address in argument_strings.items():
       arg_chain, first_address = self.create_write_memory_chain(arg, address, first_address, "\x00")
       chain = arg_chain + chain

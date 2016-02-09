@@ -12,6 +12,10 @@ class GadgetClassifier(object):
 
   """Registers reported by pyvex that we don't care to look for, per architecture"""
   IGNORED_REGISTERS = collections.defaultdict(list, {
+    "X86"   : ['bp', 'cc_dep1', 'cc_dep2', 'cc_ndep', 'cc_op', 'cs', 'd', 'ds', 'es', 'fc3210', 'fpround', 'fpu_regs',
+               'fpu_t0', 'fpu_t1', 'fpu_t2', 'fpu_t3', 'fpu_t4', 'fpu_t5', 'fpu_t6', 'fpu_t7', 'fpu_tags', 'fs', 'ftop', 'gdt',
+               'gs', 'id', 'ldt', 'mm0', 'mm1', 'mm2', 'mm3', 'mm4', 'mm5', 'mm6', 'mm7', 'ss', 'sseround', 'st0', 'st1',
+               'st2', 'st3', 'st4', 'st5', 'st6', 'st7', 'xmm0', 'xmm1', 'xmm2', 'xmm3', 'xmm4', 'xmm5', 'xmm6', 'xmm7'],
     "AMD64" : [ "cc_dep1", "cc_dep2", "cc_ndep", "cc_op", "d", "fpround", "fs", "sseround"  ]
   })
 
@@ -27,7 +31,6 @@ class GadgetClassifier(object):
 
   def is_ignored_register(self, register):
     return self.arch.translate_register_name(register) in self.IGNORED_REGISTERS[self.arch.name]
-
 
   def get_irsb(self, code, address):
     irsb = None
@@ -438,7 +441,7 @@ if __name__ == "__main__":
       ({},                    '\x8b\x04\xc5\xc0\x32\x45\x00\xc3'),                        # mov rax,QWORD PTR [rax*8+0x4532c0]
       ({LoadMem : 1, LoadConst : 1}, '\x59\x48\x89\xcb\x48\xc7\xc1\x05\x00\x00\x00\xc3'), # pop rcx; mov rbx,rcx; mov rcx,0x5; ret
       ({},                    '\x48\x8b\x85\xf0\xfd\xff\xff\x48\x83\xc0'),
-
+#      ({LoadMemJump : 1, },   '\x5a\xfc\xff\xd0'),                                        # pop rdx, cld, call rax
     ],
     archinfo.ArchMIPS64 : [
       ({LoadMem : 1},
