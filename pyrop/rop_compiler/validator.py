@@ -1,33 +1,44 @@
 import collections
 import z3
-import gadget
+import gadget, utils
 
 class Validator(object):
 
-  def __init__(self):
-    pass
+  def __init__(self, arch):
+    self.converter = PyvexToZ3Converter(arch)
 
   def validate_gadget(self, gadget, irsb):
-    pass
+    statements = self.converter.get_smt_statements(irsb)
+    if statements == None:
+      return False
+
+    statements.append(gadget.get_constraint())
+    print statements
 
 class PyvexToZ3Converter(object):
 
   def __init__(self, arch):
     self.arch = arch
     self.stmt = []
-    self.name_count = collections.defaultdict(int, {})
-    self.memory = z3.Array(self.get_name("mem", True), z3.BitVecSort(self.arch.bits), z3.BitVecSort(8))
+    self.out_regs = {}
+    self.reg_count = collections.defaultdict(int, {})
+    self.memory = z3.Array("mem_before", z3.BitVecSort(self.arch.bits), z3.BitVecSort(8))
+    self.mem_count = 0
+    self.first_mem = self.memory
 
   def get_smt_statements(self, irsb):
     self.stmt = []
     for stmt in irsb.statements:
-      #try:
-        if hasattr(self, stmt.tag):
-          getattr(self, stmt.tag)(stmt)
-        else:
-          return None
-      #except:
-      #  return None
+      if hasattr(self, stmt.tag):
+        getattr(self, stmt.tag)(stmt)
+      else:
+        return None
+
+    # Make some _after variables so it's easy to get their value
+    for name, reg in self.out_regs.items():
+      self.append_assignment(reg, z3.BitVec('{}_after'.format(self.arch.translate_register_name(name)), reg.size()))
+    self.append_assignment(self.memory, z3.Array("mem_after", z3.BitVecSort(self.arch.bits), z3.BitVecSort(8)))
+
     return self.stmt
 
   # Statement Generators
@@ -41,34 +52,29 @@ class PyvexToZ3Converter(object):
   def set_tmp(self, tmp, value):
     return self.append_assignment(tmp, value)
 
-  def get_name(self, name, is_reg = True):
-    if is_reg:
-      name = self.arch.translate_register_name(name)
-    unique_name = "{}_{}".format(name, self.name_count[name])
-    self.name_count[name] += 1
-    return unique_name
+  def get_reg(self, reg_name, size):
+    if reg_name in self.out_regs:
+      return self.out_regs[reg_name]
+    return z3.BitVec("{}_before".format(self.arch.translate_register_name(reg_name)), size)
 
-  def get_reg(self, reg, size):
-    return z3.BitVec(self.get_name(reg), size)
+  def set_reg(self, reg_name, size, value):
+    unique_name = "{}_{}".format(self.arch.translate_register_name(reg_name), self.reg_count[reg_name])
+    self.reg_count[reg_name] += 1
 
-  def set_reg(self, reg, size, value):
-    reg = z3.BitVec(self.get_name(reg), size)
-    return self.append_assignment(reg, value)
+    reg = z3.BitVec(unique_name, size)
+    self.out_regs[reg_name] = reg
+    self.append_assignment(reg, value)
 
   def set_mem(self, address, value):
-    new_memory = z3.Array(self.get_name("mem", True), z3.BitVecSort(self.arch.bits), z3.BitVecSort(8))
+    unique_name = "mem_{}".format(self.mem_count)
+    new_memory = z3.Array(unique_name, z3.BitVecSort(self.arch.bits), z3.BitVecSort(8))
+    self.mem_count += 1
+
     self.append_assignment(new_memory, z3.Store(self.memory, address, value))
     self.memory = new_memory
 
   def get_mem(self, address, size):
-    value = z3.Select(self.memory, address)
-    for i in range(1, size/8): 
-      new_byte = z3.Select(self.memory, address + (i*8))
-      if self.arch.memory_endness == 'Iend_LE':
-        value = z3.Concat(new_byte, value)
-      else:
-        value = z3.Concat(value, new_byte)
-    return value
+    return utils.z3_get_memory(self.memory, address, size, self.arch)
 
   def Ist_WrTmp(self, stmt):
     value = getattr(self, stmt.data.tag)(stmt.data)
@@ -162,14 +168,4 @@ class PyvexToZ3Converter(object):
 
   def Iop_CmpNE64(self, left, right): return left != right
   def Iop_CmpNE32(self, left, right): return left != right
-
-if __name__ == "__main__":
-  import pyvex, archinfo
-  arch = archinfo.ArchAMD64()
-  converter = PyvexToZ3Converter(arch)
-
-  code = '\x5f\xc3'
-  irsb = pyvex.IRSB(code, 0x40000, arch)
-  irsb.pp()
-  print converter.get_smt_statements(irsb)
 

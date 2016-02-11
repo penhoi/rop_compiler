@@ -1,7 +1,8 @@
 import math, struct, collections, logging, sys
 import archinfo
-import utils
+import z3
 import cPickle as pickle
+import utils
 
 def from_string(data, log_level = logging.WARNING, address_offset = None):
   gadgets_dict = pickle.loads(data)
@@ -170,7 +171,7 @@ class GadgetBase(object):
   def validate(self):
     raise RuntimeError("Not Implemented")
 
-  def chain(self, next_address, input_value = None): 
+  def chain(self, next_address, input_value = None):
     raise RuntimeError("Not Implemented")
 
 class CombinedGadget(GadgetBase):
@@ -291,26 +292,39 @@ class Gadget(GadgetBase):
     # TODO validate the gadget type with z3
     return True
 
-  def chain(self, next_address, input_value = None): 
+  def chain(self, next_address, input_value = None):
     """Default ROP Chain generation, uses no parameters"""
     chain = self.ip_in_stack_offset * "I"
     chain += utils.ap(next_address, self.arch)
     chain += (self.stack_offset - len(chain)) * "J"
     return chain
 
+  # Some z3 helper classes
+  def get_output(self):     return z3.BitVec("{}_after".format(self.arch.translate_register_name(self.output)), self.arch.bits)
+  def get_input(self, idx): return z3.BitVec("{}_after".format(self.arch.translate_register_name(self.inputs[idx])), self.arch.bits)
+  def get_input0(self):     return self.get_input(0)
+  def get_input1(self):     return self.get_input(1)
+  def get_param0(self):     return z3.BitVecVal(self.params[0], self.arch.bits)
+  def get_mem(self, name):  return z3.Array("mem_{}".format(name), z3.BitVecSort(self.arch.bits), z3.BitVecSort(8))
+  def get_mem_before(self): return self.get_mem("before")
+  def get_mem_after(self):  return self.get_mem("after")
+
+  def append_stack_ip_constraints(self, constraints):
+    pass
+
 ###########################################################################################################
 ## The various Gadget types ###############################################################################
 ###########################################################################################################
 
 class Jump(Gadget):
-  def chain(self, next_address = None, input_value = None): 
+  def chain(self, next_address = None, input_value = None):
     return self.stack_offset * "H" # No parameters or IP in stack, just fill the stack offset
 
 class MoveReg(Gadget):         pass
 class LoadConst(Gadget):       pass
 
 class LoadMem(Gadget):
-  def chain(self, next_address, input_value = None): 
+  def chain(self, next_address, input_value = None):
     chain = ""
     input_from_stack = self._is_stack_reg(self.inputs[0]) and input_value != None
 
@@ -330,6 +344,13 @@ class LoadMem(Gadget):
 
     chain += (self.stack_offset - len(chain)) * "C"
     return chain
+
+  def get_constraint(self):
+    constraints = []
+    value = utils.z3_get_memory(self.get_mem_before(), self.get_input0() + self.get_param0(), self.arch.bits, self.arch)
+    constraints.append(self.get_output() == value)
+    self.append_stack_ip_constraints(constraints)
+    return constraints
 
 class StoreMem(Gadget):        pass
 class Arithmetic(Gadget):      pass

@@ -1,4 +1,5 @@
 import struct
+import z3
 
 def ap(address, arch):
   """Packs an address into a string. ap is short for Address Pack"""
@@ -19,3 +20,14 @@ def get_contents(filename):
 
 def mask(value, size = 64):
   return value & ((2 ** size) - 1)
+
+def z3_get_memory(memory, address, size, arch):
+  value = z3.Select(memory, address)
+  for i in range(1, size/8):
+    new_byte = z3.Select(memory, address + (i*8))
+    if arch.memory_endness == 'Iend_LE':
+      value = z3.Concat(new_byte, value)
+    else:
+      value = z3.Concat(value, new_byte)
+  return value
+
