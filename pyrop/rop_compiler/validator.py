@@ -11,9 +11,16 @@ class Validator(object):
     statements = self.converter.get_smt_statements(irsb)
     if statements == None:
       return False
-
     statements.append(gadget.get_constraint())
-    print statements
+
+    solver = z3.Solver()
+    for statement in statements:
+      solver.append(statement)
+    result = solver.check()
+    if result != z3.unsat:
+      print statements
+      print solver.model()
+    return result == z3.unsat
 
 class PyvexToZ3Converter(object):
 

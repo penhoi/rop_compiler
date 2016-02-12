@@ -14,8 +14,9 @@ class ClassifierTests(unittest.TestCase):
 
     for code, gadget in tests:
       irsb = pyvex.IRSB(code, 0x40000, arch)
-      irsb.pp()
       result = validator.validate_gadget(gadget, irsb)
+      print "Validating gadget", gadget
+      self.assertTrue(result)
 
   def test_amd64(self):
     arch = archinfo.ArchAMD64()

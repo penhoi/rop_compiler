@@ -300,8 +300,11 @@ class Gadget(GadgetBase):
     return chain
 
   # Some z3 helper classes
-  def get_output(self):     return z3.BitVec("{}_after".format(self.arch.translate_register_name(self.output)), self.arch.bits)
-  def get_input(self, idx): return z3.BitVec("{}_after".format(self.arch.translate_register_name(self.inputs[idx])), self.arch.bits)
+  def get_reg_before(self, reg): return z3.BitVec("{}_before".format(self.arch.translate_register_name(reg)), self.arch.bits)
+  def get_reg_after(self, reg):  return z3.BitVec("{}_after".format(self.arch.translate_register_name(reg)), self.arch.bits)
+
+  def get_output(self):     return self.get_reg_after(self.output)
+  def get_input(self, idx): return self.get_reg_before(self.inputs[idx])
   def get_input0(self):     return self.get_input(0)
   def get_input1(self):     return self.get_input(1)
   def get_param0(self):     return z3.BitVecVal(self.params[0], self.arch.bits)
@@ -309,8 +312,16 @@ class Gadget(GadgetBase):
   def get_mem_before(self): return self.get_mem("before")
   def get_mem_after(self):  return self.get_mem("after")
 
-  def append_stack_ip_constraints(self, constraints):
-    pass
+  def get_stack_ip_constraints(self):
+    sp_before = self.get_reg_before(self.arch.registers['sp'][0])
+    sp_after = self.get_reg_after(self.arch.registers['sp'][0])
+    constraint = z3.Not(sp_after == sp_before + self.stack_offset)
+
+    if self.ip_in_stack_offset != None:
+      new_ip_value = utils.z3_get_memory(self.get_mem_before(), sp_before + self.ip_in_stack_offset, self.arch.bits, self.arch)
+      ip_after = self.get_reg_after(self.arch.registers['ip'][0])
+      constraint = z3.Or(constraint, z3.Not(ip_after == new_ip_value))
+    return constraint
 
 ###########################################################################################################
 ## The various Gadget types ###############################################################################
@@ -346,11 +357,10 @@ class LoadMem(Gadget):
     return chain
 
   def get_constraint(self):
-    constraints = []
     value = utils.z3_get_memory(self.get_mem_before(), self.get_input0() + self.get_param0(), self.arch.bits, self.arch)
-    constraints.append(self.get_output() == value)
-    self.append_stack_ip_constraints(constraints)
-    return constraints
+    constraint = z3.Not(self.get_output() == value)
+    ip_stack_constraint = self.get_stack_ip_constraints()
+    return z3.Or(constraint, ip_stack_constraint)
 
 class StoreMem(Gadget):        pass
 class Arithmetic(Gadget):      pass
