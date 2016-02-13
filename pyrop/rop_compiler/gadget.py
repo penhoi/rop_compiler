@@ -45,8 +45,9 @@ class GadgetList(object):
     return pickle.dumps(self.gadgets)
 
   def add_gadget(self, gadget):
-    self.gadgets[gadget.__class__.__name__].append(gadget)
-    self.gadgets_per_output[gadget.__class__.__name__][gadget.output].append(gadget)
+    type_name = self.gadget_type_name(gadget.__class__)
+    self.gadgets[type_name].append(gadget)
+    self.gadgets_per_output[type_name][gadget.output].append(gadget)
     if type(self.arch) == type(None):
       self.arch = gadget.arch
 
@@ -62,18 +63,21 @@ class GadgetList(object):
     for gadget in gadget_list.foreach():
       self.add_gadget(gadget)
 
+  def gadget_type_name(self, gadget_type):
+    return gadget_type.__name__.split(".")[-1]
+
   def foreach(self):
     for gadget_type, gadgets in self.gadgets.items():
       for gadget in gadgets:
         yield gadget
 
   def foreach_type(self, gadget_type, no_clobbers = None):
-    for gadget in self.gadgets[gadget_type.__name__]:
+    for gadget in self.gadgets[self.gadget_type_name(gadget_type)]:
       if no_clobbers == None or not gadget.clobbers_registers(no_clobbers):
         yield gadget
 
   def foreach_type_output(self, gadget_type, output, no_clobbers = None):
-    for gadget in self.gadgets_per_output[gadget_type.__name__][output]:
+    for gadget in self.gadgets_per_output[self.gadget_type_name(gadget_type)][output]:
       if no_clobbers == None or not gadget.clobbers_registers(no_clobbers):
         yield gadget
 
@@ -110,8 +114,8 @@ class GadgetList(object):
 ###########################################################################################################
 
   def create_new_gadgets(self, gadget_type, inputs, output, no_clobbers):
-    if hasattr(self, gadget_type.__name__):
-      return getattr(self, gadget_type.__name__)(inputs, output, no_clobbers)
+    if hasattr(self, self.gadget_type_name(gadget_type)):
+      return getattr(self, self.gadget_type_name(gadget_type))(inputs, output, no_clobbers)
     return None
 
   def LoadMem(self, inputs, output, no_clobbers):
@@ -499,66 +503,6 @@ class StoreXorGadget(ArithmeticStore):
   @classmethod
   def binop(self,x,y): return x ^ y
 
-
 # The Loads memory then jumps to a register
 class LoadMemJump(LoadMem): pass
-
-
-
-if __name__ == "__main__":
-  def x(a, r):
-    return a.registers[r][0]
-
-  class FakeIrsb:
-    def __init__(self, arch):
-      self._addr = 0x40000
-      self.arch = arch
-
-  # A simple set of tests to ensure we can correctly synthesize some example gadgets
-  amd64 = archinfo.ArchAMD64
-  mips = archinfo.ArchMIPS64
-  ppc = archinfo.ArchPPC32
-  arm = archinfo.ArchARM
-
-  rax, rbx, rsp = x(amd64,'rax'), x(amd64,'rbx'), x(amd64,'rsp')
-
-  tests = {
-    amd64 : {
-      (LoadMem, (), rax, ()) : GadgetList([
-        MoveReg(archinfo.ArchAMD64(), FakeIrsb(amd64), [rbx], rax, [], [], 8, 4),
-        LoadMem(archinfo.ArchAMD64(), FakeIrsb(amd64), [rsp], rbx, [], [], 8, 4)
-      ], logging.DEBUG),
-      (LoadMem, (rsp,), rax, ()) : GadgetList([
-        LoadMemJump(archinfo.ArchAMD64(), FakeIrsb(amd64), [rsp, rbx], rax, [], [], 8, None),
-        LoadMem(archinfo.ArchAMD64(),     FakeIrsb(amd64), [rsp],      rbx, [], [], 8, 4)
-      ], logging.DEBUG)
-    },
-    mips: {
-    },
-    ppc : {
-    },
-    arm : {
-    }
-  }
-  import sys
-  if len(sys.argv) > 1:
-    arches = { "AMD64" : archinfo.ArchAMD64, "MIPS" : archinfo.ArchMIPS64, "PPC" : archinfo.ArchPPC32, "ARM" : archinfo.ArchARM}
-    arch = arches[sys.argv[1].upper()]
-    tests = { arch : tests[arch] }
-
-  fail = False
-  for arch, arch_tests in tests.items():
-    print "\n{} Tests:".format(arch.name)
-
-    for ((desired_type, inputs, output, no_clobbers), gadget_list) in arch_tests.items():
-      result_gadget = gadget_list.create_new_gadgets(desired_type, inputs, output, no_clobbers)
-      if result_gadget == None: # If we didn't get the gadget we want
-        fail = True
-        print "\nCouldn't create the gadget {}({}) from:".format(desired_type.__name__,arch().translate_register_name(output))
-        print "\n".join(["\n".join([str(g) for g in gl]) for t,gl in gadget_list.gadgets.items()])
-
-  if fail:
-    print "\nFAILURE!!! One or more incorrectly synthesized gadgets"
-  else:
-    print "\nSUCCESS, all gadgets correctly synthesized"
 
