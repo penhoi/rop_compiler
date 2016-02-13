@@ -25,7 +25,7 @@ class MemoryFinder(finder.Finder):
 
     classifier = cl.GadgetClassifier(self.arch, self.level)
     for i in range(0, len(data), self.arch.instruction_alignment):
-      end = i + self.MAX_GADGET_SIZE[self.arch]
+      end = i + self.MAX_GADGET_SIZE[self.arch.name]
       code = data[i:end]
       address = self.base_address + seg_address + i
       gadget_list.add_gadgets(classifier.create_gadgets_from_instructions(code, address))

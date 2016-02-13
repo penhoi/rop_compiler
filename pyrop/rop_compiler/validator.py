@@ -1,14 +1,15 @@
 import collections
 import z3
-import gadget, utils
+import gadget, utils, extra_archinfo
 
 class Validator(object):
 
   def __init__(self, arch):
-    self.converter = PyvexToZ3Converter(arch)
+    self.arch = arch
 
   def validate_gadget(self, gadget, irsb):
-    statements = self.converter.get_smt_statements(irsb)
+    converter = PyvexToZ3Converter(self.arch)
+    statements = converter.get_smt_statements(irsb)
     if statements == None:
       return False
     statements.append(gadget.get_constraint())
@@ -18,7 +19,7 @@ class Validator(object):
       solver.append(statement)
     result = solver.check()
     if result != z3.unsat:
-      print statements
+      print "\n\n".join([str(s) for s in statements])
       print solver.model()
     return result == z3.unsat
 
@@ -29,9 +30,18 @@ class PyvexToZ3Converter(object):
     self.stmt = []
     self.out_regs = {}
     self.reg_count = collections.defaultdict(int, {})
+
+    # Make sure all the registers have initial BitVecs in the constraints
+    for name, (num, size) in self.arch.registers.items():
+      real_name = self.arch.translate_register_name(num) # So we don't get both sp and rsp, ip and rip, etc.
+      if real_name not in self.out_regs and real_name not in extra_archinfo.IGNORED_REGISTERS[self.arch.name]:
+        self.out_regs[real_name] = z3.BitVec("{}_before".format(real_name), size * 8)
+
+    # Setup the initial memory
     self.memory = z3.Array("mem_before", z3.BitVecSort(self.arch.bits), z3.BitVecSort(8))
     self.mem_count = 0
     self.first_mem = self.memory
+
 
   def get_smt_statements(self, irsb):
     self.stmt = []
@@ -54,7 +64,10 @@ class PyvexToZ3Converter(object):
     self.stmt.append(left == right)
 
   def get_tmp(self, tmp, size):
-    return z3.BitVec('tmp{}'.format(tmp), size)
+    name = 'tmp{}'.format(tmp)
+    if size == None:
+      return z3.Bool(name)
+    return z3.BitVec(name, size)
 
   def set_tmp(self, tmp, value):
     return self.append_assignment(tmp, value)
@@ -77,7 +90,8 @@ class PyvexToZ3Converter(object):
     new_memory = z3.Array(unique_name, z3.BitVecSort(self.arch.bits), z3.BitVecSort(8))
     self.mem_count += 1
 
-    self.append_assignment(new_memory, z3.Store(self.memory, address, value))
+    self.memory = utils.z3_set_memory(self.memory, address, value, self.arch)
+    self.append_assignment(new_memory, self.memory)
     self.memory = new_memory
 
   def get_mem(self, address, size):
@@ -85,7 +99,10 @@ class PyvexToZ3Converter(object):
 
   def Ist_WrTmp(self, stmt):
     value = getattr(self, stmt.data.tag)(stmt.data)
-    tmp = self.get_tmp(stmt.tmp, stmt.data.result_size)
+    if value.__class__ == z3.BoolRef: # Check to see if the tmp should be a bool, pyvex doesn't
+      tmp = self.get_tmp(stmt.tmp, None) # differentiate between a BitVec of size 1 and a Bool
+    else:
+      tmp = self.get_tmp(stmt.tmp, stmt.data.result_size)
     self.set_tmp(tmp, value)
 
   def Ist_Put(self, stmt):
@@ -107,14 +124,14 @@ class PyvexToZ3Converter(object):
 
   def Iex_Get(self, expr):
     return self.get_reg(expr.offset, expr.result_size)
-    
+
   def Iex_RdTmp(self, argument):
     return self.get_tmp(argument.tmp, argument.result_size)
 
   def Iex_Load(self, expr):
     address = getattr(self, expr.addr.tag)(expr.addr)
     return self.get_mem(address, expr.result_size)
-    
+
   def Iex_Const(self, expr):
     return getattr(self, expr.con.tag)(expr.con)
 

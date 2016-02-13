@@ -6,8 +6,7 @@ class Finder(object):
   """This class parses a file to obtain any gadgets inside their executable sections"""
 
   """The maximum size in bytes of a gadget to look for"""
-  MAX_GADGET_SIZE = { archinfo.ArchX86 : 10, archinfo.ArchAMD64 : 10, archinfo.ArchMIPS64 : 20, archinfo.ArchMIPS32 : 20,
-    archinfo.ArchPPC32 : 20, archinfo.ArchPPC64 : 20, archinfo.ArchARM : 20 }
+  MAX_GADGET_SIZE = { "X86" : 10, 'AMD64' : 10, 'MIPS64' : 20, 'MIPS32' : 20, 'PPC32' : 20, 'PPC64' : 20, 'ARM' : 20 }
 
   def __init__(self, name, arch, base_address = 0, level = logging.WARNING):
     logging.basicConfig(format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
@@ -37,7 +36,7 @@ if __name__ == "__main__":
 
   finder_type = factories.get_finder_from_name(args.finder_type)
   logging_level = logging.DEBUG if args.v else logging.WARNING
-  finder = finder_type(args.filename, archinfo.arch_from_id(args.arch).__class__, 0, logging_level, args.parser_type)
+  finder = finder_type(args.filename, archinfo.arch_from_id(args.arch), 0, logging_level, args.parser_type)
   gadget_list = finder.find_gadgets()
 
   if args.o == None:

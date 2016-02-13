@@ -12,7 +12,7 @@ class GadgetClassifier(object):
 
   def __init__(self, arch, log_level = logging.WARNING):
     logging.basicConfig(format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
-    self.arch = arch()
+    self.arch = arch
     self.logger = logging.getLogger(self.__class__.__name__)
     self.logger.setLevel(log_level)
 
@@ -33,14 +33,14 @@ class GadgetClassifier(object):
 
   def get_stack_offset(self, state):
     stack_offset = 0
-    if self.sp in state.out_regs and self.sp in state.in_regs: 
+    if self.sp in state.out_regs and self.sp in state.in_regs:
       stack_offset = state.out_regs[self.sp] - state.in_regs[self.sp]
     if stack_offset < 0:
       stack_offset = None
     return stack_offset
 
   def get_new_ip_from_potential_gadget(self, possible_types):
-    """Finds the offset of rip in the stack, or whether it was set via a register for a list of potential gadgets""" 
+    """Finds the offset of rip in the stack, or whether it was set via a register for a list of potential gadgets"""
     ip_in_stack_offset = ip_from_reg = None
     for (gadget_type, inputs, output, params, clobber) in possible_types:
       if gadget_type == LoadMem and output == self.ip and inputs[0] == self.sp:
@@ -166,10 +166,9 @@ class GadgetClassifier(object):
     """Given the results of an emulation of a set of instructions, check the results to determine any potential gadget types and
       the associated inputs, outputs, and parameters.  This is done by checking the results to determine any of the
       preconditions that the gadget follows for this execution.  This method returns a list of the format
-      (Gadget Type, list of inputs, output, list of parameters).  Note the returned potential gadgets are a superset of the 
+      (Gadget Type, list of inputs, output, list of parameters).  Note the returned potential gadgets are a superset of the
       actual gadgets, i.e. some of the returned ones are merely coincidences in the emulation, and not true gadgets."""
     possible_types = []
- 
     for oreg, ovalue in state.out_regs.items():
       # Check for LOAD_CONST (it'll get filtered between the multiple rounds)
       possible_types.append((LoadConst, [], oreg, [ovalue]))
@@ -188,35 +187,17 @@ class GadgetClassifier(object):
           continue
 
         for ireg2, ivalue2 in state.in_regs.items():
-          if ovalue == ivalue + ivalue2:
-            possible_types.append((AddGadget, [ireg, ireg2], oreg, []))
-          if ovalue == ivalue - ivalue2:
-            possible_types.append((SubGadget, [ireg, ireg2], oreg, []))
-          if ovalue == ivalue * ivalue2:
-            possible_types.append((MulGadget, [ireg, ireg2], oreg, []))
-          if ovalue == ivalue & ivalue2 and ireg != ireg2:
-            possible_types.append((AndGadget, [ireg, ireg2], oreg, []))
-          if ovalue == ivalue | ivalue2 and ireg != ireg2:
-            possible_types.append((OrGadget, [ireg, ireg2], oreg, []))
-          if ovalue == ivalue ^ ivalue2:
-            possible_types.append((XorGadget, [ireg, ireg2], oreg, []))
+          for gadget_type in [AddGadget, SubGadget, MulGadget, AndGadget, OrGadget, XorGadget]:
+            if ovalue == gadget_type.binop(ivalue, ivalue2):
+              possible_types.append((gadget_type, [ireg, ireg2], oreg, []))
 
       for address, value_at_address in state.in_mem.items():
         # Check for ARITHMETIC_LOAD
         for ireg, ivalue in state.in_regs.items():
           for addr_reg, addr_reg_value in state.in_regs.items():
-            if ovalue == ivalue + value_at_address:
-              possible_types.append((LoadAddGadget, [ireg], oreg, [address - addr_reg_value]))
-            if ovalue == ivalue - value_at_address:
-              possible_types.append((LoadSubGadget, [ireg], oreg, [address - addr_reg_value]))
-            if ovalue == ivalue * value_at_address:
-              possible_types.append((LoadMulGadget, [ireg], oreg, [address - addr_reg_value]))
-            if ovalue == ivalue & value_at_address: 
-              possible_types.append((LoadAndGadget, [ireg], oreg, [address - addr_reg_value]))
-            if ovalue == ivalue | value_at_address:
-              possible_types.append((LoadOrGadget, [ireg], oreg, [address - addr_reg_value]))
-            if ovalue == ivalue ^ value_at_address:
-              possible_types.append((LoadXorGadget, [ireg], oreg, [address - addr_reg_value]))
+            for gadget_type in [LoadAddGadget, LoadSubGadget, LoadMulGadget, LoadAndGadget, LoadOrGadget, LoadXorGadget]:
+              if ovalue == gadget_type.binop(ivalue, value_at_address):
+                possible_types.append((gadget_type, [addr_reg, ireg], oreg, [address - addr_reg_value]))
 
         # Check for LOAD_MEM
         if ovalue == value_at_address:
@@ -236,20 +217,10 @@ class GadgetClassifier(object):
           continue
 
         initial_memory_value = state.in_mem[address]
-
         for addr_reg, addr_reg_value in state.in_regs.items():
-          if value == initial_memory_value + ivalue:
-            possible_types.append((StoreAddGadget, [addr_reg, ireg], None, [address - addr_reg_value]))
-          if value == initial_memory_value - ivalue:
-            possible_types.append((StoreSubGadget, [addr_reg, ireg], None, [address - addr_reg_value]))
-          if value == initial_memory_value * ivalue:
-            possible_types.append((StoreMulGadget, [addr_reg, ireg], None, [address - addr_reg_value]))
-          if value == initial_memory_value & ivalue:
-            possible_types.append((StoreAndGadget, [addr_reg, ireg], None, [address - addr_reg_value]))
-          if value == initial_memory_value | ivalue:
-            possible_types.append((StoreOrGadget, [addr_reg, ireg], None, [address - addr_reg_value]))
-          if value == initial_memory_value ^ ivalue:
-            possible_types.append((StoreXorGadget, [addr_reg, ireg], None, [address - addr_reg_value]))
+          for gadget_type in [StoreAddGadget, StoreSubGadget, StoreMulGadget, StoreAndGadget, StoreOrGadget, StoreXorGadget]:
+            if value == gadget_type.binop(initial_memory_value, ivalue):
+              possible_types.append((gadget_type, [addr_reg, ireg], None, [address - addr_reg_value]))
 
     # Add the clobber set to the possible types
     possible_types_with_clobber = []
@@ -351,14 +322,14 @@ class PyvexEvaluator(object):
 
   def Iex_Get(self, expr):
     return self.state.get_reg(expr.offset, expr.result_size)
-    
+
   def Iex_RdTmp(self, argument):
     return self.state.get_tmp(argument.tmp, argument.result_size)
 
   def Iex_Load(self, expr):
     address = getattr(self, expr.addr.tag)(expr.addr)
     return self.state.get_mem(address, expr.result_size)
-    
+
   def Iex_Const(self, expr):
     return getattr(self, expr.con.tag)(expr.con)
 

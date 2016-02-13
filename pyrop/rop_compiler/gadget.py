@@ -299,18 +299,16 @@ class Gadget(GadgetBase):
     chain += (self.stack_offset - len(chain)) * "J"
     return chain
 
-  # Some z3 helper classes
-  def get_reg_before(self, reg): return z3.BitVec("{}_before".format(self.arch.translate_register_name(reg)), self.arch.bits)
-  def get_reg_after(self, reg):  return z3.BitVec("{}_after".format(self.arch.translate_register_name(reg)), self.arch.bits)
+  def get_constraint(self):
+    constraint, antialias_constraint = self.get_gadget_constraint()
+    ip_stack_constraint = self.get_stack_ip_constraints()
+    constraint = z3.Or(constraint, ip_stack_constraint)
+    if antialias_constraint != None:
+      constraint = z3.And(constraint, antialias_constraint)
+    return constraint
 
-  def get_output(self):     return self.get_reg_after(self.output)
-  def get_input(self, idx): return self.get_reg_before(self.inputs[idx])
-  def get_input0(self):     return self.get_input(0)
-  def get_input1(self):     return self.get_input(1)
-  def get_param0(self):     return z3.BitVecVal(self.params[0], self.arch.bits)
-  def get_mem(self, name):  return z3.Array("mem_{}".format(name), z3.BitVecSort(self.arch.bits), z3.BitVecSort(8))
-  def get_mem_before(self): return self.get_mem("before")
-  def get_mem_after(self):  return self.get_mem("after")
+  def get_gadget_constraint(self):
+    raise RuntimeError("Not Implemented")
 
   def get_stack_ip_constraints(self):
     sp_before = self.get_reg_before(self.arch.registers['sp'][0])
@@ -323,6 +321,35 @@ class Gadget(GadgetBase):
       constraint = z3.Or(constraint, z3.Not(ip_after == new_ip_value))
     return constraint
 
+  # Some z3 helper methods
+  def get_reg_before(self, reg): return z3.BitVec("{}_before".format(self.arch.translate_register_name(reg)), self.arch.bits)
+  def get_reg_after(self, reg):  return z3.BitVec("{}_after".format(self.arch.translate_register_name(reg)), self.arch.bits)
+  def get_output(self):          return self.get_reg_after(self.output)
+  def get_input(self, idx):      return self.get_reg_before(self.inputs[idx])
+  def get_input0(self):          return self.get_input(0)
+  def get_input1(self):          return self.get_input(1)
+  def get_param0(self):          return z3.BitVecVal(self.params[0], self.arch.bits)
+  def get_mem(self, name):       return z3.Array("mem_{}".format(name), z3.BitVecSort(self.arch.bits), z3.BitVecSort(8))
+  def get_mem_before(self):      return self.get_mem("before")
+  def get_mem_after(self):       return self.get_mem("after")
+
+  def get_antialias_constraint(self, address, register = "sp"):
+    register = self.get_reg_before(self.arch.registers[register][0])
+    num_bytes = self.arch.bits/8
+    return z3.And(
+      # Don't allow the address to be overlaping the register
+      z3.Or(
+        z3.ULT(address, register - num_bytes),
+        z3.UGT(address, register + num_bytes)
+      ),
+
+      # Don't allow the address or register to wrap around
+      z3.ULT(address, address + num_bytes),
+      z3.UGT(address, address - num_bytes),
+      z3.ULT(register, register + num_bytes),
+      z3.UGT(register, register - num_bytes),
+    )
+
 ###########################################################################################################
 ## The various Gadget types ###############################################################################
 ###########################################################################################################
@@ -331,8 +358,16 @@ class Jump(Gadget):
   def chain(self, next_address = None, input_value = None):
     return self.stack_offset * "H" # No parameters or IP in stack, just fill the stack offset
 
-class MoveReg(Gadget):         pass
-class LoadConst(Gadget):       pass
+  def get_gadget_constraint(self):
+    return z3.Not(self.get_output() == self.get_input0()), None
+
+class MoveReg(Gadget):
+  def get_gadget_constraint(self):
+    return z3.Not(self.get_output() == self.get_input0()), None
+
+class LoadConst(Gadget):
+  def get_gadget_constraint(self):
+    return z3.Not(self.get_output() == self.get_param0()), None
 
 class LoadMem(Gadget):
   def chain(self, next_address, input_value = None):
@@ -356,40 +391,114 @@ class LoadMem(Gadget):
     chain += (self.stack_offset - len(chain)) * "C"
     return chain
 
-  def get_constraint(self):
-    value = utils.z3_get_memory(self.get_mem_before(), self.get_input0() + self.get_param0(), self.arch.bits, self.arch)
-    constraint = z3.Not(self.get_output() == value)
-    ip_stack_constraint = self.get_stack_ip_constraints()
-    return z3.Or(constraint, ip_stack_constraint)
+  def get_gadget_constraint(self):
+    mem_value = utils.z3_get_memory(self.get_mem_before(), self.get_input0() + self.get_param0(), self.arch.bits, self.arch)
+    return z3.Not(self.get_output() == mem_value), None
 
-class StoreMem(Gadget):        pass
-class Arithmetic(Gadget):      pass
-class ArithmeticLoad(Gadget):  pass
-class ArithmeticStore(Gadget): pass
+class StoreMem(Gadget):
+  def get_gadget_constraint(self):
+    address = self.get_input0() + self.get_param0()
+    mem_value = utils.z3_get_memory(self.get_mem_after(), address, self.arch.bits, self.arch)
+
+    store_constraint = z3.Not(mem_value == self.get_input1())
+    antialias_constraint = self.get_antialias_constraint(address)
+    return store_constraint, antialias_constraint
+
+class Arithmetic(Gadget):
+  def get_gadget_constraint(self):
+    return z3.Not(self.get_output() == self.binop(self.get_input0(), self.get_input1())), None
+
+class ArithmeticLoad(Gadget):
+  def get_gadget_constraint(self):
+    mem_value = utils.z3_get_memory(self.get_mem_before(), self.get_input0() + self.get_param0(), self.arch.bits, self.arch)
+    return z3.Not(self.get_output() == self.binop(mem_value, self.get_input1())), None
+
+class ArithmeticStore(Gadget):
+  def get_gadget_constraint(self):
+    address = self.get_input0() + self.get_param0()
+    in_mem_value = utils.z3_get_memory(self.get_mem_before(), address, self.arch.bits, self.arch)
+    out_mem_value = utils.z3_get_memory(self.get_mem_after(), address, self.arch.bits, self.arch)
+
+    store_constraint = z3.Not(out_mem_value == self.binop(in_mem_value, self.get_input1()))
+    antialias_constraint = self.get_antialias_constraint(address)
+    return store_constraint, antialias_constraint
 
 # Split up the Arithmetic gadgets, so they're easy to search for when you are searching for a specific one
-class AddGadget(Arithmetic):   pass
-class SubGadget(Arithmetic):   pass
-class MulGadget(Arithmetic):   pass
-class AndGadget(Arithmetic):   pass
-class OrGadget(Arithmetic):    pass
-class XorGadget(Arithmetic):   pass
+class AddGadget(Arithmetic):
+  @classmethod
+  def binop(self,x,y): return x + y
+
+class SubGadget(Arithmetic):
+  @classmethod
+  def binop(self,x,y): return x - y
+
+class MulGadget(Arithmetic):
+  @classmethod
+  def binop(self,x,y): return x * y
+
+class AndGadget(Arithmetic):
+  @classmethod
+  def binop(self,x,y): return x & y
+
+class OrGadget(Arithmetic):
+  @classmethod
+  def binop(self,x,y): return x | y
+
+class XorGadget(Arithmetic):
+  @classmethod
+  def binop(self,x,y): return x ^ y
+
 
 # Split up the Arithmetic Load gadgets, so they're easy to search for when you are searching for a specific one
-class LoadAddGadget(ArithmeticLoad):   pass
-class LoadSubGadget(ArithmeticLoad):   pass
-class LoadMulGadget(ArithmeticLoad):   pass
-class LoadAndGadget(ArithmeticLoad):   pass
-class LoadOrGadget(ArithmeticLoad):    pass
-class LoadXorGadget(ArithmeticLoad):   pass
+class LoadAddGadget(ArithmeticLoad):
+  @classmethod
+  def binop(self,x,y): return x + y
+
+class LoadSubGadget(ArithmeticLoad):
+  @classmethod
+  def binop(self,x,y): return x - y
+
+class LoadMulGadget(ArithmeticLoad):
+  @classmethod
+  def binop(self,x,y): return x * y
+
+class LoadAndGadget(ArithmeticLoad):
+  @classmethod
+  def binop(self,x,y): return x & y
+
+class LoadOrGadget(ArithmeticLoad):
+  @classmethod
+  def binop(self,x,y): return x | y
+
+class LoadXorGadget(ArithmeticLoad):
+  @classmethod
+  def binop(self,x,y): return x ^ y
 
 # Split up the Arithmetic Store gadgets, so they're easy to search for when you are searching for a specific one
-class StoreAddGadget(ArithmeticStore):   pass
-class StoreSubGadget(ArithmeticStore):   pass
-class StoreMulGadget(ArithmeticStore):   pass
-class StoreAndGadget(ArithmeticStore):   pass
-class StoreOrGadget(ArithmeticStore):    pass
-class StoreXorGadget(ArithmeticStore):   pass
+class StoreAddGadget(ArithmeticStore):
+  @classmethod
+  def binop(self,x,y): return x + y
+
+class StoreSubGadget(ArithmeticStore):
+  @classmethod
+  def binop(self,x,y): return x - y
+
+class StoreMulGadget(ArithmeticStore):
+  @classmethod
+  def binop(self,x,y): return x * y
+
+class StoreAndGadget(ArithmeticStore):
+  @classmethod
+  def binop(self,x,y): return x & y
+
+class StoreOrGadget(ArithmeticStore):
+  @classmethod
+  def binop(self,x,y): return x | y
+
+class StoreXorGadget(ArithmeticStore):
+  @classmethod
+  def binop(self,x,y): return x ^ y
+
 
 # The Loads memory then jumps to a register
 class LoadMemJump(LoadMem): pass

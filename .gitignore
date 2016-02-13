@@ -8,3 +8,8 @@ crop/example/ppc_gadget
 crop/example/arm_gadget
 crop/test
 crop/ropme
+pyrop/example/bkp/
+pyrop/example/bof_execve
+pyrop/example/bof_many_args
+pyrop/example/bof_many_args_x86
+pyrop/example/bof_system2

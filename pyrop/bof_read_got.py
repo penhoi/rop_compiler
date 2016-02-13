@@ -1,6 +1,5 @@
 import sys, logging, binascii
 from pwn import *
-import archinfo
 from rop_compiler import ropme, goal
 
 filename = './example/bof_read_got'

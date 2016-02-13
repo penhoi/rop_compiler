@@ -3,6 +3,8 @@ from pwn import *
 from rop_compiler import ropme, goal
 
 filename = './example/bof_execve'
+process([filename,'3000'])
+
 p = remote('localhost', 2222)
 #p = process([filename,'3000'])
 #gdb.attach(p, "set disassembly-flavor intel")

@@ -18,16 +18,31 @@ def get_contents(filename):
   fd.close()
   return contents
 
+def get_mask(size = 64):
+  return (2 ** size) - 1
+
 def mask(value, size = 64):
-  return value & ((2 ** size) - 1)
+  return value & get_mask(size)
 
 def z3_get_memory(memory, address, size, arch):
   value = z3.Select(memory, address)
   for i in range(1, size/8):
-    new_byte = z3.Select(memory, address + (i*8))
+    new_byte = z3.Select(memory, address + i)
     if arch.memory_endness == 'Iend_LE':
       value = z3.Concat(new_byte, value)
     else:
       value = z3.Concat(value, new_byte)
   return value
+
+def z3_set_memory(memory, address, value, arch):
+  size = value.size()
+  num_bytes = size/8
+  new_memory = memory
+  for i in range(0, num_bytes):
+    if arch.memory_endness == 'Iend_LE':
+      upper = ((i + 1) * 8) - 1
+    else:
+      upper = ((num_bytes - i) * 8) - 1
+    new_memory = z3.Store(new_memory, address + i, z3.Extract(upper, upper - 7, value))
+  return new_memory
 

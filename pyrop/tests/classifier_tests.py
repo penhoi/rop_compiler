@@ -18,19 +18,20 @@ class ClassifierTests(unittest.TestCase):
       self.assertEqual(types, expected_types)
 
   def test_amd64(self):
-    gadget_classifier = classifier.GadgetClassifier(archinfo.ArchAMD64, logging.DEBUG)
+    gadget_classifier = classifier.GadgetClassifier(archinfo.ArchAMD64(), logging.DEBUG)
     tests = [
       ({Jump : 1},            '\xff\xe0'),                                                # jmp rax
       ({MoveReg : 2},         '\x48\x93\xc3'),                                            # xchg rbx, rax; ret
       ({MoveReg : 1},         '\x48\x89\xcb\xc3'),                                        # mov rbx,rcx; ret
       ({LoadConst : 1},       '\x48\xbb\xff\xee\xdd\xcc\xbb\xaa\x99\x88\xc3'),            # movabs rbx,0x8899aabbccddeeff; ret
-      ({AddGadget : 1},       '\x48\x01\xc3\xc3'),                                        # add rbx, rax; reg
+      ({AddGadget : 1},       '\x48\x01\xc3\xc3'),                                        # add rbx, rax; ret
+      ({LoadMem : 1},         '\x5f\xc3'),                                                # pop rdi; ret
       ({LoadMem : 1},         '\x48\x8b\x43\x08\xc3'),                                    # mov rax,QWORD PTR [rbx+0x8]; ret
       ({LoadMem : 1},         '\x48\x8b\x07\xc3'),                                        # mov rax,QWORD PTR [rdi]; ret
       ({StoreMem : 1},        '\x48\x89\x03\xc3'),                                        # mov QWORD PTR [rbx],rax; ret
       ({StoreMem : 1},        '\x48\x89\x43\x08\xc3'),                                    # mov QWORD PTR [rbx+0x8],rax; ret
       ({StoreMem : 1},        '\x48\x89\x44\x24\x08\xc3'),                                # mov QWORD PTR [rsp+0x8],rax; ret
-      ({LoadAddGadget: 1},    '\x48\x03\x44\x24\x08\xc3'),                                # add rax,QWORD PTR [rsp+0x8]
+      ({LoadAddGadget: 1},    '\x48\x03\x03\xc3'),                                        # add rax,QWORD PTR [rbx]
       ({StoreAddGadget: 1},   '\x48\x01\x43\xf8\xc3'),                                    # add QWORD PTR [rbx-0x8],rax; ret
       ({},                    '\x48\x39\xeb\xc3'),                                        # cmp rbx, rbp; ret
       ({},                    '\x5e'),                                                    # pop rsi
@@ -42,7 +43,7 @@ class ClassifierTests(unittest.TestCase):
     self.run_test(gadget_classifier, tests)
 
   def test_arm(self):
-    gadget_classifier = classifier.GadgetClassifier(archinfo.ArchARM, logging.DEBUG)
+    gadget_classifier = classifier.GadgetClassifier(archinfo.ArchARM(), logging.DEBUG)
     tests = [
       ({LoadMem     : 1}, '\x08\x80\xbd\xe8'),                 # pop {r3, pc}
       ({MoveReg     : 1}, '\x02\x00\xa0\xe1\x04\xf0\x9d\xe4'), # mov r0, r2; pop {pc}
@@ -57,7 +58,7 @@ class ClassifierTests(unittest.TestCase):
     self.run_test(gadget_classifier, tests)
 
   def skip_test_mips(self):
-    gadget_classifier = classifier.GadgetClassifier(archinfo.ArchMIPS64, logging.DEBUG)
+    gadget_classifier = classifier.GadgetClassifier(archinfo.ArchMIPS32('Iend_BE'), logging.DEBUG)
     tests = [
       ({LoadMem : 1},
         '\x8f\xbf\x00\x10' + # lw ra,16(sp)
@@ -68,7 +69,7 @@ class ClassifierTests(unittest.TestCase):
     self.run_test(gadget_classifier, tests)
 
   def test_ppc(self):
-    gadget_classifier = classifier.GadgetClassifier(archinfo.ArchPPC32, logging.DEBUG)
+    gadget_classifier = classifier.GadgetClassifier(archinfo.ArchPPC32(), logging.DEBUG)
     tests = [
       ({LoadMem : 1},
         '\x08\x00\xe1\x83' + # lwz r31,8(r1)

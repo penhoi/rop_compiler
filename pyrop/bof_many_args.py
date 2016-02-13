@@ -6,9 +6,9 @@ from rop_compiler import ropme, goal
 is_64bit = not (len(sys.argv) > 1 and sys.argv[1].lower() == "x86")
 
 if is_64bit:
-  filename, arch = './example/bof_many_args', archinfo.ArchAMD64
+  filename, arch = './example/bof_many_args', archinfo.ArchAMD64()
 else:
-  filename, arch = './example/bof_many_args_x86', archinfo.ArchX86
+  filename, arch = './example/bof_many_args_x86', archinfo.ArchX86()
 
 files = [(filename, None, 0)]
 rop = ropme.rop(files, [], [["function", "callme", 11,12,13,14,15,16,17,18]], arch = arch, log_level = logging.DEBUG)

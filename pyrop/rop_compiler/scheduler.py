@@ -9,12 +9,12 @@ PROT_RWX = 7
 class Scheduler(object):
   """This class takes a set of gadgets and combines them together to implement the given goals"""
 
-  def __init__(self, gadget_list, goal_resolver, file_handler, arch = archinfo.ArchAMD64, level = logging.WARNING):
+  def __init__(self, gadget_list, goal_resolver, file_handler, arch, level = logging.WARNING):
     logging.basicConfig(format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
     self.logger = logging.getLogger(self.__class__.__name__)
     self.logger.setLevel(level)
 
-    self.arch = arch()
+    self.arch = arch
     self.gadget_list = gadget_list
     self.file_handler = file_handler
 
