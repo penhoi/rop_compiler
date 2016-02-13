@@ -12,7 +12,7 @@ class FileFinder(finder.Finder):
   def __del__(self):
     self.fd.close()
 
-  def find_gadgets(self):
+  def find_gadgets(self, dummy = False):
     """Restores the gadgets from the saved gadget list"""
     gadget_list = ga.from_string(self.fd.read(), self.level, self.base_address)
     self.logger.debug("Found %d (%d LoadMem) gadgets", len([x for x in gadget_list.foreach()]), len([x for x in gadget_list.foreach_type(ga.LoadMem)]))

@@ -2,17 +2,18 @@ import collections, logging, random, sys
 import pyvex, archinfo
 
 from gadget import *
-import utils, extra_archinfo
+import utils, extra_archinfo, validator
 
 class GadgetClassifier(object):
   """This class is used to convert a set of instructions that represent a gadget into a Gadget class of the appropriate type"""
 
   """The number of times to emulate a gadget when classifying it"""
-  NUM_VALIDATIONS = 5
+  NUM_EMULATIONS = 5
 
-  def __init__(self, arch, log_level = logging.WARNING):
+  def __init__(self, arch, validate_gadgets = False, log_level = logging.WARNING):
     logging.basicConfig(format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
     self.arch = arch
+    self.validate_gadgets = validate_gadgets
     self.logger = logging.getLogger(self.__class__.__name__)
     self.logger.setLevel(log_level)
 
@@ -63,7 +64,7 @@ class GadgetClassifier(object):
 
     possible_types = None
     stack_offsets = set()
-    for i in range(self.NUM_VALIDATIONS):
+    for i in range(self.NUM_EMULATIONS):
       evaluator = PyvexEvaluator(self.arch)
       if not evaluator.emulate_statements(irsb.statements):
         return []
@@ -120,7 +121,12 @@ class GadgetClassifier(object):
         inputs.append(ip_from_reg)
 
       gadget = gadget_type(self.arch, address, inputs, output, params, clobber, stack_offset, ip_in_stack_offset)
-      if gadget != None and gadget.validate():
+      if gadget != None and self.validate_gadgets:
+        gadget_validator = validator.Validator(self.arch)
+        if not gadget_validator.validate_gadget(gadget, irsb):
+          gadget = None
+
+      if gadget != None:
         self.logger.debug("Found gadget: %s", str(gadget))
         gadgets.append(gadget)
 
@@ -397,7 +403,7 @@ if __name__ == "__main__":
   arch = archinfo.arch_from_id(sys.argv[1]).__class__
   code = utils.get_contents(sys.argv[2])
 
-  classifier = GadgetClassifier(arch, logging.DEBUG if len(sys.argv) > 3 else logging.WARNING)
+  classifier = GadgetClassifier(arch, log_level = logging.DEBUG if len(sys.argv) > 3 else logging.WARNING)
   gadgets = classifier.create_gadgets_from_instructions(code, 0x40000)
   for g in gadgets:
     print g

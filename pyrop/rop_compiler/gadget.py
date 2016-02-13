@@ -172,9 +172,6 @@ class GadgetBase(object):
   def complexity(self):
     raise RuntimeError("Not Implemented")
 
-  def validate(self):
-    raise RuntimeError("Not Implemented")
-
   def chain(self, next_address, input_value = None):
     raise RuntimeError("Not Implemented")
 
@@ -199,9 +196,6 @@ class CombinedGadget(GadgetBase):
 
   def uses_register(self, name):
     return any([g.uses_register(name) for g in self.gadgets])
-
-  def validate(self):
-    return all([g.validate() for g in self.gadgets])
 
   def chain(self, next_address, input_value = None):
     types = [type(g) for g in self.gadgets]
@@ -290,11 +284,6 @@ class Gadget(GadgetBase):
       complexity += (math.log(self.stack_offset)/math.log(8))
 
     return len(self.clobber) + complexity
-
-  def validate(self):
-    """This method validates the inputs, output, and parameters with z3 to ensure it follows the gadget type's preconditions"""
-    # TODO validate the gadget type with z3
-    return True
 
   def chain(self, next_address, input_value = None):
     """Default ROP Chain generation, uses no parameters"""

@@ -6,7 +6,8 @@ import classifier
 
 class ClassifierTests(unittest.TestCase):
 
-  def run_test(self, gadget_classifier, tests):
+  def run_test(self, arch, tests):
+    gadget_classifier = classifier.GadgetClassifier(arch, log_level = logging.DEBUG)
     for (expected_types, code) in tests:
       gadgets = gadget_classifier.create_gadgets_from_instructions(code, 0x40000)
 
@@ -18,7 +19,6 @@ class ClassifierTests(unittest.TestCase):
       self.assertEqual(types, expected_types)
 
   def test_amd64(self):
-    gadget_classifier = classifier.GadgetClassifier(archinfo.ArchAMD64(), logging.DEBUG)
     tests = [
       ({Jump : 1},            '\xff\xe0'),                                                # jmp rax
       ({MoveReg : 2},         '\x48\x93\xc3'),                                            # xchg rbx, rax; ret
@@ -40,10 +40,9 @@ class ClassifierTests(unittest.TestCase):
       ({},                    '\x48\x8b\x85\xf0\xfd\xff\xff\x48\x83\xc0'),
 #      ({LoadMemJump : 1, },   '\x5a\xfc\xff\xd0'),                                        # pop rdx, cld, call rax
     ]
-    self.run_test(gadget_classifier, tests)
+    self.run_test(archinfo.ArchAMD64(), tests)
 
   def test_arm(self):
-    gadget_classifier = classifier.GadgetClassifier(archinfo.ArchARM(), logging.DEBUG)
     tests = [
       ({LoadMem     : 1}, '\x08\x80\xbd\xe8'),                 # pop {r3, pc}
       ({MoveReg     : 1}, '\x02\x00\xa0\xe1\x04\xf0\x9d\xe4'), # mov r0, r2; pop {pc}
@@ -55,10 +54,9 @@ class ClassifierTests(unittest.TestCase):
       ({LoadMemJump : 1, Jump : 1},
                           '\x04\xe0\x9d\xe4\x13\xff\x2f\xe1'), # pop {lr}; bx r3
     ]
-    self.run_test(gadget_classifier, tests)
+    self.run_test(archinfo.ArchARM(), tests)
 
   def skip_test_mips(self):
-    gadget_classifier = classifier.GadgetClassifier(archinfo.ArchMIPS32('Iend_BE'), logging.DEBUG)
     tests = [
       ({LoadMem : 1},
         '\x8f\xbf\x00\x10' + # lw ra,16(sp)
@@ -66,10 +64,9 @@ class ClassifierTests(unittest.TestCase):
         '\x03\xe0\x00\x08' + # jr ra
         '\x00\x00\x00\x00')  # nop
     ]
-    self.run_test(gadget_classifier, tests)
+    self.run_test(archinfo.ArchMIPS32('Iend_BE'), tests)
 
   def test_ppc(self):
-    gadget_classifier = classifier.GadgetClassifier(archinfo.ArchPPC32(), logging.DEBUG)
     tests = [
       ({LoadMem : 1},
         '\x08\x00\xe1\x83' + # lwz r31,8(r1)
@@ -78,7 +75,7 @@ class ClassifierTests(unittest.TestCase):
         '\x10\x00\x21\x38' + # addi r1,r1,16
         '\x20\x00\x80\x4e')  # blr
     ]
-    self.run_test(gadget_classifier, tests)
+    self.run_test(archinfo.ArchPPC32(), tests)
 
 if __name__ == '__main__':
   unittest.main()
