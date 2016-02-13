@@ -399,6 +399,13 @@ class LoadMem(Gadget):
     mem_value = utils.z3_get_memory(self.get_mem_before(), self.get_input0() + self.get_param0(), self.arch.bits, self.arch)
     return z3.Not(self.get_output() == mem_value), None
 
+class LoadMemJump(LoadMem):
+  """This gadget loads memory then jumps to a register (Used often in ARM)"""
+  def get_gadget_constraint(self):
+    load_constraint, antialias_constraint = super(LoadMemJump, self).get_gadget_constraint()
+    jump_constraint = z3.Not(self.get_reg_after(self.arch.registers['ip'][0]) == self.get_input1())
+    return z3.Or(load_constraint, jump_constraint), antialias_constraint
+
 class StoreMem(Gadget):
   def get_gadget_constraint(self):
     address = self.get_input0() + self.get_param0()
@@ -502,7 +509,3 @@ class StoreOrGadget(ArithmeticStore):
 class StoreXorGadget(ArithmeticStore):
   @classmethod
   def binop(self,x,y): return x ^ y
-
-# The Loads memory then jumps to a register
-class LoadMemJump(LoadMem): pass
-
