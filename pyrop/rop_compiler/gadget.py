@@ -64,6 +64,7 @@ class GadgetList(object):
       self.add_gadget(gadget)
 
   def gadget_type_name(self, gadget_type):
+    """Get the gadget class name without any of the leading module names"""
     return gadget_type.__name__.split(".")[-1]
 
   def foreach(self):

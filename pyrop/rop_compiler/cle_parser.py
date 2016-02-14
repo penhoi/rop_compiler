@@ -17,7 +17,7 @@ class CleParser(file_parser.FileParser):
 
   def get_segment_bytes_address(self, seg):
     """Returns a segments bytes and the address of the segment"""
-    return ''.join(self.ld.memory.read_bytes(seg.vaddr, seg.memsize)), seg.vaddr + self.base_address
+    return ''.join(self.ld.main_bin.memory.read_bytes(seg.vaddr, seg.memsize)), seg.vaddr + self.base_address
 
   def get_symbol_address(self, name, recurse_with_imp = True):
     """Returns the address for a symbol, or None if the symbol can't be found"""
