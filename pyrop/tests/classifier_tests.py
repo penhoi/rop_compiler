@@ -56,7 +56,7 @@ class ClassifierTests(unittest.TestCase):
     ]
     self.run_test(archinfo.ArchARM(), tests)
 
-  def skip_test_mips(self):
+  def skip_test_mips(self): # For now, don't run this test, pyvex can't decode MIPS properly
     tests = [
       ({LoadMem : 1},
         '\x8f\xbf\x00\x10' + # lw ra,16(sp)
@@ -66,16 +66,28 @@ class ClassifierTests(unittest.TestCase):
     ]
     self.run_test(archinfo.ArchMIPS32('Iend_BE'), tests)
 
-  def test_ppc(self):
+  def test_ppc_le(self):
     tests = [
       ({LoadMem : 1},
         '\x08\x00\xe1\x83' + # lwz r31,8(r1)
         '\x04\x00\x01\x80' + # lwz r0,4(r1)
         '\xa6\x03\x08\x7c' + # mtlr r0
         '\x10\x00\x21\x38' + # addi r1,r1,16
-        '\x20\x00\x80\x4e')  # blr
+        '\x20\x00\x80\x4e'), # blr
     ]
     self.run_test(archinfo.ArchPPC32(), tests)
+
+  def test_ppc_be(self):
+    tests = [
+      ({LoadMem: 2},
+        '\x80\x01\x00\x1c' + # lwz r0,28(r1)
+        '\x80\x61\x00\x08' + # lwz r3,8(r1)
+        '\x80\x81\x00\x0c' + # lwz r4,12(r1)
+        '\x38\x21\x00\x20' + # addi r1,r1,32
+        '\x7c\x08\x03\xa6' + # mtlr r0
+        '\x4e\x80\x00\x20'), # blr
+    ]
+    self.run_test(archinfo.ArchPPC32('Iend_BE'), tests)
 
 if __name__ == '__main__':
   unittest.main()

@@ -47,7 +47,7 @@ class FileParser(object):
 if __name__ == "__main__":
   import argparse
 
-  parser = argparse.ArgumentParser(description="Run the gadget locator on the supplied binary")
+  parser = argparse.ArgumentParser(description="Resolve a symbol from the supplied binary")
   parser.add_argument('-parser_type', type=str, default="cle", help='The type of file parser (cle, pyelf, radare)')
   parser.add_argument('-base_address', type=str, default="0", help='The address the file is loaded at (in hex). Only needed'
     + ' for PIE/PIC binaries.  When creating a reusable gadgets file, do not specify')

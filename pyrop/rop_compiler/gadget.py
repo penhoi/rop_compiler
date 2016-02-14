@@ -101,6 +101,8 @@ class GadgetList(object):
 
   def find_load_stack_gadget(self, register, no_clobber = None):
     """This method finds the best gadget (lowest complexity) to load a register from the stack"""
+    if self.arch == None:
+      return None
     return self.find_gadget(LoadMem, [self.arch.registers['sp'][0]], register, no_clobber)
 
   def find_load_const_gadget(self, register, value, no_clobber = None):

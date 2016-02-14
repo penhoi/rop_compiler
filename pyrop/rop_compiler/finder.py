@@ -6,7 +6,8 @@ class Finder(object):
   """This class parses a file to obtain any gadgets inside their executable sections"""
 
   """The maximum size in bytes of a gadget to look for"""
-  MAX_GADGET_SIZE = { "X86" : 10, 'AMD64' : 10, 'MIPS64' : 20, 'MIPS32' : 20, 'PPC32' : 20, 'PPC64' : 20, 'ARM' : 20 }
+  MAX_GADGET_SIZE = { "X86" : 10, 'AMD64' : 10, 'MIPS64' : 20, 'MIPS32' : 20, 'PPC32' : 30, 'PPC64' : 30, 'ARM' : 20,
+    'ARMEL' : 20 }
 
   def __init__(self, name, arch, base_address = 0, level = logging.WARNING):
     logging.basicConfig(format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
