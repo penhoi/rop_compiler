@@ -1,21 +1,28 @@
-This repository contains the code for Veer's and Jeff's MIT 6.858 final project.
+This repository contains the code for a ROP compiler that uses pyvex to support multiple architectures.
 
 Dependency list:
-  capstone
-  pyelftools
+  pyvex
+  archinfo
+  cle (or pyelftools or radare2)
   z3 (with z3 python bindings)
-  pwntools (for the example bof)
+  pwntools (to run the examples and tests)
 
 Setup:
 
-capstone
-  - sudo pip install capstone
+pyvex
+  - https://github.com/angr/pyvex
+archinfo
+  - https://github.com/angr/archinfo
+cle
+  - https://github.com/angr/cle
 pyelftools
-  - It can be installed from: https://github.com/eliben/pyelftools
-  - the pyelftools package in pip repos is old
+  - https://github.com/eliben/pyelftools
+  - FYI, the pyelftools package in pip repos is old
+radare2
+  - https://github.com/radare/radare2
 z3
-  - It can be installed from: https://github.com/Z3Prover/z3
+  - https://github.com/Z3Prover/z3
 pwntools
   - Pwntools is a set of python libraries that ease the process of exploit development (process wrappers, gdb support, etc).
-  - It's only needed to run the example scripts.  It's not used in the actual rop_compiler library.
+  - It's only needed to run the example scripts and test suite.  It's not used in the actual rop_compiler library.
   - It can be installed from: https://github.com/Gallopsled/pwntools

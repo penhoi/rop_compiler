@@ -1,0 +1,6 @@
+Create a LoadMultiple gadget that loads more than one register at once
+Integrate with pwn tools
+In randomized runs add a run with variables set to -1, 0, 1, etc.
+Use plex and ply to allow for running arbitrary code in ROP gadgets                                                         
+  - plex - python lexer                                                                                                       
+  - ply - python yacc                                                                                                         
