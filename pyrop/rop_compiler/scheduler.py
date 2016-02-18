@@ -80,11 +80,11 @@ class Scheduler(object):
     """This method determines the complexity of a gadget chain by summing the complexity of the individual gadgets in it"""
     return sum([gadget.complexity() for gadget in chain])
 
-  def chain_uses_registers(self, chain, registers):
+  def chain_clobbers_registers(self, chain, registers):
     """This method determines if any gadgets in the specified chain use any of the specified registers"""
     for gadget in chain:
       for reg in registers:
-        if gadget.uses_register(avoid_reg):
+        if gadget.clobbers_registers(avoid_reg):
           return True
     return False
 
@@ -123,7 +123,7 @@ class Scheduler(object):
     best = best_complexity = None
     for (chain, complexity) in self.write_memory_chains:
       if best_complexity == None or best_complexity > complexity:
-        if avoid_registers == None or not self.chain_uses_registers(chain, avoid_registers):
+        if avoid_registers == None or not self.chain_clobbers_registers(chain, avoid_registers):
           best_complexity = complexity
           best = chain
 
@@ -230,7 +230,7 @@ class Scheduler(object):
         if addr_reg == jump_reg: continue
 
         # Find a gadget to read from memory
-        read_gadget = self.gadget_list.find_gadget(ga.LoadMem, input_registers = [addr_reg], output_register = jump_reg)
+        read_gadget = self.gadget_list.find_gadget(ga.LoadMem, [addr_reg], [jump_reg])
         if read_gadget == None:
           continue
 
@@ -254,9 +254,9 @@ class Scheduler(object):
         if add_reg == jump_reg: continue
 
         # Then find a gadget that will let you add to that register
-        add_jump_reg_gadget = self.gadget_list.find_gadget(ga.AddGadget, [jump_reg, add_reg], jump_reg)
+        add_jump_reg_gadget = self.gadget_list.find_gadget(ga.AddGadget, [jump_reg, add_reg], [jump_reg])
         if add_jump_reg_gadget == None: # If we can't find an AddGadget, try finding a SubGadget and negating
-          add_jump_reg_gadget = self.gadget_list.find_gadget(ga.SubGadget, [jump_reg, add_reg], jump_reg)
+          add_jump_reg_gadget = self.gadget_list.find_gadget(ga.SubGadget, [jump_reg, add_reg], [jump_reg])
           offset = -offset
           if add_jump_reg_gadget == None:
             continue

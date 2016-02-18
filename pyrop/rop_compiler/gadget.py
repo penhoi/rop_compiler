@@ -47,7 +47,11 @@ class GadgetList(object):
   def add_gadget(self, gadget):
     type_name = self.gadget_type_name(gadget.__class__)
     self.gadgets[type_name].append(gadget)
-    self.gadgets_per_output[type_name][gadget.output].append(gadget)
+
+    output = None
+    if len(gadget.outputs) > 0:
+      output = gadget.outputs[0]
+    self.gadgets_per_output[type_name][output].append(gadget)
     if type(self.arch) == type(None):
       self.arch = gadget.arch
 
@@ -82,28 +86,28 @@ class GadgetList(object):
       if no_clobbers == None or not gadget.clobbers_registers(no_clobbers):
         yield gadget
 
-  def find_gadget(self, gadget_type, input_registers = None, output_register = None, no_clobber = None):
+  def find_gadget(self, gadget_type, input_registers = None, output_registers = None, no_clobber = None):
     """This method will find the best gadget (lowest complexity) given the search criteria"""
     best = best_complexity = None
     for gadget in self.foreach_type(gadget_type):
       if ((input_registers == None # Not looking for a gadget with a specific register as input
           or (gadget.inputs[0] == input_registers[0] # Only looking for one specific input
             and (len(gadget.inputs) == 1 or gadget.inputs[1] == input_registers[1]))) # Also looking to match the second input
-        and (output_register == None or gadget.output == output_register) # looking to match the output
+        and (output_registers == None or gadget.outputs == output_registers) # looking to match the output
         and (no_clobber == None or not gadget.clobbers_registers(no_clobber)) # Can't clobber anything we need
         and (best == None or best_complexity > gadget.complexity())): # and it's got a better complexity than the current one
           best = gadget
           best_complexity = best.complexity()
 
     if best == None:
-      return self.create_new_gadgets(gadget_type, input_registers, output_register, no_clobber)
+      return self.create_new_gadgets(gadget_type, input_registers, output_registers, no_clobber)
     return best
 
   def find_load_stack_gadget(self, register, no_clobber = None):
     """This method finds the best gadget (lowest complexity) to load a register from the stack"""
     if type(self.arch) == type(None):
       return None
-    return self.find_gadget(LoadMem, [self.arch.registers['sp'][0]], register, no_clobber)
+    return self.find_gadget(LoadMem, [self.arch.registers['sp'][0]], [register], no_clobber)
 
   def find_load_const_gadget(self, register, value, no_clobber = None):
     """This method finds the best gadget (lowest complexity) to load a register from the stack"""
@@ -116,15 +120,15 @@ class GadgetList(object):
 ## Synthesizing Gadgets ###################################################################################
 ###########################################################################################################
 
-  def create_new_gadgets(self, gadget_type, inputs, output, no_clobbers):
+  def create_new_gadgets(self, gadget_type, inputs, outputs, no_clobbers):
     if hasattr(self, self.gadget_type_name(gadget_type)):
-      return getattr(self, self.gadget_type_name(gadget_type))(inputs, output, no_clobbers)
+      return getattr(self, self.gadget_type_name(gadget_type))(inputs, outputs, no_clobbers)
     return None
 
-  def LoadMem(self, inputs, output, no_clobbers):
-    gadget = self.LoadMemFromMoveReg(inputs, output, no_clobbers)
+  def LoadMem(self, inputs, outputs, no_clobbers):
+    gadget = self.LoadMemFromMoveReg(inputs, outputs[0], no_clobbers)
     if gadget == None:
-      gadget = self.LoadMemFromLoadMemJump(inputs, output, no_clobbers)
+      gadget = self.LoadMemFromLoadMemJump(inputs, outputs[0], no_clobbers)
     return gadget
 
   def LoadMemFromMoveReg(self, inputs, output, no_clobbers):
@@ -169,9 +173,6 @@ class GadgetBase(object):
   def clobbers_registers(self, regs):
     raise RuntimeError("Not Implemented")
 
-  def uses_register(self, name):
-    raise RuntimeError("Not Implemented")
-
   def complexity(self):
     raise RuntimeError("Not Implemented")
 
@@ -197,9 +198,6 @@ class CombinedGadget(GadgetBase):
   def clobbers_registers(self, regs):
     return any([g.clobbers_registers(regs) for g in self.gadgets])
 
-  def uses_register(self, name):
-    return any([g.uses_register(name) for g in self.gadgets])
-
   def chain(self, next_address, input_value = None):
     types = [type(g) for g in self.gadgets]
     if types == [LoadMem, LoadMemJump]:
@@ -218,20 +216,20 @@ class CombinedGadget(GadgetBase):
 class Gadget(GadgetBase):
   """This class wraps a set of instructions and holds the associated metadata that makes up a gadget"""
 
-  def __init__(self, arch, address, inputs, output, params, clobber, stack_offset, ip_in_stack_offset):
+  def __init__(self, arch, address, inputs, outputs, params, clobber, stack_offset, ip_in_stack_offset):
     self.arch = arch
     self.address = address
     self.inputs = inputs
-    self.output = output
+    self.outputs = outputs
     self.params = params
     self.clobber = clobber
     self.stack_offset = stack_offset
     self.ip_in_stack_offset = ip_in_stack_offset
 
   def __str__(self):
-    output = ""
-    if self.output != None:
-      output = ", Output: {}".format(self.arch.translate_register_name(self.output))
+    outputs = ", ".join([self.arch.translate_register_name(x) for x in self.outputs])
+    if self.outputs != "":
+      outputs = ", Output: {}".format(outputs)
     inputs = ", ".join([self.arch.translate_register_name(x) for x in self.inputs])
     if inputs != "":
       inputs = ", Inputs [{}]".format(inputs)
@@ -245,7 +243,7 @@ class Gadget(GadgetBase):
     if self.ip_in_stack_offset != None:
       ip = "0x{:x}".format(self.ip_in_stack_offset)
     return "{}(Address: 0x{:x}, Complexity {}, Stack 0x{:x}, Ip {}{}{}{}{})".format(self.__class__.__name__,
-      self.address, round(self.complexity(), 2), self.stack_offset, ip, output, inputs, clobber, params)
+      self.address, round(self.complexity(), 2), self.stack_offset, ip, outputs, inputs, clobber, params)
 
   def _is_stack_reg(self, reg):
     return reg == self.arch.registers['sp'][0]
@@ -255,7 +253,7 @@ class Gadget(GadgetBase):
     for clobber in self.clobber:
       if clobber == reg:
         return True
-    return self.output == reg
+    return (reg in self.outputs) or (reg in self.clobber)
 
   def clobbers_registers(self, regs):
     """Check if the gadget clobbers any of the specified registers"""
@@ -263,13 +261,6 @@ class Gadget(GadgetBase):
       if self.clobbers_register(reg):
         return True
     return False
-
-  def uses_register(self, name):
-    """Check if the gadget uses the specified register as input"""
-    for an_input in self.inputs:
-      if type(an_input) == Register and an_input.name == name:
-        return True
-    return self.clobbers_register(name) or self.output == name
 
   def complexity(self):
     """Return a rough complexity measure for a gadget that can be used to select the best gadget in a set.  Our simple formula
@@ -320,7 +311,8 @@ class Gadget(GadgetBase):
   # Some z3 helper methods
   def get_reg_before(self, reg): return z3.BitVec("{}_before".format(self.arch.translate_register_name(reg)), self.arch.bits)
   def get_reg_after(self, reg):  return z3.BitVec("{}_after".format(self.arch.translate_register_name(reg)), self.arch.bits)
-  def get_output(self):          return self.get_reg_after(self.output)
+  def get_output(self, x):       return self.get_reg_after(self.outputs[x])
+  def get_output0(self):         return self.get_output(0)
   def get_input(self, idx):      return self.get_reg_before(self.inputs[idx])
   def get_input0(self):          return self.get_input(0)
   def get_input1(self):          return self.get_input(1)
@@ -355,15 +347,15 @@ class Jump(Gadget):
     return self.stack_offset * "H" # No parameters or IP in stack, just fill the stack offset
 
   def get_gadget_constraint(self):
-    return z3.Not(self.get_output() == self.get_input0()), None
+    return z3.Not(self.get_output0() == self.get_input0()), None
 
 class MoveReg(Gadget):
   def get_gadget_constraint(self):
-    return z3.Not(self.get_output() == self.get_input0()), None
+    return z3.Not(self.get_output0() == self.get_input0()), None
 
 class LoadConst(Gadget):
   def get_gadget_constraint(self):
-    return z3.Not(self.get_output() == self.get_param0()), None
+    return z3.Not(self.get_output0() == self.get_param0()), None
 
 class LoadMem(Gadget):
   def chain(self, next_address, input_value = None):
@@ -389,7 +381,7 @@ class LoadMem(Gadget):
 
   def get_gadget_constraint(self):
     mem_value = utils.z3_get_memory(self.get_mem_before(), self.get_input0() + self.get_param0(), self.arch.bits, self.arch)
-    return z3.Not(self.get_output() == mem_value), None
+    return z3.Not(self.get_output0() == mem_value), None
 
 class LoadMemJump(LoadMem):
   """This gadget loads memory then jumps to a register (Used often in ARM)"""
@@ -397,6 +389,10 @@ class LoadMemJump(LoadMem):
     load_constraint, antialias_constraint = super(LoadMemJump, self).get_gadget_constraint()
     jump_constraint = z3.Not(self.get_reg_after(self.arch.registers['ip'][0]) == self.get_input1())
     return z3.Or(load_constraint, jump_constraint), antialias_constraint
+
+class LoadMultiple(LoadMem):
+  """This gadget loads multiple registers at once"""
+  pass
 
 class StoreMem(Gadget):
   def get_gadget_constraint(self):
@@ -409,12 +405,12 @@ class StoreMem(Gadget):
 
 class Arithmetic(Gadget):
   def get_gadget_constraint(self):
-    return z3.Not(self.get_output() == self.binop(self.get_input0(), self.get_input1())), None
+    return z3.Not(self.get_output0() == self.binop(self.get_input0(), self.get_input1())), None
 
 class ArithmeticLoad(Gadget):
   def get_gadget_constraint(self):
     mem_value = utils.z3_get_memory(self.get_mem_before(), self.get_input0() + self.get_param0(), self.arch.bits, self.arch)
-    return z3.Not(self.get_output() == self.binop(mem_value, self.get_input1())), None
+    return z3.Not(self.get_output0() == self.binop(mem_value, self.get_input1())), None
 
 class ArithmeticStore(Gadget):
   def get_gadget_constraint(self):

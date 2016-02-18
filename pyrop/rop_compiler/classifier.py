@@ -43,17 +43,17 @@ class GadgetClassifier(object):
   def get_new_ip_from_potential_gadget(self, possible_types):
     """Finds the offset of rip in the stack, or whether it was set via a register for a list of potential gadgets"""
     ip_in_stack_offset = ip_from_reg = None
-    for (gadget_type, inputs, output, params, clobber) in possible_types:
-      if gadget_type == LoadMem and output == self.ip and inputs[0] == self.sp:
+    for (gadget_type, inputs, outputs, params, clobber) in possible_types:
+      if gadget_type == LoadMem and outputs[0] == self.ip and inputs[0] == self.sp:
         ip_in_stack_offset = params[0]
-      if gadget_type == MoveReg and output == self.ip:
+      if gadget_type == MoveReg and outputs[0] == self.ip:
         ip_from_reg = inputs[0]
     return ip_in_stack_offset, ip_from_reg
 
-  def calculate_clobber_registers(self, state, gadget_type, output):
+  def calculate_clobber_registers(self, state, gadget_type, outputs):
     clobber = []
     for oreg in state.out_regs.keys():
-      if oreg != output and oreg != self.ip and oreg != self.sp and not self.is_ignored_register(oreg):
+      if oreg not in outputs and oreg != self.ip and oreg != self.sp and not self.is_ignored_register(oreg):
         clobber.append(oreg)
     return clobber
 
@@ -65,7 +65,8 @@ class GadgetClassifier(object):
     possible_types = None
     stack_offsets = set()
     for i in range(self.NUM_EMULATIONS):
-      evaluator = PyvexEvaluator(self.arch)
+      state = EvaluateState(self.arch)
+      evaluator = PyvexEvaluator(state, self.arch)
       if not evaluator.emulate_statements(irsb.statements):
         return []
       state = evaluator.get_state()
@@ -96,10 +97,10 @@ class GadgetClassifier(object):
       return []
 
     gadgets = []
-    for (gadget_type, inputs, output, params, clobber) in possible_types:
+    for (gadget_type, inputs, outputs, params, clobber) in possible_types:
       if (
         # Ignore the LoadMem gadget for the IP register
-        (output == self.ip and gadget_type != Jump)
+        (len(outputs) > 0 and outputs[0] == self.ip and gadget_type != Jump)
 
         # Except for Jump, all the gadgets must load rip from the stack
         or ((ip_in_stack_offset == None and gadget_type != Jump) and not (ip_from_reg != None and gadget_type == LoadMem))
@@ -108,7 +109,7 @@ class GadgetClassifier(object):
         or (ip_in_stack_offset != None and ((gadget_type == LoadMem and params[0] > stack_offset) or ip_in_stack_offset > stack_offset))
 
         # We don't care about finding gadgets that set the flags
-        or self.is_ignored_register(output)
+        or (len(outputs) != 0 and all(map(self.is_ignored_register, outputs)))
 
         # If it's a LoadMem that results in a jmp to the load register, thus we can't actually load any value we want
         or (gadget_type == LoadMem and params[0] == ip_in_stack_offset and inputs[0] == self.sp)
@@ -120,7 +121,7 @@ class GadgetClassifier(object):
         gadget_type = LoadMemJump
         inputs.append(ip_from_reg)
 
-      gadget = gadget_type(self.arch, address, inputs, output, params, clobber, stack_offset, ip_in_stack_offset)
+      gadget = gadget_type(self.arch, address, inputs, outputs, params, clobber, stack_offset, ip_in_stack_offset)
       if gadget != None and self.validate_gadgets:
         gadget_validator = validator.Validator(self.arch)
         if not gadget_validator.validate_gadget(gadget, irsb):
@@ -133,17 +134,17 @@ class GadgetClassifier(object):
     return gadgets
 
   def all_acceptable_memory_accesses(self, state, possible_type):
-    (gadget_type, inputs, output, params, clobber) = possible_type
+    (gadget_type, inputs, outputs, params, clobber) = possible_type
 
     # Always allow the LoadMem gadget for loading IP from the Stack
-    if gadget_type == LoadMem and output == self.ip and inputs[0] == self.sp:
+    if gadget_type == LoadMem and outputs[0] == self.ip and inputs[0] == self.sp:
       return True
 
     for mem_address, mem_value in state.in_mem.items():
       good_mem_access = False
       if not (
           # Allow the LoadMem's read
-          (gadget_type == LoadMem and mem_address == state.in_regs[inputs[0]] + params[0] and state.out_regs[output] == mem_value)
+          (gadget_type == LoadMem and mem_address == state.in_regs[inputs[0]] + params[0] and state.out_regs[outputs[0]] == mem_value)
 
           # Allow the ArithmeticLoad's read
           or (issubclass(gadget_type, ArithmeticLoad) and mem_address == state.in_regs[inputs[0]] + params[0])
@@ -177,16 +178,16 @@ class GadgetClassifier(object):
     possible_types = []
     for oreg, ovalue in state.out_regs.items():
       # Check for LOAD_CONST (it'll get filtered between the multiple rounds)
-      possible_types.append((LoadConst, [], oreg, [ovalue]))
+      possible_types.append((LoadConst, [], [oreg], [ovalue]))
 
       for ireg, ivalue in state.in_regs.items():
         # Check for MOV_REG
         if ovalue == ivalue:
-          possible_types.append((MoveReg, [ireg], oreg, []))
+          possible_types.append((MoveReg, [ireg], [oreg], []))
 
         # Check for JUMP_REG
         if oreg == self.arch.registers['ip'][0]:
-          possible_types.append((Jump, [ireg], oreg, [ovalue - ivalue]))
+          possible_types.append((Jump, [ireg], [oreg], [ovalue - ivalue]))
 
         # Check for ARITHMETIC
         if ireg != oreg: # add rbx, rax (where rbx is dst/operand 1 and rax is operand 2)
@@ -195,7 +196,7 @@ class GadgetClassifier(object):
         for ireg2, ivalue2 in state.in_regs.items():
           for gadget_type in [AddGadget, SubGadget, MulGadget, AndGadget, OrGadget, XorGadget]:
             if ovalue == gadget_type.binop(ivalue, ivalue2):
-              possible_types.append((gadget_type, [ireg, ireg2], oreg, []))
+              possible_types.append((gadget_type, [ireg, ireg2], [oreg], []))
 
       for address, value_at_address in state.in_mem.items():
         # Check for ARITHMETIC_LOAD
@@ -203,19 +204,19 @@ class GadgetClassifier(object):
           for addr_reg, addr_reg_value in state.in_regs.items():
             for gadget_type in [LoadAddGadget, LoadSubGadget, LoadMulGadget, LoadAndGadget, LoadOrGadget, LoadXorGadget]:
               if ovalue == gadget_type.binop(ivalue, value_at_address):
-                possible_types.append((gadget_type, [addr_reg, ireg], oreg, [address - addr_reg_value]))
+                possible_types.append((gadget_type, [addr_reg, ireg], [oreg], [address - addr_reg_value]))
 
         # Check for LOAD_MEM
         if ovalue == value_at_address:
           for ireg, ivalue in state.in_regs.items():
-            possible_types.append((LoadMem, [ireg], oreg, [address - ivalue]))
+            possible_types.append((LoadMem, [ireg], [oreg], [address - ivalue]))
 
     for address, value in state.out_mem.items():
       for ireg, ivalue in state.in_regs.items():
         # Check for STORE_MEM
         if value == ivalue:
           for addr_reg, addr_reg_value in state.in_regs.items():
-            possible_types.append((StoreMem, [addr_reg, ireg], None, [address - addr_reg_value]))
+            possible_types.append((StoreMem, [addr_reg, ireg], [], [address - addr_reg_value]))
 
         # Check for ARITHMETIC_STORE
         initial_memory_value = None
@@ -226,13 +227,13 @@ class GadgetClassifier(object):
         for addr_reg, addr_reg_value in state.in_regs.items():
           for gadget_type in [StoreAddGadget, StoreSubGadget, StoreMulGadget, StoreAndGadget, StoreOrGadget, StoreXorGadget]:
             if value == gadget_type.binop(initial_memory_value, ivalue):
-              possible_types.append((gadget_type, [addr_reg, ireg], None, [address - addr_reg_value]))
+              possible_types.append((gadget_type, [addr_reg, ireg], [], [address - addr_reg_value]))
 
     # Add the clobber set to the possible types
     possible_types_with_clobber = []
-    for (gadget_type, inputs, output, params) in possible_types:
-      clobber = self.calculate_clobber_registers(state, gadget_type, output)
-      possible_types_with_clobber.append((gadget_type, inputs, output, params, clobber))
+    for (gadget_type, inputs, outputs, params) in possible_types:
+      clobber = self.calculate_clobber_registers(state, gadget_type, outputs)
+      possible_types_with_clobber.append((gadget_type, inputs, outputs, params, clobber))
     return possible_types_with_clobber
 
 class EvaluateState(object):
@@ -240,6 +241,9 @@ class EvaluateState(object):
     num = random.randint(0, 2 ** (self.arch.bits - 2))
     num = (num / self.arch.instruction_alignment) * self.arch.instruction_alignment
     return num
+
+  def new_constant(self):
+    return self.constant
 
   def __init__(self, arch):
     self.arch = arch
@@ -249,6 +253,11 @@ class EvaluateState(object):
     self.out_regs = {}
     self.out_mem = {}
     self.tmps = {}
+
+  def initialize_to_constant(self, constant = 0):
+    self.constant = constant
+    self.in_regs = collections.defaultdict(self.new_constant, {})
+    self.in_mem  = collections.defaultdict(self.new_constant, {})
 
   def __str__(self):
     ireg = "IR(" + ", ".join(["{}=0x{:x}".format(
@@ -284,9 +293,9 @@ class EvaluateState(object):
 
 class PyvexEvaluator(object):
 
-  def __init__(self, arch):
+  def __init__(self, state, arch):
     self.arch = arch
-    self.state = EvaluateState(arch)
+    self.state = state
 
   def emulate_statements(self, statements):
     for stmt in statements:
