@@ -24,13 +24,30 @@ class GadgetClassifier(object):
   def is_ignored_register(self, register):
     return self.arch.translate_register_name(register) in extra_archinfo.IGNORED_REGISTERS[self.arch.name]
 
-  def get_irsb(self, code, address):
-    irsb = None
-    try:
-      irsb = pyvex.IRSB(code, address, self.arch)
-    except:
-      pass
-    return irsb
+  def get_irsbs(self, code, address):
+    irsbs = []
+    code_address = address
+    while code_address <= address + len(code) - self.arch.instruction_alignment:
+      try:
+        irsb = pyvex.IRSB(code[code_address-address:], code_address, self.arch)
+        irsbs.append(irsb)
+      except: # If decoding fails, we can't use this gadget
+        return [] # So just return an empty list
+
+      if self.arch.name not in ['MIPS32'] or irsb.jumpkind != 'Ijk_Boring':
+        break
+
+      # Find the last address that was translated
+      last_addr = None
+      for stmt in irsb.statements:
+        if stmt.tag == 'Ist_IMark':
+          last_addr = stmt.addr
+
+      # And move the code address forward to the next untranslated instruction
+      if last_addr != address + len(code) - self.arch.instruction_alignment:
+        code_address = last_addr
+
+    return irsbs
 
   def get_stack_offset(self, state):
     stack_offset = 0
@@ -58,8 +75,8 @@ class GadgetClassifier(object):
     return clobber
 
   def create_gadgets_from_instructions(self, code, address):
-    irsb = self.get_irsb(code, address)
-    if irsb == None:
+    irsbs = self.get_irsbs(code, address)
+    if len(irsbs) == 0:
       return []
 
     possible_types = None
@@ -67,7 +84,7 @@ class GadgetClassifier(object):
     for i in range(self.NUM_EMULATIONS):
       state = EvaluateState(self.arch)
       evaluator = PyvexEvaluator(state, self.arch)
-      if not evaluator.emulate_statements(irsb.statements):
+      if not evaluator.emulate_irsbs(irsbs):
         return []
       state = evaluator.get_state()
 
@@ -124,7 +141,7 @@ class GadgetClassifier(object):
       gadget = gadget_type(self.arch, address, inputs, outputs, params, clobber, stack_offset, ip_in_stack_offset)
       if gadget != None and self.validate_gadgets:
         gadget_validator = validator.Validator(self.arch)
-        if not gadget_validator.validate_gadget(gadget, irsb):
+        if not gadget_validator.validate_gadget(gadget, irsbs):
           gadget = None
 
       if gadget != None:
@@ -268,6 +285,9 @@ class EvaluateState(object):
 
     self.out_regs = {}
     self.out_mem = {}
+    self.reset_tmps()
+
+  def reset_tmps(self):
     self.tmps = {}
 
   def initialize_to_constant(self, constant = 0):
@@ -313,14 +333,16 @@ class PyvexEvaluator(object):
     self.arch = arch
     self.state = state
 
-  def emulate_statements(self, statements):
-    for stmt in statements:
-      try:
-        if hasattr(self, stmt.tag):
-          getattr(self, stmt.tag)(stmt)
-        else:
-          self.unknown_statement(stmt)
-      except:
+  def emulate_irsbs(self, irsbs):
+    for irsb in irsbs:
+      self.state.reset_tmps()
+      for stmt in irsb.statements:
+        try:
+          if hasattr(self, stmt.tag):
+            getattr(self, stmt.tag)(stmt)
+          else:
+            self.unknown_statement(stmt)
+        except:
           return False
     return True
 

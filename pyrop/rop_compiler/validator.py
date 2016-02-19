@@ -7,16 +7,16 @@ class Validator(object):
   def __init__(self, arch):
     self.arch = arch
 
-  def validate_gadget(self, gadget, irsb):
+  def validate_gadget(self, gadget, irsbs):
     converter = PyvexToZ3Converter(self.arch)
-    statements = converter.get_smt_statements(irsb)
-    if statements == None:
-      return False
-    statements.append(gadget.get_constraint())
-
     solver = z3.Solver()
-    for statement in statements:
-      solver.append(statement)
+    for i in range(len(irsbs)):
+      statements = converter.get_smt_statements(irsbs[i], i)
+      if statements == None:
+        return False
+      for statement in statements:
+        solver.append(statement)
+    solver.append(gadget.get_constraint())
     result = solver.check()
     return result == z3.unsat
 
@@ -39,9 +39,8 @@ class PyvexToZ3Converter(object):
     self.mem_count = 0
     self.first_mem = self.memory
 
-
-  def get_smt_statements(self, irsb):
-    self.stmt = []
+  def get_smt_statements(self, irsb, irsb_num):
+    self.irsb_num = irsb_num
     for stmt in irsb.statements:
       if hasattr(self, stmt.tag):
         getattr(self, stmt.tag)(stmt)
@@ -61,7 +60,7 @@ class PyvexToZ3Converter(object):
     self.stmt.append(left == right)
 
   def get_tmp(self, tmp, size):
-    name = 'tmp{}'.format(tmp)
+    name = 'tmp{}_{}'.format(self.irsb_num, tmp)
     if size == None:
       return z3.Bool(name)
     return z3.BitVec(name, size)
@@ -157,6 +156,12 @@ class PyvexToZ3Converter(object):
   def Iop_8Uto64(self, argument):
     return z3.ZeroExt(56, argument)
 
+  def Iop_1Sto32(self, argument):
+    return z3.SignExt(31, argument)
+
+  def Iop_1Sto64(self, argument):
+    return z3.SignExt(63, argument)
+
   def Iop_8Sto64(self, argument):
     return z3.SignExt(56, argument)
 
@@ -173,6 +178,9 @@ class PyvexToZ3Converter(object):
 
   def Iop_Xor64(self, left, right): return left ^ right
   def Iop_Xor32(self, left, right): return left ^ right
+
+  def Iop_Or64(self, left, right):  return left | right
+  def Iop_Or32(self, left, right):  return left | right
 
   def Iop_Add64(self, left, right): return left + right
   def Iop_Add32(self, left, right): return left + right

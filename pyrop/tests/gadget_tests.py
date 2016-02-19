@@ -4,6 +4,9 @@ import pyvex, archinfo
 from gadget import *
 from validator import *
 
+def n2r(arch, reg_name):
+  return arch.registers[reg_name][0]
+
 class GadgetTests(unittest.TestCase):
 
   def run_test(self, arch, tests):
@@ -20,37 +23,40 @@ class GadgetTests(unittest.TestCase):
       self.assertNotEqual(result_gadget, None)
       self.assertNotEqual(type(result_gadget), desired_type)
 
-  def make_test(self, arch, test):
-    desired_type, inputs, outputs, no_clobbers, gadgets = test
-
+  def make_gadget_list(self, arch, gadgets):
     gadget_list = GadgetList(log_level = logging.DEBUG)
     for (gadget_type, gadget_inputs, gadget_outputs, params, clobber, stack_offset, ip_in_stack_offset) in gadgets:
       gadget_input_regs = []
       for input_reg_name in gadget_inputs:
-        gadget_input_regs.append(arch.registers[input_reg_name][0])
+        gadget_input_regs.append(n2r(arch, input_reg_name))
 
       gadget_output_regs = []
       for gadget_output_reg_name in gadget_outputs:
-        gadget_output_regs.append(arch.registers[gadget_output_reg_name][0])
+        gadget_output_regs.append(n2r(arch, gadget_output_reg_name))
 
       gadget_clobber_reg = []
       for clobber_reg_name in clobber:
-        gadget_clobber_reg.append(arch.registers[clobber_reg_name][0])
+        gadget_clobber_reg.append(n2r(arch, clobber_reg_name))
 
       gadget = gadget_type(arch, 0x40000, gadget_input_regs, gadget_output_regs, params, gadget_clobber_reg, stack_offset, ip_in_stack_offset)
       gadget_list.add_gadget(gadget)
+    return gadget_list
+
+  def make_test(self, arch, test):
+    desired_type, inputs, outputs, no_clobbers, gadgets = test
+    gadget_list = self.make_gadget_list(arch, gadgets)
 
     input_regs = []
     for input_reg_name in inputs:
-      input_regs.append(arch.registers[input_reg_name][0])
+      input_regs.append(n2r(arch, input_reg_name))
 
     no_clobber_regs = []
     for no_clobber_reg_name in no_clobbers:
-      no_clobber_regs.append(arch.registers[no_clobber_reg_name][0])
+      no_clobber_regs.append(n2r(arch, no_clobber_reg_name))
 
     output_regs = []
     for output_reg_name in outputs:
-      output_regs.append(arch.registers[output_reg_name][0])
+      output_regs.append(n2r(arch, output_reg_name))
 
     return desired_type, input_regs, output_regs, no_clobber_regs, gadget_list
 
@@ -67,6 +73,12 @@ class GadgetTests(unittest.TestCase):
       ]),
     ]
     self.run_test(arch, tests)
+
+  def test_create_load_registers_chain(self):
+    a = archinfo.ArchAMD64()
+    gadget_list = self.make_gadget_list(a, [(LoadMultiple, ['rsp'], ['rax', 'rbx', 'rcx'], [0, 4, 8], [], 0x10, 0xc)])
+    chain = gadget_list.create_load_registers_chain(0x4343434343434343, {n2r(a, 'rax') : 0x4141414141414141, n2r(a, 'rbx') : 0x4242424242424242})
+    print chain
 
   def skip_test_arm(self):
     arch = archinfo.ArchARM()

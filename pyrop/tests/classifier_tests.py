@@ -57,12 +57,13 @@ class ClassifierTests(unittest.TestCase):
     ]
     self.run_test(archinfo.ArchARM(), tests)
 
-  def skip_test_mips(self): # For now, don't run this test, pyvex can't decode MIPS properly
+  def test_mips(self):
     tests = [
       ({LoadMem : 1},
         '\x8f\xbf\x00\x10' + # lw ra,16(sp)
         '\x8f\xb0\x00\x08' + # lw s0,8(sp)
         '\x03\xe0\x00\x08' + # jr ra
+        '\x27\xbd\x00\x20' + # addiu sp,sp,32
         '\x00\x00\x00\x00')  # nop
     ]
     self.run_test(archinfo.ArchMIPS32('Iend_BE'), tests)
