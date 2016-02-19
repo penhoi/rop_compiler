@@ -55,7 +55,13 @@ class ValidatorTests(unittest.TestCase):
       ('\x48\x01\x43\xf8\xc3',                             StoreAddGadget, ['rbx','rax'], ['rax'], [-8], [], 8, 0, True), # add QWORD PTR [rbx-0x8],rax; ret
       ('\x59\x48\x89\xcb\x48\xc7\xc1\x05\x00\x00\x00\xc3', LoadMem, ['rsp'], ['rbx'], [0], ['rcx'], 0x10, 8, True), # pop rcx; mov rbx,rcx; mov rcx,0x5; ret
       ('\x59\x48\x89\xcb\x48\xc7\xc1\x05\x00\x00\x00\xc3', LoadConst, [], ['rcx'], [5], ['rbx'], 0x10, 8, True), # pop rcx; mov rbx,rcx; mov rcx,0x5; ret
-      ('\x5f\x5e\x5a\xc3',                                 LoadMultiple, ['rsp'], ['rdi','rsi','rdx'], [0, 8, 0x10], [], 0x20, 0x18, True)
+      ('\x5f\x5e\x5a\xc3',                                 LoadMultiple, ['rsp'], ['rdi','rsi','rdx'], [0, 8, 0x10], [], 0x20, 0x18, True), # pop rdi; pop rsi; pop rdx; ret
+
+      # Negative tests
+      ('\xff\xe0',                                         Jump, ['rax'], ['rip'], [], [], 8, None, False), # jmp rax (bad stack offset)
+      ('\x48\x93\xc3',                                     MoveReg, ['rbx'], ['rax'], [], ['rbx'], 8, 8, False), # xchg rbx, rax; ret (bad ip in stack offset)
+      ('\x5f\xc3',                                         LoadMem, ['rsp'], ['rdi'], [8], [], 0x10, 8, False), # pop rdi; ret (bad param)
+      ('\x5f\x5e\x5a\xc3',                                 LoadMultiple, ['rsp'], ['rdi','rsi','rdx'], [0, 7, 0x10], [], 0x20, 0x18, False), # pop rdi; pop rsi; pop rdx; ret (bad param)
     ]
     self.run_test(arch, tests)
 
@@ -85,6 +91,12 @@ class ValidatorTests(unittest.TestCase):
       ('\x1f\x40\xbd\xe8\x1c\xff\x2f\xe1', Jump, ['r12'], ['pc'], [0], ['lr','r0', 'r1', 'r2', 'r3', 'r4'], 0x18, None, True), # pop {r0, r1, r2, r3, r4, lr}; bx r12
       ('\x04\xe0\x9d\xe4\x13\xff\x2f\xe1', LoadMemJump, ['sp', 'r3'], ['lr'], [0], [], 0x4, None, True), # pop {lr}; bx r3
       ('\x04\xe0\x9d\xe4\x13\xff\x2f\xe1', Jump, ['r3'], ['pc'], [0], [], 0x4, None, True), # pop {lr}; bx r3
+
+      # Negative tests
+      ('\x04\xe0\x9d\xe4\x13\xff\x2f\xe1', Jump, ['r3'], ['pc'], [0], [], 0x8, None, False), # pop {lr}; bx r3 (bad stack offset)
+      ('\x02\x00\xa0\xe1\x04\xf0\x9d\xe4', MoveReg, ['r2'], ['r0'], [0], [], 4, 4, False), # mov r0, r2; pop {pc} (bad ip in stack offset)
+      ('\xf0\x87\xbd\xe8', LoadMem, ['sp'], ['r4'],  [0x04], ['r5', 'r6', 'r7', 'r8', 'r9', 'r10'], 0x20, 0x1c, False), # pop {r4, r5, r6, r7, r8, r9, sl, pc} (bad param)
+      ('\xf0\x87\xbd\xe8', LoadMultiple, ['sp'], ['r4', 'r5', 'r6', 'r7', 'r8', 'r9', 'r10'], [0, 4, 7, 0xc, 0x10, 0x14, 0x18], [],  0x20, 0x1c, False), # pop {r4, r5, r6, r7, r8, r9, sl, pc} (bad param)
     ]
     self.run_test(arch, tests)
 

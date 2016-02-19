@@ -18,9 +18,6 @@ class Validator(object):
     for statement in statements:
       solver.append(statement)
     result = solver.check()
-    if result != z3.unsat:
-      print "\n\n".join([str(s) for s in statements])
-      print solver.model()
     return result == z3.unsat
 
 class PyvexToZ3Converter(object):
