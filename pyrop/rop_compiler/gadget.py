@@ -2,7 +2,7 @@ import math, struct, collections, logging, sys
 import archinfo
 import z3
 import cPickle as pickle
-import utils
+import utils, extra_archinfo
 
 def from_string(data, log_level = logging.WARNING, address_offset = None):
   gadgets_dict = pickle.loads(data)
@@ -115,6 +115,14 @@ class GadgetList(object):
       if gadget.params[0] == value:
         return gadget
     return None
+
+  def find_load_register_gadgets(self, registers):
+    gadgets = []
+
+    for gadget in self.foreach_type_output(LoadMultiple):
+      pass
+
+    return gadgets
 
 ###########################################################################################################
 ## Synthesizing Gadgets ###################################################################################
@@ -305,18 +313,21 @@ class Gadget(GadgetBase):
     if self.ip_in_stack_offset != None:
       new_ip_value = utils.z3_get_memory(self.get_mem_before(), sp_before + self.ip_in_stack_offset, self.arch.bits, self.arch)
       ip_after = self.get_reg_after(self.arch.registers['ip'][0])
+      if self.arch.name in extra_archinfo.ALIGNED_ARCHS: # For some architectures, pyvex adds a constraint to ensure new IPs are aligned
+        new_ip_value = new_ip_value & ((2 ** self.arch.bits) - self.arch.instruction_alignment) # in order to properly validate, we must match that
       constraint = z3.Or(constraint, z3.Not(ip_after == new_ip_value))
     return constraint
 
   # Some z3 helper methods
   def get_reg_before(self, reg): return z3.BitVec("{}_before".format(self.arch.translate_register_name(reg)), self.arch.bits)
   def get_reg_after(self, reg):  return z3.BitVec("{}_after".format(self.arch.translate_register_name(reg)), self.arch.bits)
-  def get_output(self, x):       return self.get_reg_after(self.outputs[x])
+  def get_output(self, idx):     return self.get_reg_after(self.outputs[idx])
   def get_output0(self):         return self.get_output(0)
   def get_input(self, idx):      return self.get_reg_before(self.inputs[idx])
   def get_input0(self):          return self.get_input(0)
   def get_input1(self):          return self.get_input(1)
-  def get_param0(self):          return z3.BitVecVal(self.params[0], self.arch.bits)
+  def get_param(self, idx):      return z3.BitVecVal(self.params[idx], self.arch.bits)
+  def get_param0(self):          return self.get_param(0)
   def get_mem(self, name):       return z3.Array("mem_{}".format(name), z3.BitVecSort(self.arch.bits), z3.BitVecSort(8))
   def get_mem_before(self):      return self.get_mem("before")
   def get_mem_after(self):       return self.get_mem("after")
@@ -392,7 +403,16 @@ class LoadMemJump(LoadMem):
 
 class LoadMultiple(LoadMem):
   """This gadget loads multiple registers at once"""
-  pass
+  def get_gadget_constraint(self):
+    load_mem_constraint = None
+    for i in range(len(self.outputs)):
+      mem_value = utils.z3_get_memory(self.get_mem_before(), self.get_input0() + self.get_param(i), self.arch.bits, self.arch)
+      new_constraint = z3.Not(self.get_output(i) == mem_value)
+      if load_mem_constraint == None:
+        load_mem_constraint = new_constraint
+      else:
+        load_mem_constraint = z3.Or(load_mem_constraint, new_constraint)
+    return load_mem_constraint, None
 
 class StoreMem(Gadget):
   def get_gadget_constraint(self):

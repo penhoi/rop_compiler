@@ -38,7 +38,8 @@ class ClassifierTests(unittest.TestCase):
       ({},                    '\x8b\x04\xc5\xc0\x32\x45\x00\xc3'),                        # mov rax,QWORD PTR [rax*8+0x4532c0]
       ({LoadMem : 1, LoadConst : 1}, '\x59\x48\x89\xcb\x48\xc7\xc1\x05\x00\x00\x00\xc3'), # pop rcx; mov rbx,rcx; mov rcx,0x5; ret
       ({},                    '\x48\x8b\x85\xf0\xfd\xff\xff\x48\x83\xc0'),
-#      ({LoadMemJump : 1, },   '\x5a\xfc\xff\xd0'),                                        # pop rdx, cld, call rax
+#      ({LoadMemJump : 1, },   '\x5a\xfc\xff\xd0'),                                       # pop rdx, cld, call rax
+      ({LoadMem : 3, LoadMultiple : 1}, '\x5f\x5e\x5a\xc3'),                              # pop rdi; pop rsi; pop rdx; ret
     ]
     self.run_test(archinfo.ArchAMD64(), tests)
 
@@ -46,8 +47,8 @@ class ClassifierTests(unittest.TestCase):
     tests = [
       ({LoadMem     : 1}, '\x08\x80\xbd\xe8'),                 # pop {r3, pc}
       ({MoveReg     : 1}, '\x02\x00\xa0\xe1\x04\xf0\x9d\xe4'), # mov r0, r2; pop {pc}
-      ({LoadMem     : 7}, '\xf0\x87\xbd\xe8'),                 # pop {r4, r5, r6, r7, r8, r9, sl, pc}
-      ({LoadMem     : 2}, '\x04\xe0\x9d\xe5\x08\xd0\x8d\xe2'   # ldr lr, [sp, #4]; add sp, sp, #8
+      ({LoadMem     : 7, LoadMultiple : 1}, '\xf0\x87\xbd\xe8'), # pop {r4, r5, r6, r7, r8, r9, sl, pc}
+      ({LoadMem     : 2, LoadMultiple : 1}, '\x04\xe0\x9d\xe5\x08\xd0\x8d\xe2'   # ldr lr, [sp, #4]; add sp, sp, #8
                         + '\x0c\x00\xbd\xe8\x1e\xff\x2f\xe1'), # pop {r2, r3}; bx lr
       ({LoadMemJump : 6, Jump : 1},
                           '\x1f\x40\xbd\xe8\x1c\xff\x2f\xe1'), # pop {r0, r1, r2, r3, r4, lr}; bx r12
@@ -79,7 +80,7 @@ class ClassifierTests(unittest.TestCase):
 
   def test_ppc_be(self):
     tests = [
-      ({LoadMem: 2},
+      ({LoadMem: 2, LoadMultiple : 1},
         '\x80\x01\x00\x1c' + # lwz r0,28(r1)
         '\x80\x61\x00\x08' + # lwz r3,8(r1)
         '\x80\x81\x00\x0c' + # lwz r4,12(r1)

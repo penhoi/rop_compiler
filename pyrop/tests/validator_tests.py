@@ -55,6 +55,7 @@ class ValidatorTests(unittest.TestCase):
       ('\x48\x01\x43\xf8\xc3',                             StoreAddGadget, ['rbx','rax'], ['rax'], [-8], [], 8, 0, True), # add QWORD PTR [rbx-0x8],rax; ret
       ('\x59\x48\x89\xcb\x48\xc7\xc1\x05\x00\x00\x00\xc3', LoadMem, ['rsp'], ['rbx'], [0], ['rcx'], 0x10, 8, True), # pop rcx; mov rbx,rcx; mov rcx,0x5; ret
       ('\x59\x48\x89\xcb\x48\xc7\xc1\x05\x00\x00\x00\xc3', LoadConst, [], ['rcx'], [5], ['rbx'], 0x10, 8, True), # pop rcx; mov rbx,rcx; mov rcx,0x5; ret
+      ('\x5f\x5e\x5a\xc3',                                 LoadMultiple, ['rsp'], ['rdi','rsi','rdx'], [0, 8, 0x10], [], 0x20, 0x18, True)
     ]
     self.run_test(arch, tests)
 
@@ -70,16 +71,17 @@ class ValidatorTests(unittest.TestCase):
       ('\xf0\x87\xbd\xe8', LoadMem, ['sp'], ['r8'],  [0x10], ['r5', 'r6', 'r7', 'r4', 'r9', 'r10'], 0x20, 0x1c, True), # pop {r4, r5, r6, r7, r8, r9, sl, pc}
       ('\xf0\x87\xbd\xe8', LoadMem, ['sp'], ['r9'],  [0x14], ['r5', 'r6', 'r7', 'r8', 'r4', 'r10'], 0x20, 0x1c, True), # pop {r4, r5, r6, r7, r8, r9, sl, pc}
       ('\xf0\x87\xbd\xe8', LoadMem, ['sp'], ['r10'], [0x18], ['r5', 'r6', 'r7', 'r8', 'r9', 'r4'],  0x20, 0x1c, True), # pop {r4, r5, r6, r7, r8, r9, sl, pc}
+      ('\xf0\x87\xbd\xe8', LoadMultiple, ['sp'], ['r4', 'r5', 'r6', 'r7', 'r8', 'r9', 'r10'], [0, 4, 8, 0xc, 0x10, 0x14, 0x18], [],  0x20, 0x1c, True), # pop {r4, r5, r6, r7, r8, r9, sl, pc}
       ('\x04\xe0\x9d\xe5\x08\xd0\x8d\xe2\x0c\x00\xbd\xe8\x1e\xff\x2f\xe1', # ldr lr, [sp, #4]; add sp, sp, #8; pop {r2, r3}; bx lr
-        LoadMem, ['sp'], ['r2'], [0x8], ['lr','r3'], 0x8, 4, True), 
+        LoadMem, ['sp'], ['r2'], [0x8], ['lr','r3'], 0x10, 4, True), 
       ('\x04\xe0\x9d\xe5\x08\xd0\x8d\xe2\x0c\x00\xbd\xe8\x1e\xff\x2f\xe1', # ldr lr, [sp, #4]; add sp, sp, #8; pop {r2, r3}; bx lr
-        LoadMem, ['sp'], ['r3'], [0xc], ['lr','r2'], 0x8, 4, True), 
+        LoadMem, ['sp'], ['r3'], [0xc], ['lr','r2'], 0x10, 4, True), 
       ('\x1f\x40\xbd\xe8\x1c\xff\x2f\xe1', LoadMemJump, ['sp', 'r12'], ['r0'], [0], ['lr', 'r1', 'r2', 'r3', 'r4'], 0x18, None, True), # pop {r0, r1, r2, r3, r4, lr}; bx r12
-      ('\x1f\x40\xbd\xe8\x1c\xff\x2f\xe1', LoadMemJump, ['sp', 'r12'], ['r1'], [0], ['lr', 'r0', 'r2', 'r3', 'r4'], 0x18, None, True), # pop {r0, r1, r2, r3, r4, lr}; bx r12
-      ('\x1f\x40\xbd\xe8\x1c\xff\x2f\xe1', LoadMemJump, ['sp', 'r12'], ['r2'], [0], ['lr', 'r1', 'r0', 'r3', 'r4'], 0x18, None, True), # pop {r0, r1, r2, r3, r4, lr}; bx r12
-      ('\x1f\x40\xbd\xe8\x1c\xff\x2f\xe1', LoadMemJump, ['sp', 'r12'], ['r3'], [0], ['lr', 'r1', 'r2', 'r0', 'r4'], 0x18, None, True), # pop {r0, r1, r2, r3, r4, lr}; bx r12
-      ('\x1f\x40\xbd\xe8\x1c\xff\x2f\xe1', LoadMemJump, ['sp', 'r12'], ['r4'], [0], ['lr', 'r1', 'r2', 'r3', 'r0'], 0x18, None, True), # pop {r0, r1, r2, r3, r4, lr}; bx r12
-      ('\x1f\x40\xbd\xe8\x1c\xff\x2f\xe1', LoadMemJump, ['sp', 'r12'], ['lr'], [0], ['r0', 'r1', 'r2', 'r3', 'r4'], 0x18, None, True), # pop {r0, r1, r2, r3, r4, lr}; bx r12
+      ('\x1f\x40\xbd\xe8\x1c\xff\x2f\xe1', LoadMemJump, ['sp', 'r12'], ['r1'], [4], ['lr', 'r0', 'r2', 'r3', 'r4'], 0x18, None, True), # pop {r0, r1, r2, r3, r4, lr}; bx r12
+      ('\x1f\x40\xbd\xe8\x1c\xff\x2f\xe1', LoadMemJump, ['sp', 'r12'], ['r2'], [8], ['lr', 'r1', 'r0', 'r3', 'r4'], 0x18, None, True), # pop {r0, r1, r2, r3, r4, lr}; bx r12
+      ('\x1f\x40\xbd\xe8\x1c\xff\x2f\xe1', LoadMemJump, ['sp', 'r12'], ['r3'], [0xc], ['lr', 'r1', 'r2', 'r0', 'r4'], 0x18, None, True), # pop {r0, r1, r2, r3, r4, lr}; bx r12
+      ('\x1f\x40\xbd\xe8\x1c\xff\x2f\xe1', LoadMemJump, ['sp', 'r12'], ['r4'], [0x10], ['lr', 'r1', 'r2', 'r3', 'r0'], 0x18, None, True), # pop {r0, r1, r2, r3, r4, lr}; bx r12
+      ('\x1f\x40\xbd\xe8\x1c\xff\x2f\xe1', LoadMemJump, ['sp', 'r12'], ['lr'], [0x14], ['r0', 'r1', 'r2', 'r3', 'r4'], 0x18, None, True), # pop {r0, r1, r2, r3, r4, lr}; bx r12
       ('\x1f\x40\xbd\xe8\x1c\xff\x2f\xe1', Jump, ['r12'], ['pc'], [0], ['lr','r0', 'r1', 'r2', 'r3', 'r4'], 0x18, None, True), # pop {r0, r1, r2, r3, r4, lr}; bx r12
       ('\x04\xe0\x9d\xe4\x13\xff\x2f\xe1', LoadMemJump, ['sp', 'r3'], ['lr'], [0], [], 0x4, None, True), # pop {lr}; bx r3
       ('\x04\xe0\x9d\xe4\x13\xff\x2f\xe1', Jump, ['r3'], ['pc'], [0], [], 0x4, None, True), # pop {lr}; bx r3

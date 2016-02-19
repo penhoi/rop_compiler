@@ -35,7 +35,7 @@ class PyvexToZ3Converter(object):
     for name, (num, size) in self.arch.registers.items():
       real_name = self.arch.translate_register_name(num) # So we don't get both sp and rsp, ip and rip, etc.
       if real_name not in self.out_regs and real_name not in extra_archinfo.IGNORED_REGISTERS[self.arch.name]:
-        self.out_regs[real_name] = z3.BitVec("{}_before".format(real_name), size * 8)
+        self.out_regs[num] = z3.BitVec("{}_before".format(real_name), size * 8)
 
     # Setup the initial memory
     self.memory = z3.Array("mem_before", z3.BitVecSort(self.arch.bits), z3.BitVecSort(8))
@@ -72,17 +72,17 @@ class PyvexToZ3Converter(object):
   def set_tmp(self, tmp, value):
     return self.append_assignment(tmp, value)
 
-  def get_reg(self, reg_name, size):
-    if reg_name in self.out_regs:
-      return self.out_regs[reg_name]
-    return z3.BitVec("{}_before".format(self.arch.translate_register_name(reg_name)), size)
+  def get_reg(self, reg, size):
+    if reg in self.out_regs:
+      return self.out_regs[reg]
+    return z3.BitVec("{}_before".format(self.arch.translate_register_name(reg)), size)
 
-  def set_reg(self, reg_name, size, value):
-    unique_name = "{}_{}".format(self.arch.translate_register_name(reg_name), self.reg_count[reg_name])
-    self.reg_count[reg_name] += 1
+  def set_reg(self, reg_num, size, value):
+    unique_name = "{}_{}".format(self.arch.translate_register_name(reg_num), self.reg_count[reg_num])
+    self.reg_count[reg_num] += 1
 
     reg = z3.BitVec(unique_name, size)
-    self.out_regs[reg_name] = reg
+    self.out_regs[reg_num] = reg
     self.append_assignment(reg, value)
 
   def set_mem(self, address, value):

@@ -19,3 +19,4 @@ MPROTECT_SYSCALL = { "AMD64" : 10 }
 
 syscall_calling_convention = [ "rdi", "rsi", "rdx", "r10", "r8", "r9" ]
 
+ALIGNED_ARCHS = ['PPC32']

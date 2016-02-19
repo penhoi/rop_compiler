@@ -176,20 +176,21 @@ class GadgetClassifier(object):
       (Gadget Type, list of inputs, output, list of parameters).  Note the returned potential gadgets are a superset of the
       actual gadgets, i.e. some of the returned ones are merely coincidences in the emulation, and not true gadgets."""
     possible_types = []
+    all_loaded_regs = {}
     for oreg, ovalue in state.out_regs.items():
       # Check for LOAD_CONST (it'll get filtered between the multiple rounds)
       possible_types.append((LoadConst, [], [oreg], [ovalue]))
 
       for ireg, ivalue in state.in_regs.items():
-        # Check for MOV_REG
+        # Check for MoveReg
         if ovalue == ivalue:
           possible_types.append((MoveReg, [ireg], [oreg], []))
 
-        # Check for JUMP_REG
+        # Check for Jump
         if oreg == self.arch.registers['ip'][0]:
           possible_types.append((Jump, [ireg], [oreg], [ovalue - ivalue]))
 
-        # Check for ARITHMETIC
+        # Check for Arithmetic
         if ireg != oreg: # add rbx, rax (where rbx is dst/operand 1 and rax is operand 2)
           continue
 
@@ -199,26 +200,41 @@ class GadgetClassifier(object):
               possible_types.append((gadget_type, [ireg, ireg2], [oreg], []))
 
       for address, value_at_address in state.in_mem.items():
-        # Check for ARITHMETIC_LOAD
+        # Check for ArithmeticLoad
         for ireg, ivalue in state.in_regs.items():
           for addr_reg, addr_reg_value in state.in_regs.items():
             for gadget_type in [LoadAddGadget, LoadSubGadget, LoadMulGadget, LoadAndGadget, LoadOrGadget, LoadXorGadget]:
               if ovalue == gadget_type.binop(ivalue, value_at_address):
                 possible_types.append((gadget_type, [addr_reg, ireg], [oreg], [address - addr_reg_value]))
 
-        # Check for LOAD_MEM
+        # Check for LoadMem
         if ovalue == value_at_address:
           for ireg, ivalue in state.in_regs.items():
             possible_types.append((LoadMem, [ireg], [oreg], [address - ivalue]))
 
+            # Gather all output registers for the LoadMultiple check
+            if (oreg != self.ip and # We don't want to include the IP register in the LoadMultiple outputs,
+              (self.ip not in state.out_regs.keys() or ovalue != state.out_regs[self.ip])): # Or a register which becomes the IP
+              all_loaded_regs[oreg] = address
+
+    # Check for LoadMultiple
+    if len(all_loaded_regs) > 1:
+      for ireg, ivalue in state.in_regs.items():
+        outputs = []
+        params = []
+        for oreg, address in all_loaded_regs.items():
+          outputs.append(oreg)
+          params.append(address - ivalue)
+        possible_types.append((LoadMultiple, [ireg], outputs, params))
+
     for address, value in state.out_mem.items():
       for ireg, ivalue in state.in_regs.items():
-        # Check for STORE_MEM
+        # Check for StoreMem
         if value == ivalue:
           for addr_reg, addr_reg_value in state.in_regs.items():
             possible_types.append((StoreMem, [addr_reg, ireg], [], [address - addr_reg_value]))
 
-        # Check for ARITHMETIC_STORE
+        # Check for ArithmeticStore
         initial_memory_value = None
         if not address in state.in_mem.keys():
           continue
