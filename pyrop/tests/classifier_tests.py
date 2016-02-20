@@ -64,6 +64,17 @@ class ClassifierTests(unittest.TestCase):
         '\x8f\xb0\x00\x08' + # lw s0,8(sp)
         '\x03\xe0\x00\x08' + # jr ra
         '\x27\xbd\x00\x20' + # addiu sp,sp,32
+        '\x00\x00\x00\x00'), # nop
+      ({LoadMem : 6, LoadMultiple : 1},
+        '\x8f\xbf\x00\x44' + # lw ra,68(sp)
+        '\x8f\xb5\x00\x3c' + # lw s5,60(sp)
+        '\x8f\xb4\x00\x38' + # lw s4,56(sp)
+        '\x8f\xb3\x00\x34' + # lw s3,52(sp)
+        '\x8f\xb2\x00\x30' + # lw s2,48(sp)
+        '\x8f\xb1\x00\x2c' + # lw s1,44(sp)
+        '\x8f\xb0\x00\x28' + # lw s0,40(sp)
+        '\x27\xbd\x00\x48' + # addiu sp,sp,72
+        '\x03\xe0\x00\x08' + # jr ra
         '\x00\x00\x00\x00')  # nop
     ]
     self.run_test(archinfo.ArchMIPS32('Iend_BE'), tests)

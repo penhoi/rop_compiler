@@ -34,10 +34,10 @@ class GadgetClassifier(object):
       except: # If decoding fails, we can't use this gadget
         return [] # So just return an empty list
 
-      if self.arch.name not in ['MIPS32'] or irsb.jumpkind != 'Ijk_Boring':
+      if self.arch.name not in extra_archinfo.ENDS_EARLY_ARCHS or irsb.jumpkind != 'Ijk_Boring':
         break
 
-      # Find the last address that was translated
+      # Find the last address that was translated (For some architectures, pyvex stops before the end of a block)
       last_addr = None
       for stmt in irsb.statements:
         if stmt.tag == 'Ist_IMark':
@@ -45,7 +45,7 @@ class GadgetClassifier(object):
 
       # And move the code address forward to the next untranslated instruction
       if last_addr != address + len(code) - self.arch.instruction_alignment:
-        code_address = last_addr
+        code_address = last_addr + self.arch.instruction_alignment
 
     return irsbs
 

@@ -17,6 +17,15 @@ func_calling_convention = collections.defaultdict(list, {
 
 MPROTECT_SYSCALL = { "AMD64" : 10 }
 
-syscall_calling_convention = [ "rdi", "rsi", "rdx", "r10", "r8", "r9" ]
+syscall_calling_convention = {
+  "AMD64" : [ "rdi", "rsi", "rdx", "r10", "r8", "r9" ]
+}
 
+# Architectures which pyvex adds a constraint to ensure any new IPs are aligned (i.e. they mask all IP values before assigning to the IP register)
 ALIGNED_ARCHS = ['PPC32']
+
+# Architectures which pyvex ends before the end of a block on.  For whatever reason, the last address translated may not be the
+# last one that pyvex was given and not the end of a block.  For these architectures we must work around this by using multiple
+# translation calls.
+ENDS_EARLY_ARCHS = ['MIPS32']
+

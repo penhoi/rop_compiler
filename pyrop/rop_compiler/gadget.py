@@ -116,13 +116,15 @@ class GadgetList(object):
         return gadget
     return None
 
-  def create_load_registers_chain(self, next_address, registers):
+  def create_load_registers_chain(self, next_address, input_reg, registers):
     gadgets = []
 
     for gadget in self.foreach_type(LoadMultiple):
+      if gadget.inputs[0] != input_reg:
+        continue
+
       all_found = True
       for reg in registers.keys():
-        print reg, gadget.outputs
         if reg not in gadget.outputs:
           all_found = False
       if all_found:
@@ -360,7 +362,7 @@ class Gadget(GadgetBase):
 
 class Jump(Gadget):
   def chain(self, next_address = None, input_value = None):
-    return self.stack_offset * "H" # No parameters or IP in stack, just fill the stack offset
+    return self.stack_offset * "K" # No parameters or IP in stack, just fill the stack offset
 
   def get_gadget_constraint(self):
     return z3.Not(self.get_output0() == self.get_input0()), None
@@ -380,19 +382,19 @@ class LoadMem(Gadget):
 
     # If our input value is coming from the stack, and it's supposed to come before the next PC address, add it to the chain now
     if input_from_stack and (self.ip_in_stack_offset == None or self.params[0] < self.ip_in_stack_offset):
-      chain += self.params[0] * "A"
+      chain += self.params[0] * "L"
       chain += utils.ap(input_value, self.arch)
 
     if self.ip_in_stack_offset != None:
-      chain += (self.ip_in_stack_offset - len(chain)) * "B"
+      chain += (self.ip_in_stack_offset - len(chain)) * "M"
       chain += utils.ap(next_address, self.arch)
 
     # If our input value is coming from the stack, and it's supposed to come after the next PC address, add it to the chain now
     if input_from_stack and self.ip_in_stack_offset != None and self.params[0] > self.ip_in_stack_offset:
-      chain += (self.params[0] - len(chain)) * "A"
+      chain += (self.params[0] - len(chain)) * "N"
       chain += utils.ap(input_value, self.arch)
 
-    chain += (self.stack_offset - len(chain)) * "C"
+    chain += (self.stack_offset - len(chain)) * "O"
     return chain
 
   def get_gadget_constraint(self):
@@ -419,26 +421,41 @@ class LoadMultiple(LoadMem):
         load_mem_constraint = z3.Or(load_mem_constraint, new_constraint)
     return load_mem_constraint, None
 
-  def chain(self, next_address, input_value = None):
-    raise RuntimeError("NOT IMPLEMENTED YET") # TODO
-    chain = ""
-    input_from_stack = self._is_stack_reg(self.inputs[0]) and input_value != None
+  def chain(self, next_address, registers):
+    ip_added = False
 
-    # If our input value is coming from the stack, and it's supposed to come before the next PC address, add it to the chain now
-    if input_from_stack and (self.ip_in_stack_offset == None or self.params[0] < self.ip_in_stack_offset):
-      chain += self.params[0] * "A"
-      chain += utils.ap(input_value, self.arch)
+    # if the registers and ip are on the stack, we have to intermingle them
+    if self._is_stack_reg(self.inputs[0]):
+      # Get the order to set the registers
+      regs_to_params = []
+      for i in range(len(self.outputs)):
+        regs_to_params.append((self.params[i], self.outputs[i], i))
+      regs_to_params.sort()
 
-    if self.ip_in_stack_offset != None:
-      chain += (self.ip_in_stack_offset - len(chain)) * "B"
+      chain = ""
+      for param, reg, output_idx in regs_to_params:
+        before_ip_on_stack = self.ip_in_stack_offset == None or param < self.ip_in_stack_offset
+
+        # If our input value is coming from the stack, and it's supposed to come before the next PC address, add it to the chain now
+        if before_ip_on_stack:
+          chain += (param - len(chain)) * "P"
+          chain += utils.ap(registers[output_idx], self.arch)
+
+        if self.ip_in_stack_offset != None and not ip_added and not before_ip_on_stack:
+          chain += (self.ip_in_stack_offset - len(chain)) * "Q"
+          chain += utils.ap(next_address, self.arch)
+          ip_added = True
+
+        # If our input value is coming from the stack, and it's supposed to come after the next PC address, add it to the chain now
+        if not before_ip_on_stack:
+          chain += (param - len(chain)) * "R"
+          chain += utils.ap(registers[output_idx], self.arch)
+
+    # if the IP hasn't already been set, add it now
+    if self.ip_in_stack_offset != None and not ip_added:
+      chain += (self.ip_in_stack_offset - len(chain)) * "S"
       chain += utils.ap(next_address, self.arch)
-
-    # If our input value is coming from the stack, and it's supposed to come after the next PC address, add it to the chain now
-    if input_from_stack and self.ip_in_stack_offset != None and self.params[0] > self.ip_in_stack_offset:
-      chain += (self.params[0] - len(chain)) * "A"
-      chain += utils.ap(input_value, self.arch)
-
-    chain += (self.stack_offset - len(chain)) * "C"
+    chain += (self.stack_offset - len(chain)) * "T"
     return chain
 
 class StoreMem(Gadget):

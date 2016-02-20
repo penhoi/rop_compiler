@@ -76,9 +76,12 @@ class GadgetTests(unittest.TestCase):
 
   def test_create_load_registers_chain(self):
     a = archinfo.ArchAMD64()
-    gadget_list = self.make_gadget_list(a, [(LoadMultiple, ['rsp'], ['rax', 'rbx', 'rcx'], [0, 4, 8], [], 0x10, 0xc)])
-    chain = gadget_list.create_load_registers_chain(0x4343434343434343, {n2r(a, 'rax') : 0x4141414141414141, n2r(a, 'rbx') : 0x4242424242424242})
-    print chain
+    gadget_list = self.make_gadget_list(a, [(LoadMultiple, ['rsp'], ['rax', 'rbx', 'rcx'], [0, 8, 0x10], [], 0x20, 0x18)])
+    chain = gadget_list.create_load_registers_chain(0x4343434343434343, n2r(a, 'rsp'), {n2r(a, 'rax') : 0x4141414141414141, n2r(a, 'rbx') : 0x4242424242424242})
+    self.assertEqual(chain[0:8],   "AAAAAAAA") # check rax
+    self.assertEqual(chain[8:16],  "BBBBBBBB") # check rbx
+    self.assertEqual(chain[24:32], "CCCCCCCC") # Check rip
+    self.assertEqual(len(chain), 0x20)
 
   def skip_test_arm(self):
     arch = archinfo.ArchARM()
