@@ -19,13 +19,13 @@ def default_parser():
 def get_finder_from_name(name = "file"):
   if name == None:
     return default_finder()
-  elif name.lower().find("file") != -1:
-    return default_finder()
   elif name.lower().find("mem") != -1:
-    import memory_finder
-    return memory_finder.MemoryFinder
+    return default_finder()
+  elif name.lower().find("file") != -1:
+    import file_finder
+    return file_finder.FileFinder
   raise RuntimeError("Unknown gadget finder: %s" % name)
 
 def default_finder():
-  import file_finder
-  return file_finder.FileFinder
+  import memory_finder
+  return memory_finder.MemoryFinder
