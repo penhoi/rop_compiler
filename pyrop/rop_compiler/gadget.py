@@ -283,8 +283,8 @@ class CombinedGadget(GadgetBase):
   def chain(self, next_address, input_values = None):
     types = [type(g) for g in self.gadgets]
     if types == [LoadMem, LoadMemJump]:
-      chain = self.gadgets[0].chain(self.gadgets[1].address, next_address)
-      chain += self.gadgets[1].chain(None, input_values)
+      chain = self.gadgets[0].chain(self.gadgets[1].address, [next_address])
+      chain += self.gadgets[1].chain(0x5959595959595959, input_values)
       return chain
 
     chain = ""

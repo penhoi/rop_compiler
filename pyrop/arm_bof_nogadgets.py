@@ -4,8 +4,7 @@ from pwn import *
 from rop_compiler import ropme
 
 filename = './example/arm_bof_nogadgets'
-#libc, libc_gadget_file = ('./example/libc.so.6', None)
-libc, libc_gadget_file = ('./example/libc.so.6', './example/libc.gadgets')
+libc, libc_gadget_file = ('./example/arm_libc.so.6', './example/arm_libc.gadgets')
 p = remote('localhost', 2222)
 
 mprotect_address = 0xcade0
