@@ -192,12 +192,12 @@ class Scheduler(object):
         first_address = arg_gadgets[0].address
       if i + 1 < len(reg_arguments):
         next_gadget_address = arg_gadgets[i + 1].address
-      chain += arg_gadgets[i].chain(next_gadget_address, reg_arguments[i])
+      chain += arg_gadgets[i].chain(next_gadget_address, [reg_arguments[i]])
 
     # Add the function's address (and the LR gadget to set the gadget after this function if this architecture requires it)
     if end_address != None:
       if lr_gadget != None:
-        chain += lr_gadget.chain(goal.address, end_address)
+        chain += lr_gadget.chain(goal.address, [end_address])
       else:
         chain += utils.ap(end_address, self.arch)
 
@@ -297,17 +297,17 @@ class Scheduler(object):
     if len(arg_gadgets) > 0:
       start_of_function_address = arg_gadgets[0].address
 
-    chain = set_read_addr_gadget.chain(read_gadget.address, address - read_gadget.params[0]) # set the read address
-    chain += read_gadget.chain(set_add_reg_gadget.address)                                   # read the address in the GOT
-    chain += set_add_reg_gadget.chain(add_jump_reg_gadget.address, offset)                   # set the offset from the base to the target
-    chain += add_jump_reg_gadget.chain(start_of_function_address)                            # add the offset
+    chain = set_read_addr_gadget.chain(read_gadget.address, [address - read_gadget.params[0]]) # set the read address
+    chain += read_gadget.chain(set_add_reg_gadget.address)                                     # read the address in the GOT
+    chain += set_add_reg_gadget.chain(add_jump_reg_gadget.address, [offset])                   # set the offset from the base to the target
+    chain += add_jump_reg_gadget.chain(start_of_function_address)                              # add the offset
 
     # Set the arguments for the function
     for i in range(len(arg_gadgets)):
       next_address = jump_gadget.address
       if i + 1 < len(arguments):
         next_address = arg_gadgets[i + 1].address
-      chain += arg_gadgets[i].chain(next_address, arguments[i])
+      chain += arg_gadgets[i].chain(next_address, [arguments[i]])
 
     # Finally, jump to the function
     chain += jump_gadget.chain()
@@ -366,8 +366,8 @@ class Scheduler(object):
     load_addr_gadget, load_value_gadget, store_mem_gadget = self.get_write_memory_gadget()
 
     # Next create the chain to setup the address and value to be written
-    chain = load_addr_gadget.chain(load_value_gadget.address, address)
-    chain += load_value_gadget.chain(store_mem_gadget.address, buf)
+    chain = load_addr_gadget.chain(load_value_gadget.address, [address])
+    chain += load_value_gadget.chain(store_mem_gadget.address, [buf])
 
     # Finally, create the chain to write to memory
     chain += store_mem_gadget.chain(next_address)

@@ -76,9 +76,10 @@ class GadgetList(object):
       for gadget in gadgets:
         yield gadget
 
-  def foreach_type(self, gadget_type, no_clobbers = None):
+  def foreach_type(self, gadget_type, no_clobbers = None, input_registers = None):
     for gadget in self.gadgets[self.gadget_type_name(gadget_type)]:
-      if no_clobbers == None or not gadget.clobbers_registers(no_clobbers):
+      if ((no_clobbers == None or not gadget.clobbers_registers(no_clobbers)) and
+          (input_registers == None or gadget.inputs == input_registers)):
         yield gadget
 
   def foreach_type_output(self, gadget_type, output, no_clobbers = None):
@@ -110,25 +111,91 @@ class GadgetList(object):
     return self.find_gadget(LoadMem, [self.arch.registers['sp'][0]], [register], no_clobber)
 
   def find_load_const_gadget(self, register, value, no_clobber = None):
-    """This method finds the best gadget (lowest complexity) to load a register from the stack"""
+    """This method finds the best gadget (lowest complexity) to load a register ith a constant value"""
     for gadget in self.foreach_type_output(LoadConst, register, no_clobber):
       if gadget.params[0] == value:
         return gadget
     return None
 
-  def create_load_registers_chain(self, next_address, input_reg, registers):
+  def create_load_registers_chain(self, next_address, input_reg, registers, no_clobber = None):
+    gadgets = self.get_load_registers_gadgets(input_reg, registers, no_clobber)
+    if gadgets == None:
+      return None
+
+    chain = ""
+    for gadget in gadgets[::-1]:
+      gadget_registers = map(lambda x: registers[x] if x in registers else 0x5A5A5A5A5A5A5A5A, gadget.outputs) # Fill in all "Z" for any missing registers
+      chain = gadget.chain(next_address, gadget_registers) + chain
+      next_address = gadget.address
+    return chain
+
+  def find_best_load_multiple_gadget(self, input_reg, registers, no_clobber):
+    # Sort the list so the compare will work
+    registers = list(registers)
+    registers.sort()
+
+    best = None
+    for gadget in self.foreach_type(LoadMultiple, no_clobber, [input_reg]):
+      registers_found, not_found = gadget.sets_registers(registers)
+      registers_found.sort()
+      if registers_found == registers and (best == None or gadget.complexity() < best.complexity()):
+        best = gadget
+    return best
+
+  def chain_complexity(self, gadgets):
+    return sum([gadget.complexity() for gadget in gadgets])
+
+  def get_load_registers_gadgets(self, input_reg, registers, no_clobber = None):
     gadgets = []
 
-    for gadget in self.foreach_type(LoadMultiple):
-      if gadget.inputs[0] != input_reg:
-        continue
+    if len(registers) > 1:
+      # Look for a LoadMultiple gadget that exactly matches our request
+      best = self.find_best_load_multiple_gadget(input_reg, registers.keys(), no_clobber)
+      if best != None:
+        return [best]
+      else:
+        num_to_find = len(registers) - 1
+        while num_to_find > 1:
+          all_sets = []
 
-      all_found = True
-      for reg in registers.keys():
-        if reg not in gadget.outputs:
-          all_found = False
-      if all_found:
-        return gadget.chain(next_address, map(lambda x: registers[x] if x in registers else 0x4444444444444444, gadget.outputs))
+          # Try to find a LoadMultiple that will at least set num_to_find registers
+          for gadget in self.foreach_type(LoadMultiple, no_clobber, [input_reg]):
+            registers_found, not_found = gadget.sets_registers(registers.keys())
+            registers_found.sort()
+            if len(registers_found) <= num_to_find:
+              continue
+
+            # Recursively look for a set of gadgets to finish off this request
+            not_found_with_values = {reg : registers[reg] for reg in not_found}
+            gadget_chain = self.get_load_registers_gadgets(input_reg, not_found_with_values, registers_found)
+            if gadget_chain != None:
+              gadget_chain.insert(0, gadget)
+              all_sets.append(gadget_chain)
+
+          # Find the best of the set of gadgets which use a LoadMultiple gadget that sets num_to_find registers at once
+          best = None
+          best_complexity = None
+          for gadget_set in all_sets:
+            complexity = self.chain_complexity(gadget_set)
+            if best == None or complexity < best_complexity:
+              best = gadget_set
+              best_complexity = complexity
+
+          if best != None:
+            return best
+
+          num_to_find -= 1
+
+    elif len(registers) == 1: # Look for a LoadMem gadget
+      register, value = registers.items()[0]
+
+      gadget = self.find_gadget(LoadMem, [input_reg], [register], no_clobber)
+      const_gadget = self.find_load_const_gadget(register, value, no_clobber)
+      if gadget == None or (const_gadget != None and const_gadget.complexity() < gadget.complexity()):
+        gadget = const_gadget
+
+      if gadget != None:
+        return [gadget]
     return None
 
 ###########################################################################################################
@@ -191,7 +258,7 @@ class GadgetBase(object):
   def complexity(self):
     raise RuntimeError("Not Implemented")
 
-  def chain(self, next_address, input_value = None):
+  def chain(self, next_address, input_values = None):
     raise RuntimeError("Not Implemented")
 
 class CombinedGadget(GadgetBase):
@@ -213,11 +280,11 @@ class CombinedGadget(GadgetBase):
   def clobbers_registers(self, regs):
     return any([g.clobbers_registers(regs) for g in self.gadgets])
 
-  def chain(self, next_address, input_value = None):
+  def chain(self, next_address, input_values = None):
     types = [type(g) for g in self.gadgets]
     if types == [LoadMem, LoadMemJump]:
       chain = self.gadgets[0].chain(self.gadgets[1].address, next_address)
-      chain += self.gadgets[1].chain(None, input_value)
+      chain += self.gadgets[1].chain(None, input_values)
       return chain
 
     chain = ""
@@ -225,7 +292,7 @@ class CombinedGadget(GadgetBase):
       next_gadget_address = next_address
       if i + 1 < len(self.gadgets):
         next_gadget_address = self.gadgets[i+1].address
-      chain += self.gadgets[i].chain(next_gadget_address, input_value)
+      chain += self.gadgets[i].chain(next_gadget_address, input_values)
     return chain
 
 class Gadget(GadgetBase):
@@ -277,6 +344,14 @@ class Gadget(GadgetBase):
         return True
     return False
 
+  def sets_registers(self, regs):
+    """Returns two lists, one that lists the passed in registers that are set, and one that lists the ones that are not"""
+    registers_found = []
+    for reg in regs:
+      if reg in self.outputs:
+        registers_found.append(reg)
+    return registers_found, filter(lambda x: x not in registers_found, regs)
+
   def complexity(self):
     """Return a rough complexity measure for a gadget that can be used to select the best gadget in a set.  Our simple formula
       is based on the number of clobbered registers, and if a normal return (i.e. with no immediate is used).  The stack decider
@@ -294,7 +369,7 @@ class Gadget(GadgetBase):
 
     return len(self.clobber) + complexity
 
-  def chain(self, next_address, input_value = None):
+  def chain(self, next_address, input_values = None):
     """Default ROP Chain generation, uses no parameters"""
     chain = self.ip_in_stack_offset * "I"
     chain += utils.ap(next_address, self.arch)
@@ -361,7 +436,7 @@ class Gadget(GadgetBase):
 ###########################################################################################################
 
 class Jump(Gadget):
-  def chain(self, next_address = None, input_value = None):
+  def chain(self, next_address = None, input_values = None):
     return self.stack_offset * "K" # No parameters or IP in stack, just fill the stack offset
 
   def get_gadget_constraint(self):
@@ -376,14 +451,14 @@ class LoadConst(Gadget):
     return z3.Not(self.get_output0() == self.get_param0()), None
 
 class LoadMem(Gadget):
-  def chain(self, next_address, input_value = None):
+  def chain(self, next_address, input_values = None):
     chain = ""
-    input_from_stack = self._is_stack_reg(self.inputs[0]) and input_value != None
+    input_from_stack = self._is_stack_reg(self.inputs[0]) and input_values[0] != None
 
     # If our input value is coming from the stack, and it's supposed to come before the next PC address, add it to the chain now
     if input_from_stack and (self.ip_in_stack_offset == None or self.params[0] < self.ip_in_stack_offset):
       chain += self.params[0] * "L"
-      chain += utils.ap(input_value, self.arch)
+      chain += utils.ap(input_values[0], self.arch)
 
     if self.ip_in_stack_offset != None:
       chain += (self.ip_in_stack_offset - len(chain)) * "M"
@@ -392,7 +467,7 @@ class LoadMem(Gadget):
     # If our input value is coming from the stack, and it's supposed to come after the next PC address, add it to the chain now
     if input_from_stack and self.ip_in_stack_offset != None and self.params[0] > self.ip_in_stack_offset:
       chain += (self.params[0] - len(chain)) * "N"
-      chain += utils.ap(input_value, self.arch)
+      chain += utils.ap(input_values[0], self.arch)
 
     chain += (self.stack_offset - len(chain)) * "O"
     return chain
@@ -421,7 +496,7 @@ class LoadMultiple(LoadMem):
         load_mem_constraint = z3.Or(load_mem_constraint, new_constraint)
     return load_mem_constraint, None
 
-  def chain(self, next_address, registers):
+  def chain(self, next_address, input_values):
     ip_added = False
 
     # if the registers and ip are on the stack, we have to intermingle them
@@ -439,7 +514,7 @@ class LoadMultiple(LoadMem):
         # If our input value is coming from the stack, and it's supposed to come before the next PC address, add it to the chain now
         if before_ip_on_stack:
           chain += (param - len(chain)) * "P"
-          chain += utils.ap(registers[output_idx], self.arch)
+          chain += utils.ap(input_values[output_idx], self.arch)
 
         if self.ip_in_stack_offset != None and not ip_added and not before_ip_on_stack:
           chain += (self.ip_in_stack_offset - len(chain)) * "Q"
@@ -449,7 +524,7 @@ class LoadMultiple(LoadMem):
         # If our input value is coming from the stack, and it's supposed to come after the next PC address, add it to the chain now
         if not before_ip_on_stack:
           chain += (param - len(chain)) * "R"
-          chain += utils.ap(registers[output_idx], self.arch)
+          chain += utils.ap(input_values[output_idx], self.arch)
 
     # if the IP hasn't already been set, add it now
     if self.ip_in_stack_offset != None and not ip_added:
