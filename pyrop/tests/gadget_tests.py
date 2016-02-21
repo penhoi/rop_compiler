@@ -91,11 +91,14 @@ class GadgetTests(unittest.TestCase):
       (0x40200, LoadMem,      ['rsp'], ['rbx'], [0x08], ['rax'], 0x18, 0x10),
 
       (0x40300, LoadMem,      ['rsp'], ['rdx'], [0x00], [], 0x10, 0x8),
-      (0x40400, LoadConst,    ['rsp'], ['rdi'], [0x4141414141414141], [], 0x8, 0x0),
+      (0x40400, LoadMem,      ['rsp'], ['rsi'], [0x00], [], 0x10, 0x8),
+      (0x40500, LoadMem,      ['rsp'], ['rbp'], [0x00], [], 0x10, 0x8),
+      (0x40600, LoadConst,    ['rsp'], ['rdi'], [0x4141414141414141], [], 0x8, 0x0),
     ])
 
     register_values = {n2r(a, 'rax') : 0x4141414141414141, n2r(a, 'rbx') : 0x4242424242424242}
     chain = gadget_list.create_load_registers_chain(0x4343434343434343, n2r(a, 'rsp'), register_values)
+    self.assertNotEqual(chain, None)
     self.assertEqual(chain[0:8],   "AAAAAAAA") # check rax
     self.assertEqual(chain[8:16],  "BBBBBBBB") # check rbx
     self.assertEqual(chain[16:24], "CCCCCCCC") # Check rip
@@ -103,6 +106,7 @@ class GadgetTests(unittest.TestCase):
 
     register_values = {n2r(a, 'rax') : 0x4141414141414141, n2r(a, 'rbx') : 0x4242424242424242, n2r(a, 'rcx') : 0x4343434343434343}
     chain = gadget_list.create_load_registers_chain(0x4444444444444444, n2r(a, 'rsp'), register_values)
+    self.assertNotEqual(chain, None)
     self.assertEqual(chain[0:8],   "AAAAAAAA") # check rax
     self.assertEqual(chain[8:16],  "BBBBBBBB") # check rbx
     self.assertEqual(chain[16:24], "CCCCCCCC") # Check rcx
@@ -111,36 +115,52 @@ class GadgetTests(unittest.TestCase):
 
     register_values = {n2r(a, 'rax') : 0x4141414141414141}
     chain = gadget_list.create_load_registers_chain(0x4343434343434343, n2r(a, 'rsp'), register_values)
+    self.assertNotEqual(chain, None)
     self.assertEqual(chain[0:8],   "AAAAAAAA") # check rax
     self.assertEqual(chain[16:24], "CCCCCCCC") # Check rip
     self.assertEqual(len(chain), 0x18)
 
     register_values = {n2r(a, 'rbx') : 0x4141414141414141}
     chain = gadget_list.create_load_registers_chain(0x4343434343434343, n2r(a, 'rsp'), register_values)
+    self.assertNotEqual(chain, None)
     self.assertEqual(chain[8:16],  "AAAAAAAA") # check rbx
     self.assertEqual(chain[16:24], "CCCCCCCC") # Check rip
     self.assertEqual(len(chain), 0x18)
 
     register_values = {n2r(a, 'rdx') : 0x4141414141414141}
     chain = gadget_list.create_load_registers_chain(0x4343434343434343, n2r(a, 'rsp'), register_values)
+    self.assertNotEqual(chain, None)
     self.assertEqual(chain[0:8],  "AAAAAAAA") # check rdx
     self.assertEqual(chain[8:16], "CCCCCCCC") # Check rip
     self.assertEqual(len(chain), 0x10)
 
     register_values = {n2r(a, 'rdi') : 0x4141414141414141}
     chain = gadget_list.create_load_registers_chain(0x4343434343434343, n2r(a, 'rsp'), register_values)
+    self.assertNotEqual(chain, None)
     self.assertEqual(chain[0:8], "CCCCCCCC") # Check rip
     self.assertEqual(len(chain), 0x8)
 
     register_values = { n2r(a, 'rax') : 0x4141414141414141, n2r(a, 'rbx') : 0x4242424242424242,
       n2r(a, 'rcx') : 0x4343434343434343, n2r(a, 'rdx') : 0x4444444444444444 }
     chain = gadget_list.create_load_registers_chain(0x4545454545454545, n2r(a, 'rsp'), register_values)
+    self.assertNotEqual(chain, None)
     self.assertEqual(chain[0:8],   "AAAAAAAA") # check rax
     self.assertEqual(chain[8:16],  "BBBBBBBB") # check rbx
     self.assertEqual(chain[16:24], "CCCCCCCC") # check rcx
     self.assertEqual(chain[24:32], utils.ap(0x40300 ,a)) # Check next gadget address
     self.assertEqual(chain[32:40], "DDDDDDDD") # check rdx
     self.assertEqual(chain[40:48], "EEEEEEEE") # check final rip
+    self.assertEqual(len(chain), 48)
+
+    register_values = { n2r(a, 'rdx') : 0x4141414141414141, n2r(a, 'rsi') : 0x4242424242424242, n2r(a, 'rbp') : 0x4343434343434343 }
+    chain = gadget_list.create_load_registers_chain(0x4444444444444444, n2r(a, 'rsp'), register_values)
+    self.assertNotEqual(chain, None)
+    self.assertEqual(chain[0:8],   "AAAAAAAA") # check rdx
+    self.assertEqual(chain[8:16],  utils.ap(0x40400 ,a)) # Check next gadget address
+    self.assertEqual(chain[16:24], "BBBBBBBB") # check rsi
+    self.assertEqual(chain[24:32], utils.ap(0x40500 ,a)) # Check next gadget address
+    self.assertEqual(chain[32:40], "CCCCCCCC") # check rsi
+    self.assertEqual(chain[40:48], "DDDDDDDD") # check final address
     self.assertEqual(len(chain), 48)
 
   def skip_test_arm(self):

@@ -153,38 +153,64 @@ class GadgetList(object):
       best = self.find_best_load_multiple_gadget(input_reg, registers.keys(), no_clobber)
       if best != None:
         return [best]
-      else:
-        num_to_find = len(registers) - 1
-        while num_to_find > 1:
-          all_sets = []
 
-          # Try to find a LoadMultiple that will at least set num_to_find registers
-          for gadget in self.foreach_type(LoadMultiple, no_clobber, [input_reg]):
-            registers_found, not_found = gadget.sets_registers(registers.keys())
-            registers_found.sort()
-            if len(registers_found) <= num_to_find:
-              continue
+      # Next Look for a LoadMultiple that can be used for at least two registers in our request
+      num_to_find = len(registers) - 1
+      while num_to_find > 1:
+        all_sets = []
 
-            # Recursively look for a set of gadgets to finish off this request
-            not_found_with_values = {reg : registers[reg] for reg in not_found}
-            gadget_chain = self.get_load_registers_gadgets(input_reg, not_found_with_values, registers_found)
-            if gadget_chain != None:
-              gadget_chain.insert(0, gadget)
-              all_sets.append(gadget_chain)
+        # Try to find a LoadMultiple that will at least set num_to_find registers
+        for gadget in self.foreach_type(LoadMultiple, no_clobber, [input_reg]):
+          registers_found, not_found = gadget.sets_registers(registers.keys())
+          registers_found.sort()
+          if len(registers_found) <= num_to_find:
+            continue
 
-          # Find the best of the set of gadgets which use a LoadMultiple gadget that sets num_to_find registers at once
-          best = None
-          best_complexity = None
-          for gadget_set in all_sets:
-            complexity = self.chain_complexity(gadget_set)
-            if best == None or complexity < best_complexity:
-              best = gadget_set
-              best_complexity = complexity
+          # Recursively look for a set of gadgets to finish off this request
+          not_found_with_values = {reg : registers[reg] for reg in not_found}
+          gadget_chain = self.get_load_registers_gadgets(input_reg, not_found_with_values, registers_found)
+          if gadget_chain != None:
+            gadget_chain.insert(0, gadget)
+            all_sets.append(gadget_chain)
 
-          if best != None:
-            return best
+        # Find the best of the set of gadgets which use a LoadMultiple gadget that sets num_to_find registers at once
+        best = None
+        best_complexity = None
+        for gadget_set in all_sets:
+          complexity = self.chain_complexity(gadget_set)
+          if best == None or complexity < best_complexity:
+            best = gadget_set
+            best_complexity = complexity
+        if best != None:
+          return best
+        num_to_find -= 1
 
-          num_to_find -= 1
+      # Finally, look for all LoadMem gadgets to fulfill our request
+      all_sets = []
+
+      # Try to find a LoadMem that will at least set num_to_find registers
+      for gadget in self.foreach_type(LoadMem, no_clobber, [input_reg]):
+        registers_found, not_found = gadget.sets_registers(registers.keys())
+        if len(registers_found) == 0:
+          continue
+
+        # Recursively look for a set of gadgets to finish off this request
+        not_found_with_values = {reg : registers[reg] for reg in not_found}
+        gadget_chain = self.get_load_registers_gadgets(input_reg, not_found_with_values, registers_found)
+        if gadget_chain != None:
+          gadget_chain.insert(0, gadget)
+          all_sets.append(gadget_chain)
+
+      # Find the best of the set of gadgets to fulfill this request
+      best = None
+      best_complexity = None
+      for gadget_set in all_sets:
+        complexity = self.chain_complexity(gadget_set)
+        if best == None or complexity < best_complexity:
+          best = gadget_set
+          best_complexity = complexity
+      if best != None:
+        return best
 
     elif len(registers) == 1: # Look for a LoadMem gadget
       register, value = registers.items()[0]
@@ -196,6 +222,7 @@ class GadgetList(object):
 
       if gadget != None:
         return [gadget]
+
     return None
 
 ###########################################################################################################
