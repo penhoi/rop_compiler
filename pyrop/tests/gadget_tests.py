@@ -94,6 +94,8 @@ class GadgetTests(unittest.TestCase):
       (0x40400, LoadMem,      ['rsp'], ['rsi'], [0x00], [], 0x10, 0x8),
       (0x40500, LoadMem,      ['rsp'], ['rbp'], [0x00], [], 0x10, 0x8),
       (0x40600, LoadConst,    ['rsp'], ['rdi'], [0x4141414141414141], [], 0x8, 0x0),
+      (0x40700, MoveReg,      ['rdx'], ['r10'], [], [], 0x8, 0x0),
+      (0x40800, MoveReg,      ['rdx'], ['r11'], [], [], 0x8, 0x0),
     ])
 
     register_values = {n2r(a, 'rax') : 0x4141414141414141, n2r(a, 'rbx') : 0x4242424242424242}
@@ -169,6 +171,18 @@ class GadgetTests(unittest.TestCase):
     self.assertEqual(chain[24:32], utils.ap(0x40500 ,a)) # Check next gadget address
     self.assertEqual(chain[32:40], "CCCCCCCC") # check rsi
     self.assertEqual(chain[40:48], "DDDDDDDD") # check final address
+    self.assertEqual(len(chain), 48)
+
+    register_values = { n2r(a, 'r10') : 0x4141414141414141, n2r(a, 'r11') : 0x4242424242424242 }
+    chain, first_address = gadget_list.create_load_registers_chain(0x4343434343434343, n2r(a, 'rsp'), register_values)
+    self.assertNotEqual(chain, None)
+    self.assertEqual(first_address, 0x40300)
+    self.assertEqual(chain[0:8],   "AAAAAAAA") # check rdx
+    self.assertEqual(chain[8:16],  utils.ap(0x40700, a)) # check the next gadget address
+    self.assertEqual(chain[16:24], utils.ap(0x40300, a)) # check the next gadget address
+    self.assertEqual(chain[24:32], "BBBBBBBB") # check rdx
+    self.assertEqual(chain[32:40],  utils.ap(0x40800, a)) # check the next gadget address
+    self.assertEqual(chain[40:48], "CCCCCCCC") # check rdx
     self.assertEqual(len(chain), 48)
 
   def skip_test_arm(self):

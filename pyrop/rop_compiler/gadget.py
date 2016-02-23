@@ -145,8 +145,20 @@ class GadgetList(object):
   def chain_complexity(self, gadgets):
     return sum([gadget.complexity() for gadget in gadgets])
 
+  def find_best_chain(self, all_sets):
+    best = None
+    best_complexity = None
+    for gadget_set in all_sets:
+      complexity = self.chain_complexity(gadget_set)
+      if best == None or complexity < best_complexity:
+        best = gadget_set
+        best_complexity = complexity
+    return best
+
   def get_load_registers_gadgets(self, input_reg, registers, no_clobber = None):
     gadgets = []
+    if no_clobber == None:
+      no_clobber = []
 
     if len(registers) > 1:
       # Look for a LoadMultiple gadget that exactly matches our request
@@ -168,19 +180,15 @@ class GadgetList(object):
 
           # Recursively look for a set of gadgets to finish off this request
           not_found_with_values = {reg : registers[reg] for reg in not_found}
-          gadget_chain = self.get_load_registers_gadgets(input_reg, not_found_with_values, registers_found)
+          no_clobber_regs = list(no_clobber)
+          no_clobber_regs.extend(registers_found)
+          gadget_chain = self.get_load_registers_gadgets(input_reg, not_found_with_values, no_clobber_regs)
           if gadget_chain != None:
             gadget_chain.insert(0, gadget)
             all_sets.append(gadget_chain)
 
         # Find the best of the set of gadgets which use a LoadMultiple gadget that sets num_to_find registers at once
-        best = None
-        best_complexity = None
-        for gadget_set in all_sets:
-          complexity = self.chain_complexity(gadget_set)
-          if best == None or complexity < best_complexity:
-            best = gadget_set
-            best_complexity = complexity
+        best = self.find_best_chain(all_sets)
         if best != None:
           return best
         num_to_find -= 1
@@ -196,19 +204,36 @@ class GadgetList(object):
 
         # Recursively look for a set of gadgets to finish off this request
         not_found_with_values = {reg : registers[reg] for reg in not_found}
-        gadget_chain = self.get_load_registers_gadgets(input_reg, not_found_with_values, registers_found)
+        no_clobber_regs = list(no_clobber)
+        no_clobber_regs.extend(registers_found)
+        gadget_chain = self.get_load_registers_gadgets(input_reg, not_found_with_values, no_clobber_regs)
         if gadget_chain != None:
           gadget_chain.insert(0, gadget)
           all_sets.append(gadget_chain)
 
       # Find the best of the set of gadgets to fulfill this request
-      best = None
-      best_complexity = None
-      for gadget_set in all_sets:
-        complexity = self.chain_complexity(gadget_set)
-        if best == None or complexity < best_complexity:
-          best = gadget_set
-          best_complexity = complexity
+      best = self.find_best_chain(all_sets)
+      if best != None:
+        return best
+
+      # Last chance, call find_gadget for each register and try to make a chain. find_gadget will try to synthesize a gadget
+      # from smaller gadgets if it can
+      for register in registers.keys():
+        gadget = self.find_gadget(LoadMem, [input_reg], [register], no_clobber)
+        if gadget == None:
+          continue
+
+        not_found_with_values = dict(registers)
+        not_found_with_values.pop(register)
+        no_clobber_regs = list(no_clobber)
+        no_clobber_regs.append(register)
+        gadget_chain = self.get_load_registers_gadgets(input_reg, not_found_with_values, no_clobber_regs)
+        if gadget_chain != None:
+          gadget_chain.insert(0, gadget)
+          all_sets.append(gadget_chain)
+
+      # Find the best of the set of gadgets to fulfill this request
+      best = self.find_best_chain(all_sets)
       if best != None:
         return best
 
@@ -252,7 +277,7 @@ class GadgetList(object):
             (best_move, best_load) = (move_gadget, load_mem)
     if best_move != None:
       self.logger.debug("Creating new LoadMem[{}] from: {}{}".format(self.tr(output), best_move, best_load))
-      return CombinedGadget([best_move, best_load], [output])
+      return CombinedGadget([best_load, best_move], [output])
     return None
 
   def LoadMemFromLoadMemJump(self, inputs, output, no_clobbers):
