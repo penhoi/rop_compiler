@@ -17,16 +17,23 @@ def from_string(data, log_level = logging.WARNING, address_offset = None):
     gl.adjust_base_address(address_offset)
   return gl
 
+BEST  = 0
+FIRST = 1
+
 class GadgetList(object):
 
-  def __init__(self, gadgets = None, log_level = logging.WARNING):
+  def __init__(self, gadgets = None, log_level = logging.WARNING, strategy = BEST):
     self.setup_logging(log_level)
 
+    self.strategy = strategy
     self.arch = None
     self.gadgets = collections.defaultdict(list, {})
     self.gadgets_per_output = collections.defaultdict(lambda : collections.defaultdict(list, []), {})
     if gadgets != None:
       self.add_gadgets(gadgets)
+
+  def set_strategy(self, strategy):
+    self.strategy = strategy
 
   def tr(self, reg):
     return self.arch.translate_register_name(reg)
@@ -186,6 +193,7 @@ class GadgetList(object):
           if gadget_chain != None:
             gadget_chain.insert(0, gadget)
             all_sets.append(gadget_chain)
+            if self.strategy == FIRST: break
 
         # Find the best of the set of gadgets which use a LoadMultiple gadget that sets num_to_find registers at once
         best = self.find_best_chain(all_sets)
@@ -210,6 +218,7 @@ class GadgetList(object):
         if gadget_chain != None:
           gadget_chain.insert(0, gadget)
           all_sets.append(gadget_chain)
+          if self.strategy == FIRST: break
 
       # Find the best of the set of gadgets to fulfill this request
       best = self.find_best_chain(all_sets)
@@ -231,6 +240,7 @@ class GadgetList(object):
         if gadget_chain != None:
           gadget_chain.insert(0, gadget)
           all_sets.append(gadget_chain)
+          if self.strategy == FIRST: break
 
       # Find the best of the set of gadgets to fulfill this request
       best = self.find_best_chain(all_sets)
