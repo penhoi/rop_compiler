@@ -26,6 +26,8 @@ class Scheduler(object):
     self.goals = goal_resolver.get_goals()
     self.writable_memory = self.file_handler.get_writable_memory()
 
+    self.sp = self.arch.registers['sp'][0]
+
   def get_writable_memory(self, number_of_bytes):
     address = self.writable_memory
     # Align the number of bytes and then Leave a little room between memory usages
@@ -38,7 +40,7 @@ class Scheduler(object):
       registers.pop(reg)
     reg_numbers = []
     for name, (number, size) in registers.items():
-      if number not in reg_numbers and number not in [self.arch.registers['sp'][0], self.arch.registers['ip'][0]]:
+      if number not in reg_numbers and number not in [self.sp, self.arch.registers['ip'][0]]:
         reg_numbers.append(number)
     return reg_numbers
 
@@ -131,6 +133,24 @@ class Scheduler(object):
       raise RuntimeError("Could not find a way to write to memory")
     return best
 
+  def split_arguments(self, arguments, end_address):
+    """Splits the arguments into the register ones and the stack based ones.  This method will return a dictionary mapping
+      registers to values for the register based arguments, and a list of stack based arguments"""
+    # Split the arguments into stack and register based ones
+    num_reg_args = len(extra_archinfo.func_calling_convention[self.arch.name])
+    reg_arguments = arguments[:num_reg_args]
+    stack_arguments = arguments[num_reg_args:]
+
+    # Create the registers to values dictionary
+    register_values = {}
+    for i in range(len(reg_arguments)):
+      reg = self.reg_number(extra_archinfo.func_calling_convention[self.arch.name][i])
+      register_values[reg] = reg_arguments[i]
+    if 'lr' in self.arch.registers and end_address != None:
+      register_values[self.reg_number('lr')] = end_address
+
+    return register_values, stack_arguments
+
   def create_function_chain(self, goal, end_address = None):
     """This method returns a ROP chain that will call a function"""
     self.logger.info("Creating function chain for %s(%s) and finishing with a return to %s", goal.name,
@@ -148,67 +168,25 @@ class Scheduler(object):
         argument_strings[arg] = address
         goal.arguments[i] = address
 
-    # Split the arguments into the ones passed via a register and those passed on the stack
-    num_reg_args = len(extra_archinfo.func_calling_convention[self.arch.name])
-    reg_arguments = goal.arguments[:num_reg_args]
-    stack_arguments = goal.arguments[num_reg_args:]
+    # Split the arguments into a register and stack arguments
+    register_values, stack_arguments = self.split_arguments(goal.arguments, end_address)
 
-    # Look for gadgets to set each of the register arguments
-    next_address = goal.address
-    arg_gadgets = []
-    no_clobber = []
-    for i in range(len(reg_arguments)):
-      reg = self.reg_number(extra_archinfo.func_calling_convention[self.arch.name][i])
-      arg_gadget = self.gadget_list.find_load_stack_gadget(reg, no_clobber)
-      if arg_gadget == None and type(reg_arguments[i]) != str:
-        arg_gadget = self.gadget_list.find_load_const_gadget(reg, reg_arguments[i], no_clobber)
-
-      if arg_gadget == None:
-        # TODO Rearrange the order of setting gadgets and LR so we can still use gadgets that clobber another register
-        msg = "No gadget found to set {} register during function call to {}".format(self.reg_name(reg), goal.name)
-        self.logger.critical(msg)
-        raise RuntimeError(msg)
-      arg_gadgets.append(arg_gadget)
-      no_clobber.append(reg)
-    self.print_gadgets("Found all necessary gadgets for calling function %s(0x%x):" % (goal.name, goal.address), arg_gadgets)
-
-    # If we need an extra gadget to set the function's return address register, then find a gadget to do so
-    lr_gadget = None
-    if 'lr' in self.arch.registers and end_address != None:
-      reg = self.reg_number('lr')
-      lr_gadget = self.gadget_list.find_load_stack_gadget(reg, no_clobber)
-      if lr_gadget == None:
-        msg = "No gadget found to set lr register during function call to {}".format(goal.name)
-        self.logger.critical(msg)
-        raise RuntimeError(msg)
-      self.print_gadgets("Found LR gadget:", [lr_gadget])
-      next_address = lr_gadget.address
-
-    # Set the register arguments for the function
-    first_address = next_address
-    for i in range(len(arg_gadgets)):
-      next_gadget_address = next_address
-      if i == 0:
-        first_address = arg_gadgets[0].address
-      if i + 1 < len(reg_arguments):
-        next_gadget_address = arg_gadgets[i + 1].address
-      chain += arg_gadgets[i].chain(next_gadget_address, [reg_arguments[i]])
+    # Get a chain to set all the registers
+    first_address = goal.address
+    if len(register_values) != 0:
+      chain, first_address = self.gadget_list.create_load_registers_chain(goal.address, self.sp, register_values)
+      if chain == None:
+        return None, None
 
     # Add the function's address (and the LR gadget to set the gadget after this function if this architecture requires it)
-    if end_address != None:
-      if lr_gadget != None:
-        chain += lr_gadget.chain(goal.address, [end_address])
-      else:
-        chain += utils.ap(end_address, self.arch)
+    if 'lr' not in self.arch.registers and end_address != None:
+      chain += utils.ap(end_address, self.arch)
 
     # Add the stack arguments
     for arg in stack_arguments:
       chain += utils.ap(arg, self.arch)
 
     # Write any string arguments to memory
-    next_address = goal.address
-    if len(arg_gadgets) > 0:
-      next_address = arg_gadgets[0].address
     for arg, address in argument_strings.items():
       arg_chain, first_address = self.create_write_memory_chain(arg, address, first_address, "\x00")
       chain = arg_chain + chain
@@ -219,8 +197,8 @@ class Scheduler(object):
     """This method creates a ROP chain that will read from a specified address, apply an offset, and then call that address with
       a set of provided arguments"""
 
-    jump_gadget = None
-    arg_gadgets = []
+    jump_gadget = arg_chain = arg_chain_address = None
+    stack_arguments = []
 
     # First, look for all the needed gadgets
     original_offset = offset
@@ -270,48 +248,42 @@ class Scheduler(object):
       if add_jump_reg_gadget == None:
         continue
 
-      # last, find gadgets to set each of the arguments while avoiding clobbering our jump register
-      arg_gadgets = []
-      no_clobber = [jump_reg]
-      for i in range(len(arguments)):
-        reg = self.reg_number(extra_archinfo.func_calling_convention[self.arch.name][i])
-        arg_gadget = self.gadget_list.find_load_stack_gadget(reg, no_clobber)
-        if arg_gadget != None:
-          arg_gadgets.append(arg_gadget)
-        no_clobber.append(reg)
+      # Split the arguments into a register and stack arguments
+      register_values, stack_arguments = self.split_arguments(arguments, end_address)
 
-      if len(arg_gadgets) == len(arguments):
+      # Create a chain to set all the registers, while avoiding clobbering our jump register
+      if len(register_values) != 0:
+        arg_chain, arg_chain_address = self.gadget_list.create_load_registers_chain(jump_gadget.address, self.sp, register_values, [jump_reg])
+      else:
+        arg_chain, arg_chain_address = "", jump_gadget.address
+
+      if arg_chain != None:
         break
-      arg_gadgets = []
 
     # Couldn't find all the necessary gadgets
-    if len(arg_gadgets) != len(arguments):
+    if arg_chain == None:
       return (None, None)
 
-    self.print_gadgets("Found all necessary gadgets for reading the GOT and calling a different function:",
-        [set_read_addr_gadget, read_gadget, set_add_reg_gadget, add_jump_reg_gadget, arg_gadgets[0],
-          arg_gadgets[1], arg_gadgets[2], jump_gadget])
+    self.print_gadgets("Found all necessary gadgets for reading the GOT and " +
+      "calling a different function with 0x{:x} bytes argument gadgets:".format(len(arg_chain)),
+      [set_read_addr_gadget, read_gadget, set_add_reg_gadget, add_jump_reg_gadget, jump_gadget])
 
-    # Start building the chain
-    start_of_function_address = jump_gadget.address
-    if len(arg_gadgets) > 0:
-      start_of_function_address = arg_gadgets[0].address
-
+    # Build the chain
     chain = set_read_addr_gadget.chain(read_gadget.address, [address - read_gadget.params[0]]) # set the read address
     chain += read_gadget.chain(set_add_reg_gadget.address)                                     # read the address in the GOT
     chain += set_add_reg_gadget.chain(add_jump_reg_gadget.address, [offset])                   # set the offset from the base to the target
-    chain += add_jump_reg_gadget.chain(start_of_function_address)                              # add the offset
+    chain += add_jump_reg_gadget.chain(arg_chain_address)                                      # add the offset
+    chain += arg_chain                                                                         # set the arguments for the function
 
-    # Set the arguments for the function
-    for i in range(len(arg_gadgets)):
-      next_address = jump_gadget.address
-      if i + 1 < len(arguments):
-        next_address = arg_gadgets[i + 1].address
-      chain += arg_gadgets[i].chain(next_address, [arguments[i]])
-
-    # Finally, jump to the function
+    # Add the jump to the function, and the stack based return address (if this architecture uses it)
     chain += jump_gadget.chain()
-    chain += utils.ap(end_address, self.arch)
+    if 'lr' not in self.arch.registers and end_address != None:
+      chain += utils.ap(end_address, self.arch)
+
+    # Last, add the stack arguments
+    for arg in stack_arguments:
+      chain += utils.ap(arg, self.arch)
+
     return (chain, set_read_addr_gadget.address)
 
   def create_shellcode_address_chain(self, goal):
@@ -450,6 +422,9 @@ class Scheduler(object):
         goal_chain, next_address = self.create_shellcode_chain(goal)
       else:
         raise RuntimeError("Unknown goal in scheduler.")
+
+      if goal_chain == None:
+        raise RuntimeError("Unable to create goal: {}".format(goal))
 
       chain = goal_chain + chain
 

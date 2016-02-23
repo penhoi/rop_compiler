@@ -97,16 +97,18 @@ class GadgetTests(unittest.TestCase):
     ])
 
     register_values = {n2r(a, 'rax') : 0x4141414141414141, n2r(a, 'rbx') : 0x4242424242424242}
-    chain = gadget_list.create_load_registers_chain(0x4343434343434343, n2r(a, 'rsp'), register_values)
+    chain, first_address = gadget_list.create_load_registers_chain(0x4343434343434343, n2r(a, 'rsp'), register_values)
     self.assertNotEqual(chain, None)
+    self.assertEqual(first_address, 0x40200)
     self.assertEqual(chain[0:8],   "AAAAAAAA") # check rax
     self.assertEqual(chain[8:16],  "BBBBBBBB") # check rbx
     self.assertEqual(chain[16:24], "CCCCCCCC") # Check rip
     self.assertEqual(len(chain), 0x18)
 
     register_values = {n2r(a, 'rax') : 0x4141414141414141, n2r(a, 'rbx') : 0x4242424242424242, n2r(a, 'rcx') : 0x4343434343434343}
-    chain = gadget_list.create_load_registers_chain(0x4444444444444444, n2r(a, 'rsp'), register_values)
+    chain, first_address = gadget_list.create_load_registers_chain(0x4444444444444444, n2r(a, 'rsp'), register_values)
     self.assertNotEqual(chain, None)
+    self.assertEqual(first_address, 0x40100)
     self.assertEqual(chain[0:8],   "AAAAAAAA") # check rax
     self.assertEqual(chain[8:16],  "BBBBBBBB") # check rbx
     self.assertEqual(chain[16:24], "CCCCCCCC") # Check rcx
@@ -114,36 +116,41 @@ class GadgetTests(unittest.TestCase):
     self.assertEqual(len(chain), 0x20)
 
     register_values = {n2r(a, 'rax') : 0x4141414141414141}
-    chain = gadget_list.create_load_registers_chain(0x4343434343434343, n2r(a, 'rsp'), register_values)
+    chain, first_address = gadget_list.create_load_registers_chain(0x4343434343434343, n2r(a, 'rsp'), register_values)
     self.assertNotEqual(chain, None)
+    self.assertEqual(first_address, 0x40200)
     self.assertEqual(chain[0:8],   "AAAAAAAA") # check rax
     self.assertEqual(chain[16:24], "CCCCCCCC") # Check rip
     self.assertEqual(len(chain), 0x18)
 
     register_values = {n2r(a, 'rbx') : 0x4141414141414141}
-    chain = gadget_list.create_load_registers_chain(0x4343434343434343, n2r(a, 'rsp'), register_values)
+    chain, first_address = gadget_list.create_load_registers_chain(0x4343434343434343, n2r(a, 'rsp'), register_values)
     self.assertNotEqual(chain, None)
+    self.assertEqual(first_address, 0x40200)
     self.assertEqual(chain[8:16],  "AAAAAAAA") # check rbx
     self.assertEqual(chain[16:24], "CCCCCCCC") # Check rip
     self.assertEqual(len(chain), 0x18)
 
     register_values = {n2r(a, 'rdx') : 0x4141414141414141}
-    chain = gadget_list.create_load_registers_chain(0x4343434343434343, n2r(a, 'rsp'), register_values)
+    chain, first_address = gadget_list.create_load_registers_chain(0x4343434343434343, n2r(a, 'rsp'), register_values)
     self.assertNotEqual(chain, None)
+    self.assertEqual(first_address, 0x40300)
     self.assertEqual(chain[0:8],  "AAAAAAAA") # check rdx
     self.assertEqual(chain[8:16], "CCCCCCCC") # Check rip
     self.assertEqual(len(chain), 0x10)
 
     register_values = {n2r(a, 'rdi') : 0x4141414141414141}
-    chain = gadget_list.create_load_registers_chain(0x4343434343434343, n2r(a, 'rsp'), register_values)
+    chain, first_address = gadget_list.create_load_registers_chain(0x4343434343434343, n2r(a, 'rsp'), register_values)
     self.assertNotEqual(chain, None)
+    self.assertEqual(first_address, 0x40600)
     self.assertEqual(chain[0:8], "CCCCCCCC") # Check rip
     self.assertEqual(len(chain), 0x8)
 
     register_values = { n2r(a, 'rax') : 0x4141414141414141, n2r(a, 'rbx') : 0x4242424242424242,
       n2r(a, 'rcx') : 0x4343434343434343, n2r(a, 'rdx') : 0x4444444444444444 }
-    chain = gadget_list.create_load_registers_chain(0x4545454545454545, n2r(a, 'rsp'), register_values)
+    chain, first_address = gadget_list.create_load_registers_chain(0x4545454545454545, n2r(a, 'rsp'), register_values)
     self.assertNotEqual(chain, None)
+    self.assertEqual(first_address, 0x40100)
     self.assertEqual(chain[0:8],   "AAAAAAAA") # check rax
     self.assertEqual(chain[8:16],  "BBBBBBBB") # check rbx
     self.assertEqual(chain[16:24], "CCCCCCCC") # check rcx
@@ -153,8 +160,9 @@ class GadgetTests(unittest.TestCase):
     self.assertEqual(len(chain), 48)
 
     register_values = { n2r(a, 'rdx') : 0x4141414141414141, n2r(a, 'rsi') : 0x4242424242424242, n2r(a, 'rbp') : 0x4343434343434343 }
-    chain = gadget_list.create_load_registers_chain(0x4444444444444444, n2r(a, 'rsp'), register_values)
+    chain, first_address = gadget_list.create_load_registers_chain(0x4444444444444444, n2r(a, 'rsp'), register_values)
     self.assertNotEqual(chain, None)
+    self.assertEqual(first_address, 0x40300)
     self.assertEqual(chain[0:8],   "AAAAAAAA") # check rdx
     self.assertEqual(chain[8:16],  utils.ap(0x40400 ,a)) # Check next gadget address
     self.assertEqual(chain[16:24], "BBBBBBBB") # check rsi

@@ -120,14 +120,14 @@ class GadgetList(object):
   def create_load_registers_chain(self, next_address, input_reg, registers, no_clobber = None):
     gadgets = self.get_load_registers_gadgets(input_reg, registers, no_clobber)
     if gadgets == None:
-      return None
+      return None, None
 
     chain = ""
     for gadget in gadgets[::-1]:
       gadget_registers = map(lambda x: registers[x] if x in registers else 0x5A5A5A5A5A5A5A5A, gadget.outputs) # Fill in all "Z" for any missing registers
       chain = gadget.chain(next_address, gadget_registers) + chain
       next_address = gadget.address
-    return chain
+    return chain, next_address
 
   def find_best_load_multiple_gadget(self, input_reg, registers, no_clobber):
     # Sort the list so the compare will work
@@ -252,7 +252,7 @@ class GadgetList(object):
             (best_move, best_load) = (move_gadget, load_mem)
     if best_move != None:
       self.logger.debug("Creating new LoadMem[{}] from: {}{}".format(self.tr(output), best_move, best_load))
-      return CombinedGadget([best_move, best_load])
+      return CombinedGadget([best_move, best_load], [output])
     return None
 
   def LoadMemFromLoadMemJump(self, inputs, output, no_clobbers):
@@ -268,7 +268,7 @@ class GadgetList(object):
           (best_load_mem_jump, best_load_mem) = (load_mem_jump, load_mem)
     if best_load_mem_jump != None:
       self.logger.debug("Creating new LoadMem[{}] from: {} and {}".format(self.tr(output), best_load_mem_jump, best_load_mem))
-      return CombinedGadget([best_load_mem, best_load_mem_jump])
+      return CombinedGadget([best_load_mem, best_load_mem_jump], [output])
     return None
 
 ###########################################################################################################
@@ -290,10 +290,11 @@ class GadgetBase(object):
 
 class CombinedGadget(GadgetBase):
   """This class wraps multiple gadgets which are combined to create a single ROP primitive"""
-  def __init__(self, gadgets):
+  def __init__(self, gadgets, outputs):
     self.gadgets = gadgets
     self.arch = gadgets[0].arch
     self.address = gadgets[0].address
+    self.outputs = outputs
 
   def __str__(self):
     return "CombinedGadget([{}])".format(", ".join([str(g) for g in self.gadgets]))
