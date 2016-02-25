@@ -17,12 +17,13 @@ def from_string(data, log_level = logging.WARNING, address_offset = None):
     gl.adjust_base_address(address_offset)
   return gl
 
-BEST  = 0
-FIRST = 1
+BEST  = 0  # Best gadget
+FIRST = 1  # First gadget
+MEDIUM = 2 # First with a less than 3 complexity
 
 class GadgetList(object):
 
-  def __init__(self, gadgets = None, log_level = logging.WARNING, strategy = BEST):
+  def __init__(self, gadgets = None, log_level = logging.WARNING, strategy = MEDIUM):
     self.setup_logging(log_level)
 
     self.strategy = strategy
@@ -162,6 +163,12 @@ class GadgetList(object):
         best_complexity = complexity
     return best
 
+  def gadget_chain_found(self, gadgets):
+    # If we want the first usable gadget or we've found one that isn't awful and we're only looking for a medium one, return true
+    if self.strategy == FIRST or (self.strategy == MEDIUM and self.chain_complexity(gadgets) < len(gadgets) * 3):
+      return True
+    return False
+
   def get_load_registers_gadgets(self, input_reg, registers, no_clobber = None):
     gadgets = []
     if no_clobber == None:
@@ -193,7 +200,8 @@ class GadgetList(object):
           if gadget_chain != None:
             gadget_chain.insert(0, gadget)
             all_sets.append(gadget_chain)
-            if self.strategy == FIRST: break
+            if self.gadget_chain_found(gadget_chain):
+              break
 
         # Find the best of the set of gadgets which use a LoadMultiple gadget that sets num_to_find registers at once
         best = self.find_best_chain(all_sets)
@@ -218,7 +226,8 @@ class GadgetList(object):
         if gadget_chain != None:
           gadget_chain.insert(0, gadget)
           all_sets.append(gadget_chain)
-          if self.strategy == FIRST: break
+          if self.gadget_chain_found(gadget_chain):
+            break
 
       # Find the best of the set of gadgets to fulfill this request
       best = self.find_best_chain(all_sets)
@@ -240,7 +249,8 @@ class GadgetList(object):
         if gadget_chain != None:
           gadget_chain.insert(0, gadget)
           all_sets.append(gadget_chain)
-          if self.strategy == FIRST: break
+          if self.gadget_chain_found(gadget_chain):
+            break
 
       # Find the best of the set of gadgets to fulfill this request
       best = self.find_best_chain(all_sets)

@@ -1,4 +1,3 @@
-Create a LoadMultiple gadget that loads more than one register at once
 Integrate with pwn tools
 Use plex and ply to allow for running arbitrary code in ROP gadgets                                                         
   - plex - python lexer                                                                                                       
