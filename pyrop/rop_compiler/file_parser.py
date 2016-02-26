@@ -53,7 +53,7 @@ if __name__ == "__main__":
     + ' for PIE/PIC binaries.  When creating a reusable gadgets file, do not specify')
   parser.add_argument('-v', required=False, action='store_true', help='Verbose mode')
   parser.add_argument('target', type=str, help='The file (executable/library) to find symbols in')
-  parser.add_argument('symbol', nargs="*", type=str, help='Verbose mode')
+  parser.add_argument('symbol', nargs="*", type=str, help='The symbol to resolve')
   args = parser.parse_args()
 
   parser_type = factories.get_parser_from_name(args.parser_type)
