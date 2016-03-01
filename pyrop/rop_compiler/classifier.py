@@ -43,9 +43,12 @@ class GadgetClassifier(object):
         if stmt.tag == 'Ist_IMark':
           last_addr = stmt.addr
 
+      # If we couldn't get any statements from the instructions, there was a problem.
+      if last_addr == None:  # So just return an empty list
+        return []
+
       # And move the code address forward to the next untranslated instruction
-      if last_addr != address + len(code) - self.arch.instruction_alignment:
-        code_address = last_addr + self.arch.instruction_alignment
+      code_address = last_addr + self.arch.instruction_alignment
 
     return irsbs
 
