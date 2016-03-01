@@ -1,4 +1,11 @@
-Integrate with pwn tools
-Use plex and ply to allow for running arbitrary code in ROP gadgets                                                         
+This file contains a list of TODO items (not necessarily in priority order) for the python based ROP compiler.
+
+Windows
+Stack Migration
+Integrate with pwntools
+ARM thumb mode
+MIPS Examples
+PowerPC Examples
+Use plex and ply to allow for running arbitrary code in ROP gadgets
   - plex - python lexer                                                                                                       
   - ply - python yacc                                                                                                         
