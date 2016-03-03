@@ -11,8 +11,12 @@ IGNORED_REGISTERS = collections.defaultdict(list, {
 })
 
 func_calling_convention = collections.defaultdict(list, {
-  "AMD64" : ["rdi", "rsi", "rdx", "rcx", "r8", "r9"],
-  "ARMEL" : ["r0", "r1", "r2", "r3"]
+  "AMD64"  : ["rdi", "rsi", "rdx", "rcx", "r8", "r9"],
+  "ARMEL"  : ["r0", "r1", "r2", "r3"],
+  "MIPS32" : ["a0", "a1", "a2", "a3"],
+  "MIPS64" : ["a0", "a1", "a2", "a3"],
+  "PPC32"  : ["r3", "r4", "r5", "r6", "r7", "r8", "r9", "r10"],
+  "PPC64"  : ["r3", "r4", "r5", "r6", "r7", "r8", "r9", "r10"],
 })
 
 MPROTECT_SYSCALL = { "AMD64" : 10 }

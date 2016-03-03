@@ -31,6 +31,15 @@ int unused() {
     lw $ra, 0x4($sp); \
     addiu $sp, $sp, 0x10; \
     jr $t9; \
+    nop; \
+    nop; \
+    nop; \
+    nop; \
+    nop; \
+    nop; \
+    nop; \
+    nop; \
+    nop; \
 ");
 }
 

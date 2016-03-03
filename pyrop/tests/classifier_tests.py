@@ -75,7 +75,17 @@ class ClassifierTests(unittest.TestCase):
         '\x8f\xb0\x00\x28' + # lw s0,40(sp)
         '\x27\xbd\x00\x48' + # addiu sp,sp,72
         '\x03\xe0\x00\x08' + # jr ra
-        '\x00\x00\x00\x00')  # nop
+        '\x00\x00\x00\x00'),  # nop
+      ({LoadMem : 1},
+        '\x8f\xb9\x00\x08' + # lw t9,8(sp)
+        '\x8f\xbf\x00\x04' + # lw ra,4(sp)
+        '\x03\x20\x00\x08' + # jr t9
+        '\x27\xbd\x00\x10' + # addiu sp,sp,16
+        '\x00\x20\x08\x25' + # move at, at (nop)
+        '\x00\x20\x08\x25' + # move at, at (nop)
+        '\x00\x20\x08\x25' + # move at, at (nop)
+        '\x00\x20\x08\x25' + # move at, at (nop)
+        '\x00\x20\x08\x25'), # move at, at (nop)
     ]
     self.run_test(archinfo.ArchMIPS32('Iend_BE'), tests)
 

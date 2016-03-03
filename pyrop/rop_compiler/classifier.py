@@ -24,6 +24,14 @@ class GadgetClassifier(object):
   def is_ignored_register(self, register):
     return self.arch.translate_register_name(register) in extra_archinfo.IGNORED_REGISTERS[self.arch.name]
 
+  def irsb_ends_with_constant_pc(self, irsb):
+    """A really bad hack to try to detect if the pc register gets set by the IRSB to a non-constant value (i.e. a jump/ret)"""
+    for stmt in irsb.statements:
+      # if the statement is a PUT that sets the pc register, and it's a non-constant value
+      if stmt.tag == 'Ist_Put' and stmt.offset == self.arch.registers['pc'][0] and stmt.data.tag != 'Iex_Const':
+        return False
+    return True
+
   def get_irsbs(self, code, address):
     irsbs = []
     code_address = address
@@ -34,7 +42,9 @@ class GadgetClassifier(object):
       except: # If decoding fails, we can't use this gadget
         return [] # So just return an empty list
 
-      if self.arch.name not in extra_archinfo.ENDS_EARLY_ARCHS or irsb.jumpkind != 'Ijk_Boring':
+      if (self.arch.name not in extra_archinfo.ENDS_EARLY_ARCHS
+        or irsb.jumpkind != 'Ijk_Boring'
+        or not self.irsb_ends_with_constant_pc(irsb)):
         break
 
       # Find the last address that was translated (For some architectures, pyvex stops before the end of a block)
