@@ -338,7 +338,7 @@ class Scheduler(object):
     load_addr_gadget, load_value_gadget, store_mem_gadget = self.get_write_memory_gadget()
 
     # Next create the chain to setup the address and value to be written
-    chain = load_addr_gadget.chain(load_value_gadget.address, [address])
+    chain = load_addr_gadget.chain(load_value_gadget.address, [address-store_mem_gadget.params[0]])
     chain += load_value_gadget.chain(store_mem_gadget.address, [buf])
 
     # Finally, create the chain to write to memory
