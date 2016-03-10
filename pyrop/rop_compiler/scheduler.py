@@ -309,14 +309,14 @@ class Scheduler(object):
 
     # We failed using the easy techniques for fixing memory, so now try to read the GOT address for a used function and then add
     # the offset in libc to find mprotect.  This will allow us to call mprotect without knowing the address of libc
-    self.logger.info("Couldn't find mprotect or syscall, restorting to reading the GOT and computing addresses")
-    functions_in_got = ["printf", "puts", "read", "open", "close", "exit"] # Keep trying, in case they don't use the first function
+    self.logger.info("Couldn't find mprotect or syscall, resorting to reading the GOT and computing addresses")
+    functions_in_got = ["printf", "strlen", "puts", "read", "open", "close", "exit"] # Keep trying, in case they don't use the first function
     base_address_in_got = offset_in_libc = None
     for base in functions_in_got:
       # Find the address of the base function in libc, and the offset between it and mprotect
       base_address_in_got, offset_in_libc = self.file_handler.resolve_symbol_from_got(base, "mprotect")
       if base_address_in_got != None and offset_in_libc != None:
-        self.logger.info("Used %s to found the address of libc: 0x%x", base, base_address_in_got)
+        self.logger.info("Using %s to find the address of libc: 0x%x", base, base_address_in_got)
         break
 
     if base_address_in_got != None and offset_in_libc != None:

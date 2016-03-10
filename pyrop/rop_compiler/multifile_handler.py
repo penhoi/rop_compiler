@@ -69,6 +69,7 @@ class MultifileHandler(object):
     symbol_in_got = main_binary.find_symbol_in_got(base_name)
 
     # Now, get the offset from the base to the target in libc
+    base_in_libc = target_in_libc = None
     for name, parser in self.libraries.items():
       base_in_libc = parser.get_symbol_address(base_name)
       target_in_libc = parser.get_symbol_address(target_name)
