@@ -1,6 +1,6 @@
 This directory contains the code for a ROP compiler that uses pyvex to support multiple architectures.  The ROP compiler is
 an attempt to make a usable, open source, multi-architecture ROP compiler.  It is based on the ROP compiler discussed in the paper
-"Q: Exploit Hardening Made Easy" by Schwartz et al.
+["Q: Exploit Hardening Made Easy"](https://users.ece.cmu.edu/~ejschwar/papers/usenix11.pdf) by Schwartz et al.
 
 This ROP compiler is/does not:
 
