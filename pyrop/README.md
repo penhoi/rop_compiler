@@ -15,15 +15,14 @@ However, it is/does:
 1. usable for most simple cases
 2. open source
 3. multi-architecture (tested on x86, x64, ARM32, PPC32, and MIPS32; but probably works on all the architectures supported by pyvex)
-4. use semantic based gadgets to find gadgets that syntax based gadget finders might miss
+4. use semantic based searching to find gadgets that syntax based gadget finders might miss
 5. combine gadgets to synthesize missing ones
 
 In short, this will not put an end to manual ROP compilation.  However, for the simple cases, it can generate useful ROP chains.
 In the future, I will be working to expand its usefulness.  See the TODO file to see what's planned (eventually).  If something is
 not in the list that you want, add an issue for it and I'll add it (or a pull request implementing it).
 
-The documentation is lacking at the moment, but there are a large number of examples.  For the most part, you will just want to
-use the ropme.rop method.
+The documentation is lacking at the moment, but there are a number of examples.  For the most part, you will just want to use the ropme.rop method.
 
 ## Dependencies:
 
