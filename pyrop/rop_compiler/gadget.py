@@ -19,7 +19,7 @@ def from_string(data, log_level = logging.WARNING, address_offset = None):
 
 BEST  = 0  # Best gadget
 FIRST = 1  # First gadget
-MEDIUM = 2 # First with a less than 3 complexity
+MEDIUM = 2 # First with less than 3 complexity
 
 class GadgetList(object):
 
