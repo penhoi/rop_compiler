@@ -1,4 +1,24 @@
-This repository contains the code for a ROP compiler that uses pyvex to support multiple architectures.
+This directory contains the code for a ROP compiler that uses pyvex to support multiple architectures.  The ROP compiler is
+an attempt to make a usable, open source, multi-architecture ROP compile.  It is based on ROP compiler discussed in the paper
+"Q: Exploit Hardening Made Easy" by Schwartz et al.
+
+This ROP compiler is not:
+0) complete
+1) foolproof
+2) allow for turing complete computation in ROP gadgets (sorry iPhone/grsecurity hackers)
+1) bug free (please open issues if/when you find any bugs)
+
+However, it is/does:
+0) provide a few built-in mechanisms for spawning a shell
+1) usable for most simple cases
+2) open source
+3) multi-architecture
+4) use semantic based gadgets to find gadgets that syntax based gadget finders might miss
+5) combine gadgets to synthesize missing ones
+
+In short, this will not put an end to manual ROP compilation.  However, for the simple cases, it can generate useful ROP chains.
+In the future, I will be working to expand its usefulness.  See the TODO file for what's planned (eventually).  If something is
+not in the list that you want, add an issue for it and I'll add it (or a pull request implementing it).
 
 Dependency list:
   pyvex
