@@ -3,12 +3,14 @@ an attempt to make a usable, open source, multi-architecture ROP compiler.  It i
 "Q: Exploit Hardening Made Easy" by Schwartz et al.
 
 This ROP compiler is/does not:
+
 0. complete
 1. foolproof
 2. allow for turing complete computation in ROP gadgets (sorry iPhone/grsecurity hackers)
 3. bug free (please open issues if/when you find bugs)
 
 However, it is/does:
+
 0. provide a few built-in mechanisms for spawning a shell
 1. usable for most simple cases
 2. open source
