@@ -1,7 +1,8 @@
 This file contains a list of TODO items (not necessarily in priority order) for the python based ROP compiler.
 
+Documentation
 Blacklisting of gadgets (or detection of bad ones)
-  - simplecalc rop gadget script
+  - complexcalc rop gadget script
 A generic script that will try to spawn a shell (i.e. so we don't need to code a script for each binary/technique)
 Windows support
 Stack Migration support

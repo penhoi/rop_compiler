@@ -4,7 +4,23 @@ import archinfo
 import goal, scheduler, multifile_handler, gadget
 
 def rop(files, libraries, goal_list, arch = archinfo.ArchAMD64(), log_level = logging.WARNING, validate_gadgets = False, strategy = None):
-  """Takes a goal resolver and creates a rop chain for it"""
+  """Takes a goal resolver and creates a rop chain for it.  The arguments are as follows:
+  $files - a list of tuples of the form (binary filename, gadget filename, load address).  The binary filename is the name of the
+    file to generate a ROP chain for.  The gadget filename is a file that has been previously generated which contains the previously
+    found gadgets (using the finder.py utility script).  If a gadget file hasn't been generated before, fill in None for this argument.
+    The load address of the binary is only needed for libraries and PIE binaries.
+  $libraries - a list of path's to the libraries to resolve symbols in.  Primarily this is useful for libc.  This list differs from
+    the files list in that as the entries in this list will not be used to find gadgets (and thus their address is not needed.
+  $goal_list - a list of goals to attempt to compile a ROP chain for.  See goal.py for the format of the items in this list.
+  $arch - the archinfo class representing the architecture of the binary
+  $log_level - the level of logging to display during the ROP compiling process.  Note that pyvex logs a large amount of info to
+    stderr during the compilation process and will not be affected by this value (sorry).
+  $validate_gadgets - whether the gadgets should be verified using z3.  While this ensures that the ROP chain will work as expected,
+    it makes the finding process faster and in practice shouldn't make a difference.
+  $strategy - the strategy for find gadget (see gadget.py).  This can be either FIRST, BEST, or MEDIUM; where FIRST returns the first
+    gadget that matches the desired type, BEST scans the found gadgets for the best one that matches the desired type, and MEDIUM
+    is a compromise between the two.  In practice, the default (MEDIUM) should work for most things.
+  """
   file_handler = multifile_handler.MultifileHandler(files, libraries, arch, log_level)
   goal_resolver = goal.GoalResolver(file_handler, goal_list, log_level)
 
