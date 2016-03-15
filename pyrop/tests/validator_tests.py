@@ -1,8 +1,8 @@
 import unittest, logging
 import pyvex, archinfo
 
-from gadget import *
-from validator import *
+from rop_compiler.gadget import *
+from rop_compiler.validator import *
 
 class ValidatorTests(unittest.TestCase):
 

@@ -1,8 +1,8 @@
 import unittest, logging
 import archinfo
 
-from gadget import *
-import classifier
+from rop_compiler.gadget import *
+import rop_compiler.classifier as classifier
 
 class ClassifierTests(unittest.TestCase):
 

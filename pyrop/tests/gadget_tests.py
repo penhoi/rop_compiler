@@ -1,8 +1,8 @@
 import unittest, logging
 import pyvex, archinfo
 
-from gadget import *
-import utils
+from rop_compiler.gadget import *
+import rop_compiler.utils as utils
 
 def n2r(arch, reg_name):
   return arch.registers[reg_name][0]

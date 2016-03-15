@@ -1,7 +1,7 @@
 import sys, logging, unittest, binascii
 import archinfo
 from pwn import *
-import ropme
+import rop_compiler.ropme as ropme
 
 class BofTests(unittest.TestCase):
 
