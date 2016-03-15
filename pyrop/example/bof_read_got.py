@@ -3,9 +3,9 @@ import archinfo
 from pwn import *
 from rop_compiler import ropme, goal
 
-filename, arch = './example/bof_read_got', archinfo.ArchAMD64()
+filename, arch = './bof_read_got', archinfo.ArchAMD64()
 if len(sys.argv) > 1:
-  filename, arch = './example/bof_read_got2', archinfo.ArchAMD64()
+  filename, arch = './bof_read_got2', archinfo.ArchAMD64()
 p = process([filename,'3000'])
 #gdb.attach(p, "set disassembly-flavor intel\nbreak *mprotect\nbreak *0x400677")
 

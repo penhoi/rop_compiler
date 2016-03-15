@@ -3,7 +3,7 @@ import archinfo
 from pwn import *
 from rop_compiler import ropme
 
-filename = './example/mips_bof'
+filename = './mips_bof'
 p = remote('localhost', 8888)
 
 buffer_address = struct.unpack(">I", p.read(4))[0]

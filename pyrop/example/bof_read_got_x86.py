@@ -3,7 +3,7 @@ import archinfo
 from pwn import *
 from rop_compiler import ropme, goal
 
-filename, arch = './example/bof_read_got_x86', archinfo.ArchX86()
+filename, arch = './bof_read_got_x86', archinfo.ArchX86()
 p = process([filename,'3000'])
 #gdb.attach(p, "set disassembly-flavor intel\nbreak *0x0804856a\n")
 

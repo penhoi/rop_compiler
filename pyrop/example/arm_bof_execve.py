@@ -3,7 +3,7 @@ import archinfo
 from pwn import *
 from rop_compiler import ropme
 
-filename = './example/arm_bof_execve'
+filename = './arm_bof_execve'
 p = remote('localhost', 2222)
 
 print "Using automatically built ROP chain"

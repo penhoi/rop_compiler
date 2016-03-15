@@ -2,7 +2,7 @@ import sys, logging
 from pwn import *
 from rop_compiler import ropme, goal
 
-filename = './example/bof_system'
+filename = './bof_system'
 p = process([filename,'3000'])
 #gdb.attach(p, "set disassembly-flavor intel\nbreak *0x40067f\nbreak *system\nbreak *exit")
 

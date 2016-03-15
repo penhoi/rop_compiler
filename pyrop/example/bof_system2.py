@@ -2,7 +2,7 @@ import sys, logging
 from pwn import *
 from rop_compiler import ropme, goal
 
-filename = './example/bof_system2'
+filename = './bof_system2'
 
 print "Using automatically built ROP chain"
 files = [(filename, None, 0)]
