@@ -14,8 +14,29 @@ int unused() {
   printf("%p\n",mprotect);
 
   //Add some useful gadgets
-//  asm volatile("\
-//");
+  asm volatile("\
+  lwz 3, 8(1); \n\
+  lwz 0, 4(1); \n\
+  mtlr 0; \n\
+  addi 1, 1, 0x10; \n\
+  blr; \n\
+  lwz 4, 8(1); \n\
+  lwz 0, 4(1); \n\
+  mtlr 0; \n\
+  addi 1, 1, 0x10; \n\
+  blr; \n\
+  lwz 5, 8(1); \n\
+  lwz 0, 4(1); \n\
+  mtlr 0; \n\
+  addi 1, 1, 0x10; \n\
+  blr; \n\
+  lwz 0, 8(1); \n\
+  mtlr 0; \n\
+  lwz 0, 4(1); \n\
+  mtctr 0; \n\
+  addi 1, 1, 0x10; \n\
+  bctr; \n\
+");
 }
 
 void setup_client_conn()

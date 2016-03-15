@@ -4,11 +4,8 @@ Install script
 Blacklisting of gadgets (or detection of bad ones)
   - simplecalc rop gadget script
 A generic script that will try to spawn a shell (i.e. so we don't need to code a script for each binary/technique)
-Windows
+Windows support
 Stack Migration
-Integrate with pwntools
+Integrate with pwntools/binjitsu
 ARM thumb mode
-PowerPC Examples
-Use plex and ply to allow for running arbitrary code in ROP gadgets
-  - plex - python lexer                                                                                                       
-  - ply - python yacc                                                                                                         
+Use plex (python lexer) and ply (python yacc) to allow for running arbitrary code in ROP gadgets
