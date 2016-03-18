@@ -43,6 +43,12 @@ class ClassifierTests(unittest.TestCase):
     ]
     self.run_test(archinfo.ArchAMD64(), tests)
 
+  def test_x86(self):
+    tests = [
+      ({}, '\x4a\x89\xd0\xc3'), # dec edx; mov eax, edx; ret
+    ]
+    self.run_test(archinfo.ArchX86(), tests)
+
   def test_arm(self):
     tests = [
       ({LoadMem     : 1}, '\x08\x80\xbd\xe8'),                 # pop {r3, pc}

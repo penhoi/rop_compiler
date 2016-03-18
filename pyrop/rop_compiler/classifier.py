@@ -358,7 +358,7 @@ class PyvexEvaluator(object):
             getattr(self, stmt.tag)(stmt)
           else:
             self.unknown_statement(stmt)
-        except:
+        except Exception, e:
           return False
     return True
 
@@ -385,9 +385,15 @@ class PyvexEvaluator(object):
 
   def unknown_statement(self, stmt):
     """Raises a RuntimeError. Used to signify that the current statement is one we don't know how to emulate"""
-    raise RuntimeError("Unknown statement: {}".format(stmt.tag))
+    err_msg = "Unknown statement: {}".format(stmt.tag)
+    raise RuntimeError(err_msg)
 
   # Expression Emulators
+
+  def Iex_CCall(self, expr):
+    # TODO we don't really deal with the flags, and I've only seen this used for x86 flags, so I'm just going to ignore this for now.
+    # Perhaps, at some point in the future I'll implement this
+    return 0
 
   def Iex_Get(self, expr):
     return self.state.get_reg(expr.offset, expr.result_size)
