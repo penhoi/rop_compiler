@@ -37,7 +37,7 @@ Optional:
 
 * [pwntools](https://github.com/Gallopsled/pwntools)
   * Pwntools is a set of python libraries that ease the process of exploit development (process wrappers, gdb support, etc).
-  * It's only needed to run the example scripts and test suite.  It's not used in the actual pyrop library.
+  * It's only needed to run the example scripts and test suite or as an alternative to cle.  Besides that it's not used in the actual pyrop library.
 * [pyelftools](https://github.com/eliben/pyelftools)
   * This package is only used as an alternative to cle, and is optional
   * FYI, the pyelftools package in pip repos is old
