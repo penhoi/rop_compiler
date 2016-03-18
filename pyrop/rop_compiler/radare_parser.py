@@ -2,11 +2,11 @@ import logging, collections, os
 import file_parser
 from r2 import r_bin
 
-class RadareFinder(file_parser.FileParser):
+class RadareParser(file_parser.FileParser):
   """This class parses an executable file using radare"""
 
   def __init__(self, filename, base_address = 0, level = logging.WARNING):
-    super(RadareFinder, self).__init__(filename, base_address, level)
+    super(RadareParser, self).__init__(filename, base_address, level)
 
     io = r_bin.RIO()
     self.desc = io.open(filename, 0, 0)

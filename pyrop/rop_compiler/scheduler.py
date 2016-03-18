@@ -164,6 +164,7 @@ class Scheduler(object):
     for i in range(len(goal.arguments)):
       arg = goal.arguments[i]
       if type(arg) == str:
+        # TODO search the loaded memory for a string in case we're lucky and it already exists in memory
         address = self.get_writable_memory(len(arg))
         argument_strings[arg] = address
         goal.arguments[i] = address

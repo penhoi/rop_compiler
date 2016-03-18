@@ -12,3 +12,4 @@ This file contains a list of TODO items (not necessarily in priority order) for 
 * Use plex (python lexer) and ply (python yacc) to allow for running arbitrary code in ROP gadgets (i.e. full compiling rather than just spawning a shell)
 * Determine some way to know when we have *enough* gadgets. This will let us quit searching early, and build the chain much faster.
 * Implement more combination gadgets to allow for creation of chains when desired gadgets cannot be found
+* Use the multiprocessing module to speed up gadget finding

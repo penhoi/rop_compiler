@@ -4,17 +4,20 @@ def get_parser_from_name(name = "cle"):
     return default_parser()
   elif name.lower().find("cle") != -1:
     return default_parser()
+  elif name.lower().find("pwn") != -1:
+    import pwntools_parser
+    return pwntools_parser.PwntoolsParser
   elif name.lower().find("pyelf") != -1:
     import pyelf_parser
     return pyelf_parser.PyelfParser
   elif name.lower().find("radare") != -1:
     import radare_parser
-    return radare_parser.RadareFinder
+    return radare_parser.RadareParser
   raise RuntimeError("Unknown file parser: %s" % name)
 
 def default_parser():
-  import cle_parser
-  return cle_parser.CleParser
+    import cle_parser
+    return cle_parser.CleParser
 
 def get_finder_from_name(name = "file"):
   if name == None:
