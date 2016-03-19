@@ -25,7 +25,7 @@ class CleParser(file_parser.FileParser):
     if symbol != None:
       if symbol.rebased_addr == 0: # For some symbols, it doesn't look in the plt.  Fix that up here.
         return self.ld.main_bin._plt[name] + self.base_address
-      return symbol.rebased_addr + self.base_address
+      return symbol.addr + self.base_address
     return None
 
   def get_writable_memory(self):

