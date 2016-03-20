@@ -3,7 +3,7 @@ import file_parser
 import cle
 
 class CleParser(file_parser.FileParser):
-  """This class parses an executable file using radare"""
+  """This class parses an executable file using cle"""
 
   def __init__(self, filename, base_address = 0, level = logging.WARNING):
     super(CleParser, self).__init__(filename, base_address, level)
