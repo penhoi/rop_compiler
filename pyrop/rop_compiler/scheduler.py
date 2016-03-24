@@ -59,7 +59,7 @@ class Scheduler(object):
   def print_gadgets(self, caption, gadgets):
     self.logger.debug(caption)
     for gadget in gadgets:
-      self.logger.debug(gadget)
+      self.logger.debug(str(gadget))
 
   def find_store_mem_gadgets(self, addr_reg, value_reg):
     """This method finds a gadget that writes the value in one register to the address in another"""
