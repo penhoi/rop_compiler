@@ -44,6 +44,12 @@ class ClassifierTests(unittest.TestCase):
       ({AddConstGadget : 1, LoadConst : 1},                                               # movabs rbx,0x1122334455667788;
         '\x48\xbb\x88\x77\x66\x55\x44\x33\x22\x11\x48\x01\xd8\xc3'),                      # add rax,rbx; ret
       ({AddConstGadget : 1}, '\x48\xff\xc0\xc3'),                                         # inc rax; ret
+
+      ({LoadMem : 2}, '\x58\x48\x89\xc3\xc3'),                                            # pop rax; mov rbx, rax; ret
+      ({LoadMem : 3, LoadMultiple : 2}, '\x59\x58\x48\x89\xc3\xc3'),                      # pop rcx; pop rax; mov rbx, rax; ret
+
+      # Don't allow more than one read from any register but the stack
+      ({} , '\x48\x8b\x19\x48\x8b\x41\x08\xc3'), # mov rbx,QWORD PTR [rcx]; mov rax,QWORD PTR [rcx+0x8]; ret
     ]
     self.run_test(archinfo.ArchAMD64(), tests)
 

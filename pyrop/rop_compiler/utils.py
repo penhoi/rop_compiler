@@ -48,3 +48,20 @@ def z3_set_memory(memory, address, value, arch):
     new_memory = z3.Store(new_memory, address + i, z3.Extract(upper, upper - 7, value))
   return new_memory
 
+def get_permutations(dictionary_of_lists, keys):
+  keys = list(keys)
+  round_index = keys.pop()
+
+  if len(keys) == 0:
+    return map(lambda x: [x], dictionary_of_lists[round_index]) # Wrap each item in a list
+  else:
+    round_permutations = get_permutations(dictionary_of_lists, keys) # get the permutations for the rest of the list
+
+    # For each permutation of the rest of the list, add each of this round's items to the beginning of it
+    permutations = []
+    for reg in dictionary_of_lists[round_index]:
+      for rperm in round_permutations:
+        perm = list(rperm)
+        perm.insert(0, reg)
+        permutations.append(perm)
+    return permutations

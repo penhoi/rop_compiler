@@ -185,7 +185,7 @@ class GadgetClassifier(object):
           # Allow the ArithmeticStore's read
           or (issubclass(gadget_type, ArithmeticStore) and mem_address == state.in_regs[inputs[0]] + params[0])
 
-          # Allow loads from the SP register (i.e. pop)
+          # Allow loads from the SP register (i.e. pop) and only allow the parameter to be a max of 0x1000
           or (self.sp in state.in_regs and abs(mem_address - state.in_regs[self.sp]) < 0x1000)
       ):
         return False
@@ -255,14 +255,22 @@ class GadgetClassifier(object):
               all_loaded_regs[oreg] = address
 
     # Check for LoadMultiple
+    # Note: we don't bother checking that they're all being loaded via the same register since we later only allow non-LoadMem
+    # reads only if they're from the stack pointer
     if len(all_loaded_regs) > 1:
-      for ireg, ivalue in state.in_regs.items():
-        outputs = []
-        params = []
-        for oreg, address in all_loaded_regs.items():
-          outputs.append(oreg)
-          params.append(address - ivalue)
-        possible_types.append((LoadMultiple, [ireg], outputs, params))
+
+      # Gather all the [address] -> register pairings
+      params_to_regs = collections.defaultdict(list, {})
+      for oreg, address in all_loaded_regs.items():
+        params_to_regs[address].append(oreg)
+
+      # Get all the permutations of registers we can set at once without using the same address twice
+      permutations = utils.get_permutations(params_to_regs, params_to_regs.keys())
+      for permutation in permutations:
+        if len(permutation) > 1:
+          permutation.sort() # sort to make sure they're always in the same order
+          for ireg, ivalue in state.in_regs.items():
+            possible_types.append((LoadMultiple, [ireg], permutation, map(lambda r: all_loaded_regs[r] - ivalue, permutation)))
 
     for address, value in state.out_mem.items():
       for ireg, ivalue in state.in_regs.items():
