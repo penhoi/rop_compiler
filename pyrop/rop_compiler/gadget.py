@@ -384,7 +384,7 @@ class Gadget(GadgetBase):
   def __str__(self):
     outputs = ", ".join([self.arch.translate_register_name(x) for x in self.outputs])
     if outputs != "":
-      outputs = ", Output: {}".format(outputs)
+      outputs = ", Output: [{}]".format(outputs)
     inputs = ", ".join([self.arch.translate_register_name(x) for x in self.inputs])
     if inputs != "":
       inputs = ", Inputs [{}]".format(inputs)
@@ -619,6 +619,10 @@ class Arithmetic(Gadget):
   def get_gadget_constraint(self):
     return z3.Not(self.get_output0() == self.binop(self.get_input0(), self.get_input1())), None
 
+class ArithmeticConst(Gadget):
+  def get_gadget_constraint(self):
+    return z3.Not(self.get_output0() == self.binop(self.get_input0(), self.get_param0())), None
+
 class ArithmeticLoad(Gadget):
   def get_gadget_constraint(self):
     mem_value = utils.z3_get_memory(self.get_mem_before(), self.get_input0() + self.get_param0(), self.arch.bits, self.arch)
@@ -636,6 +640,10 @@ class ArithmeticStore(Gadget):
 
 # Split up the Arithmetic gadgets, so they're easy to search for when you are searching for a specific one
 class AddGadget(Arithmetic):
+  @classmethod
+  def binop(self,x,y): return x + y
+
+class AddConstGadget(ArithmeticConst):
   @classmethod
   def binop(self,x,y): return x + y
 

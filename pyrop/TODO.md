@@ -1,5 +1,6 @@
 This file contains a list of TODO items (not necessarily in priority order) for the python based ROP compiler.
 
+* Fix the bug where LoadMultiple occurs when two registers are loaded, but they have to be the same value (pop, mov, ret)
 * Documentation
 * Blacklisting of gadgets (or detection of bad ones)
   * complexcalc rop gadget script

@@ -61,6 +61,7 @@ class ValidatorTests(unittest.TestCase):
       (['\x59\x48\x89\xcb\x48\xc7\xc1\x05\x00\x00\x00\xc3'], LoadMem, ['rsp'], ['rbx'], [0], ['rcx'], 0x10, 8, True), # pop rcx; mov rbx,rcx; mov rcx,0x5; ret
       (['\x59\x48\x89\xcb\x48\xc7\xc1\x05\x00\x00\x00\xc3'], LoadConst, [], ['rcx'], [5], ['rbx'], 0x10, 8, True), # pop rcx; mov rbx,rcx; mov rcx,0x5; ret
       (['\x5f\x5e\x5a\xc3'],                                 LoadMultiple, ['rsp'], ['rdi','rsi','rdx'], [0, 8, 0x10], [], 0x20, 0x18, True), # pop rdi; pop rsi; pop rdx; ret
+      (['\x48\xff\xc0\xc3'],                                 AddConstGadget, ['rax'], ['rax'], [1], [], 8, 0, True), # inc rax; ret
 
       # Negative tests
       (['\xff\xe0'],                                         Jump, ['rax'], ['rip'], [], [], 8, None, False), # jmp rax (bad stack offset)

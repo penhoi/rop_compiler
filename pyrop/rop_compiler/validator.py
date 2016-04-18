@@ -118,6 +118,11 @@ class PyvexToZ3Converter(object):
 
   # Expression Emulators
 
+  def Iex_CCall(self, expr):
+    # TODO we don't really deal with the flags, and I've only seen this used for x86 flags, so I'm just going to ignore this for now.
+    # Perhaps, at some point in the future I'll implement this
+    return z3.BitVecVal(0, expr.result_size)
+
   def Iex_Get(self, expr):
     return self.get_reg(expr.offset, expr.result_size)
 

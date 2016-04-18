@@ -40,12 +40,16 @@ class ClassifierTests(unittest.TestCase):
       ({},                    '\x48\x8b\x85\xf0\xfd\xff\xff\x48\x83\xc0'),
 #      ({LoadMemJump : 1, },   '\x5a\xfc\xff\xd0'),                                       # pop rdx, cld, call rax
       ({LoadMem : 3, LoadMultiple : 1}, '\x5f\x5e\x5a\xc3'),                              # pop rdi; pop rsi; pop rdx; ret
+      ({AddConstGadget : 1},  '\x48\x05\x44\x33\x22\x11\xc3'),                            # add rax, 0x11223344; ret
+      ({AddConstGadget : 1, LoadConst : 1},                                               # movabs rbx,0x1122334455667788;
+        '\x48\xbb\x88\x77\x66\x55\x44\x33\x22\x11\x48\x01\xd8\xc3'),                      # add rax,rbx; ret
+      ({AddConstGadget : 1}, '\x48\xff\xc0\xc3'),                                         # inc rax; ret
     ]
     self.run_test(archinfo.ArchAMD64(), tests)
 
   def test_x86(self):
     tests = [
-      ({}, '\x4a\x89\xd0\xc3'), # dec edx; mov eax, edx; ret
+      ({AddConstGadget : 1}, '\x4a\x89\xd0\xc3'), # dec edx; mov eax, edx; ret
     ]
     self.run_test(archinfo.ArchX86(), tests)
 

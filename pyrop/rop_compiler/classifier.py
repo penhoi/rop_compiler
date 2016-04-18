@@ -232,6 +232,10 @@ class GadgetClassifier(object):
             if ovalue == gadget_type.binop(ivalue, ivalue2):
               possible_types.append((gadget_type, [ireg, ireg2], [oreg], []))
 
+        # Check for ArithmeticConst
+        if oreg != self.sp:
+          possible_types.append((AddConstGadget, [ireg], [oreg], [ovalue - ivalue]))
+
       for address, value_at_address in state.in_mem.items():
         # Check for ArithmeticLoad
         for ireg, ivalue in state.in_regs.items():
