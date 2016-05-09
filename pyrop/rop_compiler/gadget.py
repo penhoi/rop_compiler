@@ -4,7 +4,7 @@ import z3
 import cPickle as pickle
 import utils, extra_archinfo
 
-def from_string(data, log_level = logging.WARNING, address_offset = None):
+def from_string(data, log_level = logging.WARNING, address_offset = None, bad_bytes = None):
   gadgets_dict = pickle.loads(data)
   gadgets_list = [item for sublist in gadgets_dict.values() for item in sublist] # Flatten list of lists
 
@@ -15,6 +15,14 @@ def from_string(data, log_level = logging.WARNING, address_offset = None):
   gl = GadgetList(gadgets_list, log_level)
   if address_offset != None:
     gl.adjust_base_address(address_offset)
+
+  if bad_bytes != None:
+    just_good_gadgets = GadgetList(log_level)
+    for gadget in gl.foreach():
+      if not gadget.has_bad_address(bad_bytes):
+        just_good_gadgets.add_gadget(gadget)
+    gl = just_good_gadgets
+
   return gl
 
 BEST  = 0  # Best gadget
@@ -332,6 +340,9 @@ class GadgetBase(object):
 
   def chain(self, next_address, input_values = None):
     raise RuntimeError("Not Implemented")
+
+  def has_bad_address(self, bad_bytes):
+    return util.address_contains_bad_byte(self.address, bad_bytes, self.arch)
 
 class CombinedGadget(GadgetBase):
   """This class wraps multiple gadgets which are combined to create a single ROP primitive"""

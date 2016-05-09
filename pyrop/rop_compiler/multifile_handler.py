@@ -49,11 +49,11 @@ class MultifileHandler(object):
         return addr
     raise RuntimeError("Couldn't find a .data section when looking for writable memory")
 
-  def find_gadgets(self, validate_gadgets = False):
+  def find_gadgets(self, validate_gadgets = False, bad_bytes = None):
     """Finds gadgets in the specified file"""
     all_gadget_list = None
     for (name, parser, finder) in self.files:
-      new_gadget_list = finder.find_gadgets(validate_gadgets)
+      new_gadget_list = finder.find_gadgets(validate_gadgets, bad_bytes)
       if all_gadget_list == None:
         all_gadget_list = new_gadget_list
       else:

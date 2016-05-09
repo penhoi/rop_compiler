@@ -1,6 +1,13 @@
 import struct
 import z3
 
+def address_contains_bad_byte(address, bad_bytes, arch):
+  ret = False
+  if bad_bytes != None:
+    addr_bytes = ap(address, arch)
+    ret = any(map(lambda x: x in addr_bytes, bad_bytes))
+  return ret
+
 def ap(address, arch):
   """Packs an address into a string. ap is short for Address Pack"""
   formats = { 32 : "I", 64 : "Q" }

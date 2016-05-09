@@ -3,7 +3,7 @@ import logging
 import archinfo
 import goal, scheduler, multifile_handler, gadget
 
-def rop(files, libraries, goal_list, arch = archinfo.ArchAMD64(), log_level = logging.WARNING, validate_gadgets = False, strategy = None):
+def rop(files, libraries, goal_list, arch = archinfo.ArchAMD64(), log_level = logging.WARNING, validate_gadgets = False, strategy = None, bad_bytes = None):
   """Takes a goal resolver and creates a rop chain for it.  The arguments are as follows:
   $files - a list of tuples of the form (binary filename, gadget filename, load address).  The binary filename is the name of the
     file to generate a ROP chain for.  The gadget filename is a file that has been previously generated which contains the previously
@@ -20,18 +20,19 @@ def rop(files, libraries, goal_list, arch = archinfo.ArchAMD64(), log_level = lo
   $strategy - the strategy for find gadget (see gadget.py).  This can be either FIRST, BEST, or MEDIUM; where FIRST returns the first
     gadget that matches the desired type, BEST scans the found gadgets for the best one that matches the desired type, and MEDIUM
     is a compromise between the two.  In practice, the default (MEDIUM) should work for most things.
+  $bad_bytes - a list of strings that a gadget will be rejected for if it contains them
   """
   file_handler = multifile_handler.MultifileHandler(files, libraries, arch, log_level)
   goal_resolver = goal.GoalResolver(file_handler, goal_list, log_level)
 
-  gadgets = file_handler.find_gadgets(validate_gadgets)
+  gadgets = file_handler.find_gadgets(validate_gadgets, bad_bytes)
   if strategy != None:
     gadgets.set_strategy(strategy)
   gadget_scheduler = scheduler.Scheduler(gadgets, goal_resolver, file_handler, arch, log_level)
   return gadget_scheduler.get_chain()
 
-def rop_to_shellcode(files, libraries, shellcode_address, arch = archinfo.ArchAMD64(), log_level = logging.WARNING, validate_gadgets = False):
+def rop_to_shellcode(files, libraries, shellcode_address, arch = archinfo.ArchAMD64(), log_level = logging.WARNING, validate_gadgets = False, bad_bytes = None):
   """Convience method to create a goal_resolver for a shellcode address goal then find a rop chain for it"""
   goal_list = [["shellcode", hex(shellcode_address)]]
-  return rop(files, libraries, goal_list, arch, log_level, validate_gadgets)
+  return rop(files, libraries, goal_list, arch, log_level, validate_gadgets, bad_bytes)
 
