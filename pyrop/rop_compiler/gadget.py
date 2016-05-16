@@ -4,13 +4,17 @@ import z3
 import cPickle as pickle
 import utils, extra_archinfo
 
-def from_string(data, log_level = logging.WARNING, address_offset = None, bad_bytes = None):
+def from_string(data, log_level = logging.WARNING, address_offset = None, bad_bytes = None, filter_func = None):
   gadgets_dict = pickle.loads(data)
   gadgets_list = [item for sublist in gadgets_dict.values() for item in sublist] # Flatten list of lists
 
   # Turn the names of the arch back into archinfo classes (Which aren't pickle-able)
   for gadget in gadgets_list:
     gadget.arch = archinfo.arch_from_id(gadget.arch)
+
+  # Filter the gadgets if necessary
+  if filter_func != None:
+    gadgets_list = filter_func(gadgets_list)
 
   gl = GadgetList(gadgets_list, log_level)
   if address_offset != None:

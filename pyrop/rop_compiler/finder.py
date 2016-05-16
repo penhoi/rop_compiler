@@ -2,6 +2,9 @@ import archinfo
 import logging, collections
 import factories
 
+"""A function to filter gadgets on when they are first created"""
+FILTER_FUNC = None
+
 class Finder(object):
   """This class parses a file to obtain any gadgets inside their executable sections"""
 

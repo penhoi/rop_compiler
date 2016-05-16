@@ -1,8 +1,6 @@
 import logging, collections
 import classifier as cl, gadget as ga, finder, factories, utils
 
-FILTER_FUNC = None
-
 class MemoryFinder(finder.Finder):
   """This class parses a file to obtain any gadgets inside their executable sections"""
 
@@ -32,7 +30,7 @@ class MemoryFinder(finder.Finder):
       end = i + self.MAX_GADGET_SIZE[self.arch.name]
       code = data[i:end]
       gadgets = classifier.create_gadgets_from_instructions(code, address)
-      if FILTER_FUNC != None:
-        gadgets = FILTER_FUNC(gadgets)
+      if finder.FILTER_FUNC != None:
+        gadgets = finder.FILTER_FUNC(gadgets)
       gadget_list.add_gadgets(gadgets)
 

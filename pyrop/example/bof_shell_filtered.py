@@ -1,6 +1,6 @@
 import sys, logging, binascii
 from pwn import *
-from rop_compiler import ropme, goal, memory_finder
+from rop_compiler import ropme, goal, finder
 
 def filter_gadgets(gadgets):
   """Example filter function, don't use any gadgets that set rax"""
@@ -10,7 +10,7 @@ def filter_gadgets(gadgets):
     if not (gadget.clobbers_register(rax) or rax in gadget.outputs):
       filtered_gadgets.append(gadget)
   return filtered_gadgets
-memory_finder.FILTER_FUNC = filter_gadgets
+finder.FILTER_FUNC = filter_gadgets
 
 filename = './bof_shell'
 p = process([filename,'3000'])
