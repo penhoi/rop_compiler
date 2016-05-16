@@ -1,7 +1,6 @@
 This file contains a list of TODO items (not necessarily in priority order) for the python based ROP compiler.
 
 * Documentation
-* complexcalc rop gadget script
 * Blacklisting of bytes (i.e. avoid NULL bytes for when overflowing strcpy)
 * A generic script that will try to spawn a shell (i.e. so we don't need to code a script for each binary/technique)
 * Windows support
