@@ -1,6 +1,7 @@
 import logging, collections
-
 import classifier as cl, gadget as ga, finder, factories, utils
+
+FILTER_FUNC = None
 
 class MemoryFinder(finder.Finder):
   """This class parses a file to obtain any gadgets inside their executable sections"""
@@ -11,10 +12,10 @@ class MemoryFinder(finder.Finder):
 
   def find_gadgets(self, validate = False, bad_bytes = None):
     """Finds gadgets in the specified file"""
-    gadget_list = ga.GadgetList(log_level = self.level)
+    gadget_list = ga.GadgetList(log_level = self.level, bad_bytes = bad_bytes)
     for segment in self.parser.iter_executable_segments():
       self.get_gadgets_for_segment(segment, gadget_list, validate, bad_bytes)
-    self.logger.debug("Found %d gadgets", len([x for x in gadget_list.foreach()]))
+    self.logger.debug("Found %d gadgets in %s", len([x for x in gadget_list.foreach()]), self.name)
     return gadget_list
 
   def get_gadgets_for_segment(self, segment, gadget_list, validate, bad_bytes):
@@ -30,5 +31,8 @@ class MemoryFinder(finder.Finder):
         continue
       end = i + self.MAX_GADGET_SIZE[self.arch.name]
       code = data[i:end]
-      gadget_list.add_gadgets(classifier.create_gadgets_from_instructions(code, address))
+      gadgets = classifier.create_gadgets_from_instructions(code, address)
+      if FILTER_FUNC != None:
+        gadgets = FILTER_FUNC(gadgets)
+      gadget_list.add_gadgets(gadgets)
 

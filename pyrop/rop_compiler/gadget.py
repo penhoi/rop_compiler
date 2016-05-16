@@ -17,7 +17,7 @@ def from_string(data, log_level = logging.WARNING, address_offset = None, bad_by
     gl.adjust_base_address(address_offset)
 
   if bad_bytes != None:
-    just_good_gadgets = GadgetList(log_level)
+    just_good_gadgets = GadgetList(log_level = log_level, bad_bytes = bad_bytes)
     for gadget in gl.foreach():
       if not gadget.has_bad_address(bad_bytes):
         just_good_gadgets.add_gadget(gadget)
@@ -31,10 +31,11 @@ MEDIUM = 2 # First with less than 3 complexity
 
 class GadgetList(object):
 
-  def __init__(self, gadgets = None, log_level = logging.WARNING, strategy = MEDIUM):
+  def __init__(self, gadgets = None, log_level = logging.WARNING, strategy = MEDIUM, bad_bytes = None):
     self.setup_logging(log_level)
 
     self.strategy = strategy
+    self.bad_bytes = bad_bytes
     self.arch = None
     self.gadgets = collections.defaultdict(list, {})
     self.gadgets_per_output = collections.defaultdict(lambda : collections.defaultdict(list, []), {})
@@ -133,7 +134,22 @@ class GadgetList(object):
         return gadget
     return None
 
+  def create_load_registers_chain_with_bad_bytes(self, next_address, input_reg, registers, no_clobber = None):
+    bad_registers = {}
+
+    # Sort out the bad registers
+    for register, value in registers:
+      if utils.address_contains_bad_byte(value, self.bad_bytes, self.arch):
+        bad_registers[register] = value
+        del bad_registers[register]
+
+    print "Need to find custom load gadgets for registers", bad_registers
+    sys.exit(0)
+
   def create_load_registers_chain(self, next_address, input_reg, registers, no_clobber = None):
+    if any(map(lambda value: utils.address_contains_bad_byte(value, self.bad_bytes, self.arch), registers.values())):
+      return create_load_registers_chain_with_bad_bytes(next_address, input_reg, registers, no_clobber)
+
     gadgets = self.get_load_registers_gadgets(input_reg, registers, no_clobber)
     if gadgets == None:
       return None, None
@@ -342,7 +358,7 @@ class GadgetBase(object):
     raise RuntimeError("Not Implemented")
 
   def has_bad_address(self, bad_bytes):
-    return util.address_contains_bad_byte(self.address, bad_bytes, self.arch)
+    return utils.address_contains_bad_byte(self.address, bad_bytes, self.arch)
 
 class CombinedGadget(GadgetBase):
   """This class wraps multiple gadgets which are combined to create a single ROP primitive"""

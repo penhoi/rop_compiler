@@ -9,12 +9,13 @@ PROT_RWX = 7
 class Scheduler(object):
   """This class takes a set of gadgets and combines them together to implement the given goals"""
 
-  def __init__(self, gadget_list, goal_resolver, file_handler, arch, level = logging.WARNING):
+  def __init__(self, gadget_list, goal_resolver, file_handler, arch, level = logging.WARNING, bad_bytes = None):
     logging.basicConfig(format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
     self.logger = logging.getLogger(self.__class__.__name__)
     self.logger.setLevel(level)
 
     self.arch = arch
+    self.bad_bytes = bad_bytes
     self.gadget_list = gadget_list
     self.file_handler = file_handler
 
@@ -329,9 +330,9 @@ class Scheduler(object):
 
     raise RuntimeError("Failed finding necessary gadgets for shellcode address goal")
 
-  def create_write_8byte_memory_chain(self, buf, address, next_address):
+  def create_write_regsize_memory_chain(self, buf, address, next_address):
     """This method generates a chain that will write the buffer to the given address.  Similar to ROPC we limit ourselves to one
-      memory size for simplicity.  Thus, the buffer must be arch.bits/8 bytes long"""
+      memory size for simplicity.  Thus, the buffer must be (arch.bits/8) bytes long"""
     if len(buf) != (self.arch.bits/8):
       raise RuntimeError("Write memory chains can only write memory in chunks of %d bytes, requested %d" % (self.arch.bits/8, len(buf)))
 
@@ -339,7 +340,7 @@ class Scheduler(object):
     load_addr_gadget, load_value_gadget, store_mem_gadget = self.get_write_memory_gadget()
 
     # Next create the chain to setup the address and value to be written
-    chain = load_addr_gadget.chain(load_value_gadget.address, [address-store_mem_gadget.params[0]])
+    chain = load_addr_gadget.chain(load_value_gadget.address, [address - store_mem_gadget.params[0]])
     chain += load_value_gadget.chain(store_mem_gadget.address, [buf])
 
     # Finally, create the chain to write to memory
@@ -359,7 +360,7 @@ class Scheduler(object):
     buf = self.align_to_8bytes(buf, padding)
     for i in range(0, len(buf), self.alignment):
       # Iteratively create the ROP chain for each byte chunk of the buffer
-      single_write_chain, next_address = self.create_write_8byte_memory_chain(buf[i:i+self.alignment], addr, next_address)
+      single_write_chain, next_address = self.create_write_regsize_memory_chain(buf[i:i+self.alignment], addr, next_address)
       chain = single_write_chain + chain
       addr += self.alignment
     return chain, next_address

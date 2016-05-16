@@ -10,7 +10,7 @@ def rop(files, libraries, goal_list, arch = archinfo.ArchAMD64(), log_level = lo
     found gadgets (using the finder.py utility script).  If a gadget file hasn't been generated before, fill in None for this argument.
     The load address of the binary is only needed for libraries and PIE binaries.
   $libraries - a list of path's to the libraries to resolve symbols in.  Primarily this is useful for libc.  This list differs from
-    the files list in that as the entries in this list will not be used to find gadgets (and thus their address is not needed.
+    the files list in that the entries in this list will not be used to find gadgets (and thus their address is not needed).
   $goal_list - a list of goals to attempt to compile a ROP chain for.  See goal.py for the format of the items in this list.
   $arch - the archinfo class representing the architecture of the binary
   $log_level - the level of logging to display during the ROP compiling process.  Note that pyvex logs a large amount of info to
@@ -28,7 +28,7 @@ def rop(files, libraries, goal_list, arch = archinfo.ArchAMD64(), log_level = lo
   gadgets = file_handler.find_gadgets(validate_gadgets, bad_bytes)
   if strategy != None:
     gadgets.set_strategy(strategy)
-  gadget_scheduler = scheduler.Scheduler(gadgets, goal_resolver, file_handler, arch, log_level)
+  gadget_scheduler = scheduler.Scheduler(gadgets, goal_resolver, file_handler, arch, log_level, bad_bytes)
   return gadget_scheduler.get_chain()
 
 def rop_to_shellcode(files, libraries, shellcode_address, arch = archinfo.ArchAMD64(), log_level = logging.WARNING, validate_gadgets = False, bad_bytes = None):
