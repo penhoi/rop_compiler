@@ -8,7 +8,6 @@ class CleParser(file_parser.FileParser):
   def __init__(self, filename, base_address = 0, level = logging.WARNING):
     super(CleParser, self).__init__(filename, base_address, level)
     self.ld = cle.Loader(filename)
-    pyvex.set_iropt_level(0) # cle changes this, but we need it set to 0
 
   def iter_executable_segments(self):
     """Any iterator that only returns the executable sections in the ELF file"""

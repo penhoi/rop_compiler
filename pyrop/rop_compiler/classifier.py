@@ -33,6 +33,7 @@ class GadgetClassifier(object):
     return True
 
   def get_irsbs(self, code, address):
+    pyvex.set_iropt_level(0) # We need this set to 0 so we get the pyvex statements that tell us how the PC value is set
     irsbs = []
     code_address = address
     while code_address <= address + len(code) - self.arch.instruction_alignment:
