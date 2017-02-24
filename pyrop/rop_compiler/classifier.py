@@ -1,4 +1,4 @@
-import collections, logging, random, sys
+import collections, logging, random, sys, traceback
 import pyvex, archinfo
 
 from gadget import *
@@ -40,6 +40,7 @@ class GadgetClassifier(object):
         irsb = pyvex.IRSB(code[code_address-address:], code_address, self.arch)
         irsbs.append(irsb)
       except: # If decoding fails, we can't use this gadget
+        traceback.print_exc()
         return [] # So just return an empty list
 
       if (self.arch.name not in extra_archinfo.ENDS_EARLY_ARCHS
@@ -343,7 +344,6 @@ class EvaluateState(object):
 
   def get_reg(self, reg, size):
     if reg in self.out_regs:
-      val = utils.mask(self.out_regs[reg], size)
       return utils.mask(self.out_regs[reg], size)
     return utils.mask(self.in_regs[reg], size)
 
@@ -363,6 +363,7 @@ class PyvexEvaluator(object):
 
   def emulate_irsbs(self, irsbs):
     for irsb in irsbs:
+      self.tyenv = irsb.tyenv
       self.state.reset_tmps()
       for stmt in irsb.statements:
         try:
@@ -371,6 +372,7 @@ class PyvexEvaluator(object):
           else:
             self.unknown_statement(stmt)
         except Exception, e:
+          traceback.print_exc()
           return False
     return True
 
@@ -408,20 +410,23 @@ class PyvexEvaluator(object):
     return 0
 
   def Iex_Get(self, expr):
-    return self.state.get_reg(expr.offset, expr.result_size)
+    return self.state.get_reg(expr.offset, expr.result_size(self.tyenv))
 
   def Iex_RdTmp(self, argument):
-    return self.state.get_tmp(argument.tmp, argument.result_size)
+    return self.state.get_tmp(argument.tmp, argument.result_size(self.tyenv))
 
   def Iex_Load(self, expr):
     address = getattr(self, expr.addr.tag)(expr.addr)
-    return self.state.get_mem(address, expr.result_size)
+    return self.state.get_mem(address, expr.result_size(self.tyenv))
 
   def Iex_Const(self, expr):
     return getattr(self, expr.con.tag)(expr.con)
 
   def Ico_U8(self, constant):
     return utils.mask(constant.value, 8)
+
+  def Ico_U16(self, constant):
+    return utils.mask(constant.value, 16)
 
   def Ico_U32(self, constant):
     return utils.mask(constant.value, 32)
@@ -436,17 +441,39 @@ class PyvexEvaluator(object):
   def Iop_64to32(self, argument):
     return utils.mask(argument, 32)
 
+  def Iop_64to16(self, argument):
+    return utils.mask(argument, 16)
+
+  def Iop_64to8(self, argument):
+    return utils.mask(argument, 8)
+
+  def Iop_64to1(self, argument):
+    return utils.mask(argument, 1)
+
   def Iop_32Uto64(self, argument):
+    return utils.mask(argument)
+
+  def Iop_16Uto64(self, argument):
     return utils.mask(argument)
 
   def Iop_8Uto64(self, argument):
     return utils.mask(argument)
 
-  def Iop_32Sto64(self, argument):
+  def Iop_1Uto64(self, argument):
+    return utils.mask(argument)
+
+  def sign_convert(self, argument, to_base):
     if argument >= 0:
       return argument
     else:
-      return (2 ** 64) + argument
+      return (2 ** to_base) + argument
+
+  def Iop_32Sto64(self, argument): return self.sign_convert(argument, 64)
+  def Iop_16Sto64(self, argument): return self.sign_convert(argument, 64)
+  def Iop_8Sto64(self, argument):  return self.sign_convert(argument, 64)
+  def Iop_16Sto32(self, argument): return self.sign_convert(argument, 32)
+  def Iop_8Sto32(self, argument):  return self.sign_convert(argument, 32)
+  def Iop_8Sto16(self, argument):  return self.sign_convert(argument, 16)
 
   def Iex_Binop(self, expr):
     left = getattr(self, expr.args[0].tag)(expr.args[0])
@@ -455,19 +482,38 @@ class PyvexEvaluator(object):
 
   def Iop_And64(self, left, right): return left & right
   def Iop_And32(self, left, right): return left & right
+  def Iop_And16(self, left, right): return left & right
+  def Iop_And8(self, left, right):  return left & right
 
   def Iop_Xor64(self, left, right): return left ^ right
   def Iop_Xor32(self, left, right): return left ^ right
+  def Iop_Xor16(self, left, right): return left ^ right
+  def Iop_Xor8(self, left, right):  return left ^ right
+
+  def Iop_Or64(self, left, right): return left | right
+  def Iop_Or32(self, left, right): return left | right
+  def Iop_Or16(self, left, right): return left | right
+  def Iop_Or8(self, left, right):  return left | right
 
   def Iop_Add64(self, left, right): return utils.mask(left + right)
   def Iop_Add32(self, left, right): return utils.mask(left + right, 32)
+  def Iop_Add16(self, left, right): return utils.mask(left + right, 16)
   def Iop_Add8(self, left, right):  return utils.mask(left + right, 8)
 
   def Iop_Sub64(self, left, right): return utils.mask(left - right)
   def Iop_Sub32(self, left, right): return utils.mask(left - right, 32)
+  def Iop_Sub16(self, left, right): return utils.mask(left - right, 16)
+  def Iop_Sub8(self, left, right):  return utils.mask(left - right, 8)
 
   def Iop_Shl64(self, left, right): return utils.mask(left << right)
   def Iop_Shl32(self, left, right): return utils.mask(left << right, 32)
+  def Iop_Shl16(self, left, right): return utils.mask(left << right, 16)
+  def Iop_Shl8(self, left, right):  return utils.mask(left << right, 8)
+
+  def Iop_Shr64(self, left, right): return utils.mask(left >> right)
+  def Iop_Shr32(self, left, right): return utils.mask(left >> right, 32)
+  def Iop_Shr16(self, left, right): return utils.mask(left >> right, 16)
+  def Iop_Shr8(self, left, right):  return utils.mask(left >> right, 8)
 
   def Iop_CmpEQ64(self, left, right): return 1 if utils.mask(left, 64) == utils.mask(right, 64) else 0
   def Iop_CmpEQ32(self, left, right): return 1 if utils.mask(left, 32) == utils.mask(right, 32) else 0

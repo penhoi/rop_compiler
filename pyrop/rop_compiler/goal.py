@@ -1,5 +1,5 @@
 # This file wraps the goal interface, i.e. how you tell the ROP compiler what you want your ROP chain to do.
-import json, logging, binascii, factories
+import json, logging, binascii
 
 class Goal(object):
   """This class is the parent Goal class, where any common methods can be placedd"""
