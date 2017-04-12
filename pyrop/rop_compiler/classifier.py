@@ -33,12 +33,11 @@ class GadgetClassifier(object):
     return True
 
   def get_irsbs(self, code, address):
-    pyvex.set_iropt_level(0) # We need this set to 0 so we get the pyvex statements that tell us how the PC value is set
     irsbs = []
     code_address = address
     while code_address <= address + len(code) - self.arch.instruction_alignment:
       try:
-        irsb = pyvex.IRSB(code[code_address-address:], code_address, self.arch)
+        irsb = pyvex.IRSB(code, code_address, self.arch, bytes_offset = code_address - address,  opt_level = 0)
         irsbs.append(irsb)
       except: # If decoding fails, we can't use this gadget
         traceback.print_exc()
@@ -231,7 +230,7 @@ class GadgetClassifier(object):
 
         for ireg2, ivalue2 in state.in_regs.items():
           for gadget_type in [AddGadget, SubGadget, MulGadget, AndGadget, OrGadget, XorGadget]:
-            if ovalue == gadget_type.binop(ivalue, ivalue2):
+            if ovalue == utils.mask(gadget_type.binop(ivalue, ivalue2), self.arch.bits):
               possible_types.append((gadget_type, [ireg, ireg2], [oreg], []))
 
         # Check for ArithmeticConst
@@ -243,7 +242,7 @@ class GadgetClassifier(object):
         for ireg, ivalue in state.in_regs.items():
           for addr_reg, addr_reg_value in state.in_regs.items():
             for gadget_type in [LoadAddGadget, LoadSubGadget, LoadMulGadget, LoadAndGadget, LoadOrGadget, LoadXorGadget]:
-              if ovalue == gadget_type.binop(ivalue, value_at_address):
+              if ovalue == utils.mask(gadget_type.binop(ivalue, value_at_address), self.arch.bits):
                 possible_types.append((gadget_type, [addr_reg, ireg], [oreg], [address - addr_reg_value]))
 
         # Check for LoadMem
@@ -289,7 +288,7 @@ class GadgetClassifier(object):
         initial_memory_value = state.in_mem[address]
         for addr_reg, addr_reg_value in state.in_regs.items():
           for gadget_type in [StoreAddGadget, StoreSubGadget, StoreMulGadget, StoreAndGadget, StoreOrGadget, StoreXorGadget]:
-            if value == gadget_type.binop(initial_memory_value, ivalue):
+            if value == utils.mask(gadget_type.binop(initial_memory_value, ivalue), self.arch.bits):
               possible_types.append((gadget_type, [addr_reg, ireg], [], [address - addr_reg_value]))
 
     # Add the clobber set to the possible types
@@ -373,7 +372,7 @@ class PyvexEvaluator(object):
           else:
             self.unknown_statement(stmt)
         except Exception, e:
-          traceback.print_exc()
+          #traceback.print_exc()
           return False
     return True
 
@@ -506,6 +505,11 @@ class PyvexEvaluator(object):
   def Iop_Sub16(self, left, right): return utils.mask(left - right, 16)
   def Iop_Sub8(self, left, right):  return utils.mask(left - right, 8)
 
+  def Iop_Mul64(self, left, right): return utils.mask(left * right)
+  def Iop_Mul32(self, left, right): return utils.mask(left * right, 32)
+  def Iop_Mul16(self, left, right): return utils.mask(left * right, 16)
+  def Iop_Mul8(self, left, right):  return utils.mask(left * right, 8)
+
   def Iop_Shl64(self, left, right): return utils.mask(left << right)
   def Iop_Shl32(self, left, right): return utils.mask(left << right, 32)
   def Iop_Shl16(self, left, right): return utils.mask(left << right, 16)
@@ -516,11 +520,25 @@ class PyvexEvaluator(object):
   def Iop_Shr16(self, left, right): return utils.mask(left >> right, 16)
   def Iop_Shr8(self, left, right):  return utils.mask(left >> right, 8)
 
+  def Iop_Sal64(self, left, right): return utils.mask(left >> right)
+  def Iop_Sal32(self, left, right): return utils.mask(left >> right, 32)
+  def Iop_Sal16(self, left, right): return utils.mask(left >> right, 16)
+  def Iop_Sal8(self, left, right):  return utils.mask(left >> right, 8)
+
+  def Iop_Sar64(self, left, right): return utils.mask(left >> right)
+  def Iop_Sar32(self, left, right): return utils.mask(left >> right, 32)
+  def Iop_Sar16(self, left, right): return utils.mask(left >> right, 16)
+  def Iop_Sar8(self, left, right):  return utils.mask(left >> right, 8)
+
   def Iop_CmpEQ64(self, left, right): return 1 if utils.mask(left, 64) == utils.mask(right, 64) else 0
   def Iop_CmpEQ32(self, left, right): return 1 if utils.mask(left, 32) == utils.mask(right, 32) else 0
+  def Iop_CmpEQ16(self, left, right): return 1 if utils.mask(left, 16) == utils.mask(right, 16) else 0
+  def Iop_CmpEQ8(self, left, right): return 1 if utils.mask(left, 8) == utils.mask(right, 8) else 0
 
   def Iop_CmpNE64(self, left, right): return 1 if utils.mask(left, 64) != utils.mask(right, 64) else 0
   def Iop_CmpNE32(self, left, right): return 1 if utils.mask(left, 32) != utils.mask(right, 32) else 0
+  def Iop_CmpNE16(self, left, right): return 1 if utils.mask(left, 16) != utils.mask(right, 16) else 0
+  def Iop_CmpNE8(self, left, right): return 1 if utils.mask(left, 8) != utils.mask(right, 88) else 0
 
 if __name__ == "__main__":
   import sys
