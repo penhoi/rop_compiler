@@ -94,7 +94,7 @@ class BitmaskEnum(Enum):
 		"""Defines a shortcut combination of two bitmask values into one.
 			@key = the new key to define
 			@values = The bitmasks to include in the new one
-		  Example: BitmaskEnum.combine("AB", [BitmaskEnum.A, BitmaskEnum.B]) creates a value BitmaskEnum.AB that contains both
+		    Example: BitmaskEnum.combine("AB", [BitmaskEnum.A, BitmaskEnum.B]) creates a value BitmaskEnum.AB that contains both
 			values A and B
 		"""
 		val = 0

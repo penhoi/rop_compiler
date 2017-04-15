@@ -22,10 +22,10 @@ finder = finder_type(args.filename, arch, 0, logging_level, args.parser_type)
 gadget_list = finder.find_gadgets(args.validate)
 
 if args.o == None:
-  for gadget in gadget_list.foreach():
-    print gadget
+    for gadget in gadget_list.foreach():
+        print gadget
 else:
-  fd = open(args.o, "w")
-  fd.write(gadget_list.to_string())
-  fd.close()
+    fd = open(args.o, "w")
+    fd.write(gadget_list.to_string())
+    fd.close()
 
