@@ -402,7 +402,7 @@ class CombinedGadget(GadgetBase):
 class Gadget(GadgetBase):
     """This class wraps a set of instructions and holds the associated metadata that makes up a gadget"""
 
-    def __init__(self, arch, address, inputs, outputs, params, clobbers, stack_offset, ip_in_stack_offset):
+    def __init__(self, arch, address, inputs, outputs, clobbers, params, stack_offset, ip_in_stack_offset):
         self.arch = arch
         self.address = address
         self.inputs = inputs
@@ -505,18 +505,23 @@ class Gadget(GadgetBase):
         return constraint
 
     # Some z3 helper methods
-    def get_reg_before(self, reg): return z3.BitVec("{}_before".format(self.arch.translate_register_name(reg)), self.arch.bits)
-    def get_reg_after(self, reg):    return z3.BitVec("{}_after".format(self.arch.translate_register_name(reg)), self.arch.bits)
-    def get_output(self, idx):         return self.get_reg_after(self.outputs[idx])
-    def get_output0(self):                 return self.get_output(0)
-    def get_input(self, idx):            return self.get_reg_before(self.inputs[idx])
-    def get_input0(self):                    return self.get_input(0)
-    def get_input1(self):                    return self.get_input(1)
-    def get_param(self, idx):            return z3.BitVecVal(self.params[idx], self.arch.bits)
-    def get_param0(self):                    return self.get_param(0)
-    def get_mem(self, name):             return z3.Array("mem_{}".format(name), z3.BitVecSort(self.arch.bits), z3.BitVecSort(8))
-    def get_mem_before(self):            return self.get_mem("before")
-    def get_mem_after(self):             return self.get_mem("after")
+    def get_reg_before(self, reg):      return z3.BitVec("{}_before".format(self.arch.translate_register_name(reg)), self.arch.bits)
+    def get_reg_after(self, reg):       return z3.BitVec("{}_after".format(self.arch.translate_register_name(reg)), self.arch.bits)
+    def get_output(self, idx):          return self.get_reg_after(self.outputs[idx])
+    def get_output0(self):              return self.get_output(0)
+
+    def get_input(self, idx):           return self.get_reg_before(self.inputs[idx])
+    def get_input0(self):               return self.get_input(0)
+    def get_input1(self):               return self.get_input(1)
+
+    def get_param(self, idx):           return z3.BitVecVal(self.params[idx], self.arch.bits)
+    def get_param0(self):               return self.get_param(0)
+
+    def get_stack_offset(self):         return self.stack_offset
+    def get_ip_in_stack_offset(self):   return self.ip_in_stack_offset
+    def get_mem(self, name):            return z3.Array("mem_{}".format(name), z3.BitVecSort(self.arch.bits), z3.BitVecSort(8))
+    def get_mem_before(self):           return self.get_mem("before")
+    def get_mem_after(self):            return self.get_mem("after")
 
     def get_antialias_constraint(self, address, register = "sp"):
         register = self.get_reg_before(self.arch.registers[register][0])
@@ -539,117 +544,68 @@ class Gadget(GadgetBase):
 ## The various Gadget types ###############################################################################
 ###########################################################################################################
 
-class Jump(Gadget):
-    def get_gadget_constraint(self):
-        return z3.Not(self.get_output0() == self.get_input0()), None
-
-class Jump1(Jump):
+#=========================================RET Gadget=========================================================
+class RetG(Gadget):
     """
-    Designed for invoking other gadgets, especially Jump2 and Funcall gadgets.
-    IP = AddrReg + Offset; ; delta_SP >= 0Wb$; jmp eax
-    # TRUE: jmp eax
-    # TRUE: pop eax; pop ecx; push rbx; ret
-    # TRUE: pop ebx; call eax
-    # FALSE: jmp esp
-    # FALSE: push ebx; ret
-    """
-    def chain(self, next_address=None, input_values=None):
-        return self.stack_offset * "K"    # No parameters or IP in stack, just fill the stack offset
-
-class Jump2(Jump):
-    """
-    Designed for invoking Funcall gadgets.
-    IP = AddrReg + Offset  ; delta_SP == 0Wb$ & push rbx; ret
-    # TRUE: push ebx; ret
-    # FALSE: pop eax; pop ecx; push ebx; ret
-    # FALSE: jmp eax
-    """
-    def chain(self, next_address=None, input_values=None):
-        return self.stack_offset * "K"    # Fix me
-
-class RegFunCall(Jump):
-    """
-    Designed for finding more jump gadgets.
-    EIP = AddrReg + Offset  ; delta_SP < 0Wb $    & call eax
-    # TRUE: call eax
-    # FALSE: jmp eax
-    # FALSE: pop ebx; call eax
-    """
-    def chain(self, next_address=None, input_values=None):
-        raise RuntimeError("Not Implemented: Allocate buffer before using")
-        return ""    # Fix me
-
-class MemJump(Jump):
-    """
-    Designed for finding more jump gadgets.
-    IP = [AddrReg + Offset]; ; delta_SP >= 0Wb$ & jmp [eax]
-    # TRUE: jmp [eax]
-    # TRUE: pop ebx; call [eax]
-    # FALSE: call [eax]
-    # FALSE: ret
-    """
-    def chain(self, next_address=None, input_values=None):
-        oft = max(self.stack_offset, 0)
-        return oft * "K"    # Fix me
-
-class MemFunCall(MemJump):
-    """
-    Designed for finding more jump gadgets.
-    EIP = [AddrReg + Offset]    ; delta_SP < 0Wb $    & call [eax]
-    # TRUE: call [eax]
-    # FALSE: jmp [eax]
-    # FALSE: pop ebx; call [eax]
-    # FALSE: ret
-    # FALSE: pop ebx; pop eax; ret
-    """
-    def chain(self, next_address=None, input_values=None):
-        raise RuntimeError("Not Implemented: Allocate buffer before using")
-        return ""    # Fix me
-
-class RetGadget(Gadget):
-    """
-    A gadget ending with a ret instruction
+    A gadget setting IP with a value from stack
     """
     def get_gadget_constraint(self):
-        return z3.Not(self.get_output0() == self.get_input0()), None
+        raise RuntimeError("Not Implemented");
 
-class NOP(RetGadget):
+class NOP(RetG):
     """
-    Designed for finding ifgadget.
+    Designed for padding payload.
     No operation; ; delta_SP == 1Wb$; ret
     # TRUE: ret
+    # FALSE: ret 4
     """
     def chain(self, next_address, input_values = None):
         return utils.ap(self.address, self.arch)
 
-class MoveReg(RetGadget):
+    def get_gadget_constraint(self):
+        A = self.get_stack_offset() == self.arch.bytes
+        B = self.get_ip_in_stack_offset() == self.arch.bytes
+        return z3.Not(z3.And(A, B)), None
+
+class RetN(RetG):
     """
-    Designed for banking register values.
+    Designed for allocating a local stack-frame for the next gadget.
+    No operation; ; delta_SP > 1Wb$; ret
+    # TRUE: ret 4
+    # FALSE: ret
+    """
+    def chain(self, next_address, input_values = None):
+        return utils.ap(self.address, self.arch)
+
+    def get_gadget_constraint(self):
+        A = self.get_stack_offset() > self.arch.bytes
+        B = self.get_ip_in_stack_offset() == self.arch.bytes
+        return z3.Not(z3.And(A, B)), None
+
+class MoveReg(RetG):
+    """
+    Designed for banking a register.
     OutReg = InReg ; delta_SP >= 1Wb$    & mov rax, rdx; ret
     # TRUE: mov eax, edx; ret
     # TRUE: mov eax, esp; ret
     # FALSE: mov esp, eax; ret
     """
     def get_gadget_constraint(self):
-        return z3.Not(self.get_output0() == self.get_input0()), None
+        A = self.get_output0() == self.get_input0()
+        return z3.Not(A), None
 
-#class MoveRegJump(MoveReg):
-#  def get_gadget_constraint(self):
-#      paramconstraint = z3.Not(self.get_output0() == self.get_input0())
-#      ipconstraint = z3.Not(self.get_output1() != self.self.arch.registers['ip'][0]())
-#      return z3.And(paramconstraint, ipconstraint), None
-
-class LoadConst(RetGadget):
+class LoadConst(RetG):
     """
-    Designed for loading 0 and other values into registers.
+    Designed for loading constant into a register.
     OutReg = value  ; delta_SP >= 1Wb$    & mov ebp, 0x21 ; ret
     # TRUE: mov ebp, 0x20 ; ret
     # FALSE: mov esp, 0x20 ; ret
     """
     def get_gadget_constraint(self):
-        return z3.Not(self.get_output0() == self.get_param0()), None
+        A = self.get_output0() == self.get_param0()
+        return z3.Not(A), None
 
-class LoadMem(RetGadget):
+class LoadMem(RetG):
     """
     Designed for setting register values, and loading temporary variables.
     OutReg = M[AddrReg+Offset]    ; delta_SP >= 1Wb$    & pop rbp ; ret
@@ -682,7 +638,8 @@ class LoadMem(RetGadget):
 
     def get_gadget_constraint(self):
         mem_value = utils.z3_get_memory(self.get_mem_before(), self.get_input0() + self.get_param0(), self.arch.bits, self.arch)
-        return z3.Not(self.get_output0() == mem_value), None
+        A = self.get_output0() == mem_value
+        return z3.Not(A), None
 
 class LoadMemJump(LoadMem):
     """This gadget loads memory then jumps to a register (Used often in ARM)"""
@@ -690,6 +647,7 @@ class LoadMemJump(LoadMem):
         load_constraint, antialias_constraint = super(LoadMemJump, self).get_gadget_constraint()
         jump_constraint = z3.Not(self.get_reg_after(self.arch.registers['ip'][0]) == self.get_input1())
         return z3.Or(load_constraint, jump_constraint), antialias_constraint
+
 
 class LoadMultiple(LoadMem):
     """This gadget loads multiple registers at once"""
@@ -741,9 +699,9 @@ class LoadMultiple(LoadMem):
         chain += (self.stack_offset - len(chain)) * "T"
         return chain
 
-class StoreMem(RetGadget):
+class StoreMem(RetG):
     """
-    Designed for saving temporary variables.
+    Designed for createing variables.
     M[AddrReg+Offset] = InReg  ; delta_SP >= 1Wb  & mov [rbx + 0x40], rax ; ret
     # TRUE: mov [ebx + 0x40], eax ; ret
     # TRUE: mov [ebx + 0x40], esp ; ret
@@ -757,20 +715,21 @@ class StoreMem(RetGadget):
         antialias_constraint = self.get_antialias_constraint(address)
         return store_constraint, antialias_constraint
 
-class Arithmetic(RetGadget):
+class Arithmetic(RetG):
     """
-    Designed for conducting arithmetic operation on registers
+    Designed for performing arithmetic operation on registers
     OutReg = InReg1 * InReg2    ; delta_SP >= 1Wb$
     # TRUE: add eax, ebx; ret
     # TRUE: add eax, esp; ret
     # FALSE: add esp, eax; ret
     """
     def get_gadget_constraint(self):
-        return z3.Not(self.get_output0() == self.binop(self.get_input0(), self.get_input1())), None
+        A = self.get_output0() == self.binop(self.get_input0(), self.get_input1())
+        return z3.Not(A), None
 
-class ArithmeticConst(RetGadget):
+class ArithmeticConst(RetG):
     """
-    Designed for increasing counter.
+    Designed for adding/substrating constants.
     OutReg = InReg * value  ; delta_SP >= 1Wb$
     # TRUE: add eax, 0x20; ret
     # TRUE: add eax, 0x20; ret
@@ -778,11 +737,12 @@ class ArithmeticConst(RetGadget):
     # FALSE: ret
     """
     def get_gadget_constraint(self):
-        return z3.Not(self.get_output0() == self.binop(self.get_input0(), self.get_param0())), None
+        A = self.get_output0() == self.binop(self.get_input0(), self.get_param0())
+        return z3.Not(), None
 
-class ArithmeticLoad(RetGadget):
+class ArithmeticLoad(RetG):
     """
-    Designed for conducting arithmetic operations that save results in registers.
+    Designed for performing arithmetic operations witch has an operand in memory.
     OutReg *= M[AddrReg+Offset]    ; delta_SP >= 1Wb
     # TRUE: add eax, [ebx + 0x40]; ret
     # TRUE: add eax, [esp + 0x40]; ret
@@ -791,9 +751,10 @@ class ArithmeticLoad(RetGadget):
 
     def get_gadget_constraint(self):
         mem_value = utils.z3_get_memory(self.get_mem_before(), self.get_input0() + self.get_param0(), self.arch.bits, self.arch)
-        return z3.Not(self.get_output0() == self.binop(mem_value, self.get_input1())), None
+        A = self.get_output0() == self.binop(mem_value, self.get_input1())
+        return z3.Not(A), None
 
-class ArithmeticStore(RetGadget):
+class ArithmeticStore(RetG):
     """
     Designed for conducting arithmetic operations that save results in memory.
     M[AddrReg+Offset] *= InReg  ; delta_SP >= 1Wb
@@ -812,10 +773,6 @@ class ArithmeticStore(RetGadget):
 
 # Split up the Arithmetic gadgets, so they're easy to search for when you are searching for a specific one
 class AddGadget(Arithmetic):
-    @classmethod
-    def binop(self,x,y): return x + y
-
-class AddConstGadget(ArithmeticConst):
     @classmethod
     def binop(self,x,y): return x + y
 
@@ -839,6 +796,9 @@ class XorGadget(Arithmetic):
     @classmethod
     def binop(self,x,y): return x ^ y
 
+class AddConstGadget(ArithmeticConst):
+    @classmethod
+    def binop(self,x,y): return x + y
 
 # Split up the Arithmetic Load gadgets, so they're easy to search for when you are searching for a specific one
 class LoadAddGadget(ArithmeticLoad):
@@ -889,6 +849,8 @@ class StoreOrGadget(ArithmeticStore):
 class StoreXorGadget(ArithmeticStore):
     @classmethod
     def binop(self,x,y): return x ^ y
+
+#used for loop, via adding/substracting a local variable with a step value
 class StoreAddConstGadget(ArithmeticStore):
     @classmethod
     def binop(self, x, y): return x + y
@@ -897,16 +859,83 @@ class StoreSubConstGadget(ArithmeticStore):
     @classmethod
     def binop(self, x, y): return x + y
 
-class StackSwitch(Gadget):
+#=========================================JUMP Gadget=========================================================
+class JumpG(Gadget):
+    """
+    A gadget setting IP with a value from register, or memory out the scope current stack.
+    Designed for finding jcc-gadgets
+    """
+    def get_gadget_constraint(self):
+        A = self.get_output0() == self.get_input0()
+        B = self.get_output0() == self.arch.ip
+        return z3.Not(z3.And(A, B)), None
+
+class RegJumpNormal(JumpG):
+    """
+    IP = AddrReg + Offset; ; delta_SP >= 0Wb$; jmp eax
+    # TRUE: jmp eax
+    # TRUE: pop eax; pop ecx; push rbx; ret
+    # TRUE: pop ebx; call eax
+    # FALSE: jmp esp
+    # FALSE: push ebx; ret
+    """
+    def chain(self, next_address=None, input_values=None):
+        return self.stack_offset * "K"    # No parameters or IP in stack, just fill the stack offset
+
+class RegJumpModifyPayload(JumpG):
+    """
+    IP = AddrReg + Offset  ; delta_SP == 0Wb$ & push rbx; ret
+    # TRUE: push ebx; ret
+    # TRUE: call eax
+    # FALSE: jmp eax
+    # FALSE: pop ebx; call eax
+    # FALSE: pop eax; pop ecx; push ebx; ret
+    # FALSE: jmp eax
+    """
+    def chain(self, next_address=None, input_values=None):
+        return self.stack_offset * "K"    # Fix me
+
+class MemJumpNormal(JumpG):
+    """
+    Designed for finding more jump gadgets.
+    IP = [AddrReg + Offset]; ; delta_SP >= 0Wb$ & jmp [eax]
+    # TRUE: jmp [eax]
+    # TRUE: pop ebx; call [eax]
+    # FALSE: call [eax]
+    # FALSE: ret
+    """
+    def chain(self, next_address=None, input_values=None):
+        oft = max(self.stack_offset, 0)
+        return oft * "K"    # Fix me
+
+
+class MemJumpModifyPayload(JumpG):
+    """
+    Designed for finding more jump gadgets.
+    EIP = [AddrReg + Offset]    ; delta_SP < 0Wb $    & call [eax]
+    # TRUE: call [eax]
+    # FALSE: jmp [eax]
+    # FALSE: pop ebx; call [eax]
+    # FALSE: ret
+    # FALSE: pop ebx; pop eax; ret
+    """
+    def chain(self, next_address=None, input_values=None):
+        raise RuntimeError("Not Implemented: Allocate buffer before using")
+        return ""    # Fix me
+
+#=========================================StackSwitch Gadget=========================================================
+class StackSwitchG(Gadget):
+    """
+    Designed for goto command.
+    """
     def __init__(self, arch, address, inputs, outputs, clobbers, params, stack_offset, ip_in_stack_offset):
         if stack_offset == None:
             stack_offset = 0
         ip_in_stack_offset = arch.bytes
-        super(StackSwitch, self).__init__(arch, address, inputs, outputs, clobbers, params, stack_offset, ip_in_stack_offset)
+        super(StackSwitchG, self).__init__(arch, address, inputs, outputs, clobbers, params, stack_offset, ip_in_stack_offset)
 
-class RegStackSwitch(StackSwitch):
+class RegStackSwitch(StackSwitchG):
     """
-    Designed for constructing loop code.
     ESP = InReg + offset  & -    &    xchg eax, esp ; ret
     # TRUE: mov esp, eax; ret
     # TRUE: xchg eax, esp; ret
@@ -914,15 +943,13 @@ class RegStackSwitch(StackSwitch):
     # FALSE: pop esp; ret
     # FALSE: ret
     """
-    #fix me
     def get_gadget_constraint(self):
         regconstrait = z3.Not(self.get_output0() != self.arch.registers['sp'][0])
         offsetconstraint = z3.Not(self.get_param0() < self.arch.bytes * 8)
         return z3.Or(regconstrait, offsetconstraint), None
 
-class MemStackSwitch(StackSwitch):
+class MemStackSwitch(StackSwitchG):
     """
-    Designed for constructing loop code.
     ESP = [InReg + offset]    & -    &    pop rsp ; ret
     # TRUE: mov esp, [eax + 0x20]; ret
     # TRUE: mov esp, [esp + 0x20]; ret
@@ -932,32 +959,58 @@ class MemStackSwitch(StackSwitch):
     both old_stack and new_stack are clean from modification
     eip from new_stack
     """
-    #fix me
     def get_gadget_constraint(self):
         regconstrait = z3.Not(self.get_output0() != self.arch.registers['sp'][0])
         offsetconstraint = z3.Not(self.get_param0() < self.arch.bytes * 8)
         return z3.Or(regconstrait, offsetconstraint), None
 
+#=========================================JCC Gadget=========================================================
 class JCC(Gadget):
+    """
+    Designed for implementing conditonal jumps
+    """
     def __init__(self, address, gtrue, gfalse, Cond):
+        """
+        @param address: The address of JCC instruction, which is also the begining address of this JCC gadget
+        @param gtrue, gfalse: The gadgets of the True branch and False branch
+        @param Cond: The conditional flag tested by the JCC
+        """
         self.arch = gtrue.arch
+        self.sp = self.arch.registers['sp'][0]
+        self.ip = self.arch.registers['ip'][0]
+        
         self.address = address
-        self.inputs = [gtrue.inputs[0]] if type(gtrue) in [Jump, MemJump] else [gtrue.inputs[1]] if type(gtrue) == LoadMemJump else []
-        self.inputs += [gfalse.inputs[0]] if type(gfalse) in [Jump, MemJump] else [gfalse.inputs[1]] if type(gfalse) == LoadMemJump else []
+        self.inputs = [gtrue.inputs[0]] if issubclass(type(gtrue), JumpG) else []
+        self.inputs += [gfalse.inputs[0]] if issubclass(type(gfalse), JumpG) else []
 
-        self.outputs = sorted(set(gtrue.outputs) & set(gfalse.outputs))
-        if self.arch.registers['ip'][0] not in self.outputs:
-            self.outputs.insert(0, self.arch.registers['ip'][0])
+        self.outputs = []
+        self.clobbers = sorted(set(gtrue.clobbers + gfalse.clobbers + gtrue.outputs + gfalse.outputs) - set(self.outputs) - set([self.ip]))
 
         self.params = [Cond]
-
-        self.clobbers = sorted(set(gtrue.clobbers + gfalse.clobbers + gtrue.outputs + gfalse.outputs) - set(self.outputs))
-        self.stack_offset = max(gtrue.stack_offset, gfalse.stack_offset, self.arch.bytes)
+        self.stack_offset = None
         self.ip_in_stack_offset = None
 
         self.branches = (gtrue, gfalse)
 
-
+    def __str__(self):
+        outputs = ", ".join([self.arch.translate_register_name(x) for x in self.outputs])
+        if outputs != "":
+            outputs = ", Output: [{}]".format(outputs)
+        inputs = ", ".join([self.arch.translate_register_name(x) for x in self.inputs])
+        if inputs != "":
+            inputs = ", Inputs [{}]".format(inputs)
+        clobber = ", ".join([self.arch.translate_register_name(x) for x in self.clobbers])
+        if clobber != "":
+            clobber = ", Clobbers [{}]".format(clobber)
+        params = ", ".join([hex(x) for x in self.params])
+        if params != "":
+            params = ", Params [{}]".format(params)
+        ip = self.ip_in_stack_offset
+        if self.ip_in_stack_offset != None:
+            ip = "0x{:x}".format(self.ip_in_stack_offset)
+        return "{}(Address: 0x{:x}, Complexity {}, Stack {}, Ip {}{}{}{}{})".format(self.__class__.__name__,
+            self.address, round(self.complexity(), 2), self.stack_offset, ip, outputs, inputs, clobber, params)
+        
     def chain(self, next_address, input_values = None):
         if (input_values is None) or input_values == (None, None):
             return "", self.address
@@ -997,26 +1050,34 @@ class JCC(Gadget):
         return chain
 
 
-def check_acceptable_jccgagdet(g1, g2):
+def check_acceptable_jccgagdet(g1, g2, straint_line_block_out_regs):
     # Jump: EIP <- AddrReg + Offset; inputs = [addr_reg]; outputs = [self.ip]; params = [Offset]
     # MemJump: EIP <- M[AddrReg + Offset];    inputs = [addr_reg]; outputs = [self.ip]; params = [Offset]
     # LoadMemJump: OutReg <- M[AddrReg + Offset]; inputs =[AddrReg, ip_from_reg]; outpus = [OutReg], param=[Offset]
-    if issubclass(type(g1), Jump):
-        reg1 = g1.inputs[0] if len(g1.inputs) > 0 else 0
-        param1 = g1.params[0] if len(g1.params) > 0 else 0
-    elif issubclass(type(g1), RetGadget):
-        reg1 = 0
-        param1 = g1.ip_in_stack_offset
-    else:
+    if issubclass(type(g1), RetG):
+        if issubclass(type(g2), RetG):
+            if g1.ip_in_stack_offset != g2.ip_in_stack_offset:
+                return True
+        elif issubclass(type(g2), JumpG):
+            if g2.inputs[0] in straint_line_block_out_regs:
+                return False
+            else:
+                return True
         return False
 
-    if issubclass(type(g2), Jump):
-        reg2 = g2.inputs[0] if len(g2.inputs) > 0 else 0
-        param2 = g2.params[0] if len(g2.params) > 0 else 0
-    elif issubclass(type(g2), RetGadget):
-        reg2 = 0
-        param2 = g2.ip_in_stack_offset
-    else:
-        return False
+    elif issubclass(type(g1), JumpG):
+        if g1.inputs[0] in straint_line_block_out_regs:
+            return False
+        
+        if issubclass(type(g2), RetG):
+            return True
+        elif issubclass(type(g2), JumpG):
+            if g2.inputs[0] in straint_line_block_out_regs:
+                return False
+                       
+            if g1.inputs[0] == g2.inputs[0]:
+                return False
+        return True
 
-    return reg1 != reg2 or param1 != param2
+    #All the other cases are not acceptable
+    return False
