@@ -36,7 +36,7 @@ def pick_different_reg(used):
     regs = Common.rEGS_NO_ESP
     def p(reg):
         try:
-            let _ = List.find (fun x->x=reg) used in false
+            let _ = List.find (fun x->x=reg) used in false #??????????
         except Not_found:
             return True
     not_used = filter(p, regs)
@@ -72,32 +72,33 @@ def make_rewrite_exp(f_next_reg, read_local, ref_local):
             return [rl]
         
         elif type(exp_all) == Ref:
-            (id):
-
+            (id) = exp_all.param()
             rl = ref_local(id oreg)
-            [rl]
-        elif type() == ReadMem(id):
+            return [rl]
 
-            let addr_reg = f_next_reg() in
-            rl = read_local(id addr_reg)
-            let rm = ReadM(oreg, addr_reg) in
-            [rl;rm]
-        elif type() == Const(x):
+        elif type(exp_all) = ReadMem:
+            addr_reg = f_next_reg()
+            rl = read_local(id, addr_reg)
+            rm = ReadM(oreg, addr_reg)
+            return [rl, rm]
 
-            let mov = MovRegConst(oreg, x) in
-            [mov]
+        elif type(exp_all) == Const:
+            mov = MovRegConst(oreg, x)
+            return [mov]
 
     rewrite_exp
 
-def rewrite_stmt(stack_ptr, frame_ptr locals fun_id stmt ):
+def rewrite_stmt(stack_ptr, frame_ptr, locals, fun_id, stmt ):
     f_next_reg = make_reg_generator ()
-    def rw_local(tagid, reg f_ctor):
-        let id2off id = try Hashtbl.find locals id with Not_found -> assert false in
+    def rw_local(tagid, reg, f_ctor):
+        #let id2off id = try Hashtbl.find locals id with Not_found -> assert false in
+        def id2off(id):
+            #????查找算法
         off = id2off(id)
-        f_ctor off reg
+        f_ctor (off, reg)
 
-    def write_local(tagid, reg ):
-        rw_local id reg(fun off reg -> WriteLocal(off,reg))
+    def write_local(tagid, reg ):#off参数
+        rw_local id reg(fun off  WriteLocal(off,reg))
 
     def read_local(tagid, reg ):
         rw_local id reg(fun off reg -> ReadLocal(off,reg))
@@ -108,144 +109,167 @@ def rewrite_stmt(stack_ptr, frame_ptr locals fun_id stmt ):
     def deref_local(tagid, reg ):
         def f(off, reg ):
             addr_reg = f_next_reg()
-            let rl = ReadLocal(off, addr_reg) in
-            let wm = WriteM(addr_reg, reg) in
-            [rl;wm]
+            rl = ReadLocal(off, addr_reg) 
+            wm = WriteM(addr_reg, reg) 
+            return [rl, wm]
 
-        rw_local id reg f
+        rw_local (id, reg, f)
 
-    rewrite_exp = make_rewrite_exp(f_next_reg read_local ref_local)
+    rewrite_exp = make_rewrite_exp(f_next_reg, read_local, ref_local)
     def push_arg(arg):
         #(* just check if args are simple *)
+        #????
+        if type(arg) in [Var, ReadMem, Ref, Const]:
+            return True
+        else:
+            raise Exception("push_arg")
+        '''
         let _ = match arg with
             | Var(_) | ReadMem(_) | Ref(_) | Const(_) -> true
             elif type() == _:
              assert false
+             '''
 
         reg = f_next_reg()
-        iarg = rewrite_exp(arg reg)
+        iarg = rewrite_exp(arg, reg)
         push = PushReg(reg)
-        iarg @ [push]
+        return iarg + push
 
     def push_args(args):
         def aux(acc, args):
-            match args with
-            | arg::tl ->
-                pa = push_arg(arg)
-                aux (pa::acc) tl
+            if len(args) != 0:
+                pa = push_arg(args[0])
+                return aux(pa+acc, args[1:])
             else:
-             acc
+                return acc
 
-        let pushes = aux [] args in
-        #(* let pushes = List.rev pushes in *)
-        List.concat pushes
+        pushes = aux([], args)
+        return pushes[0] + pushes[1]
 
     def set_eax_on_cond(cond):
         #(* ah = SF ZF xx AF xx PF xx CF *)
         #(* returns mask and the value required to take the jump *)
         def flag_mask_const(flag):
-            let mask,v =
-                match flag with
-                elif type() == E:
-                 (1 lsl 6), 1 lsl 6   #(* jz, ZF = 1 *)
-                elif type() == A:
-                 (1 lor (1 lsl 6)), 0 #(* ja, CF = ZF = 0 *)
-                elif type() == B:
-                 1, 1                 #(* jb, CF = 1 *)
-                elif type() == _:
-                 assert false
+            mask = None
+            v = None
+            if type(flag) == E:
+                mask, v =  1<<6, 1<<6
+            elif type(flag) == A:
+                mask, v = 1|(1<<6), 0
+            elif type(flag) == B:
+                mask, v = 1,1
+            else : # type(flag) == _:
+                raise Exception("set_eax_on_cond")
 
-            #(* flags are saved to AH, so shift *)
-            let mask,v = mask lsl 8, v lsl 8 in
-            mask, v
 
-        let neg, flags =
-            match cond with
-            elif type() == Cond(flags):
-             false, flags
-            elif type() == NCond(flags):
-             true, flags
+            
+            mask,v = mask <<  8, v << 8 
+            return mask, v
 
+        neg = None 
+        flags = None
+        if type(flags) == Cond:
+            flags = flags.param()
+            neg, flags = false, flags
+        if type(flags) == NCond:
+            flags = flags.param()
+            neg, flags = True, flags
+
+
+        
         #(* FIXME: just one flag atm *)
-        let flag = match flags with hd::[] -> hd | _ -> assert false in
-        if flag=MP then
-            let mov = MovRegConst(C(EAX), 1) in
-            [mov]
-        else
-            let mask, v = flag_mask_const(flag) in
+        flag = None
+        if len(flags)==1:
+            flag = flags[0]
+        else:
+            raise Exception("set_eax_on_cond 2")
+        if flag=MP :
+            mov = MovRegConst(C(EAX), 1) 
+            return [mov]
+        else:
+            mask, v = flag_mask_const(flag)
             reg = f_next_reg()
-            let mov1 = MovRegConst(reg, mask) in
-            let and_ah = BinO(C(EAX), C(EAX), And, reg) in
+            mov1 = MovRegConst(reg, mask)
+            and_ah = BinO(C(EAX), C(EAX), And, reg)
             reg = f_next_reg()
-            let mov2 = MovRegConst(reg, v) in
-            let sub = BinO(C(EAX), C(EAX), Sub, reg) in
+            mov2 = MovRegConst(reg, v)
+            sub = BinO(C(EAX), C(EAX), Sub, reg)
             lahf = SaveFlags
             reg = f_next_reg()
             #(* ZF position in EAX: 6th bit of AH *)
-            let mov3 = MovRegConst(reg, 1 lsl (6+8)) in
-            let shr = BinO(C(EAX), C(EAX), Div, reg) in
+            mov3 = MovRegConst(reg, 1 lsl (6+8))
+            shr = BinO(C(EAX), C(EAX), Div, reg)
             reg = f_next_reg()
-            let mov4 = MovRegConst(reg, 1) in
+            mov4 = MovRegConst(reg, 1)
             #(* eax=1 iff cond *)
-            let last = [BinO(C(EAX), C(EAX), And, reg)] in
-            let last = last @
-                if neg then [BinO(C(EAX), C(EAX), Xor, reg)]
-                else []
+            last = [BinO(C(EAX), C(EAX), And, reg)]
+            if neg:
+                last = last + [BinO(C(EAX), C(EAX), Xor, reg)]
 
-            [mov1;and_ah;mov2;sub;lahf;mov3;shr;mov4]@last
+            return [mov1;and_ah;mov2;sub;lahf;mov3;shr;mov4]+last
 
     def rewrite(stmt):
         match stmt with
-        elif type() == Assign(tagid, exp):
-
+        elif type(stmt) == Assign:
+            (tagid, exp) = stmt.param()
             reg = f_next_reg()
-            iexp = rewrite_exp(exp reg)
-            wl = write_local(id reg)
-            iexp @ [wl]
-        elif type() == DerefAssign(tagid, exp):
-
+            iexp = rewrite_exp(exp, reg)
+            wl = write_local(id, reg)
+            return iexp+[wl]
+        elif type(stmt) == DerefAssign:
+            (tagid, exp) = stmt.param()
             reg = f_next_reg()
-            iexp = rewrite_exp(exp reg)
-            wl = deref_local(id reg)
-            iexp @ wl
-        elif type() == WriteMem(tagid, exp):
-
+            iexp = rewrite_exp(exp, reg)
+            wl = deref_local(id, reg)
+            return iexp + wl
+        elif type(stmt) == WriteMem:
+            (tagid, exp) = stmt.param()
             exp_reg = f_next_reg()
-            iexp = rewrite_exp(exp exp_reg)
+            iexp = rewrite_exp(exp, exp_reg)
             addr_reg = f_next_reg()
-            rl = read_local(id addr_reg)
-            let wm = WriteM(addr_reg, exp_reg) in
-            iexp @ [rl;wm]
-        elif type() == Cmp(exp1, exp2):
-
-            let reg1, reg2 = f_next_reg(), f_next_reg() in
+            rl = read_local(id, addr_reg)
+            wm = WriteM(addr_reg, exp_reg) 
+            return iexp + rl + wm # [rl;wm]
+        elif type(stmt) == Cmp:
+            (exp1, exp2) = stmt.param()
+            reg1, reg2 = f_next_reg(), f_next_reg() 
             iexp1 = rewrite_exp(exp1, reg1)
             iexp2 = rewrite_exp(exp2, reg2)
             reg = f_next_reg()
-            let sub = BinO(reg, reg1, Sub, reg2) in
+            sub = BinO(reg, reg1, Sub, reg2)
             lahf = SaveFlags
-            iexp1 @ iexp2 @ [sub; lahf]
-        elif type() == Call(tagid, ExpArgs(exp_args)):
-
+            return iexp1 + iexp2  +sub+ lahf 
+        elif type(stmt) == Call:
+            (tagid, ExpArgs(exp_args)) = stmt.param()
             pushes = push_args(exp_args)
             reg = f_next_reg()
-            let mov = MovRegSymb(reg, FromTo(Named(fun_label tagid), Unnamed(Forward))) in
+            mov = MovRegSymb(reg, FromTo(Named(fun_label, tagid), Unnamed(Forward))) 
             p = PushReg(reg)
             reg = f_next_reg()
-            let mov2 = MovRegSymb(reg, FromTo(Unnamed(Forward), Named(fun_label tagid))) in
-            let add = OpStack(Add, reg) in #(* jmp *)
+            mov2 = MovRegSymb(reg, FromTo(Unnamed(Forward), Named(fun_label tagid))) 
+            add = OpStack(Add, reg)  #(* jmp *)
             lbl = Lbl(nO_NAME_LABEL)
-            pushes @ [mov;p;mov2;add;lbl]
-        elif type() == ExtCall(tagid, ExpArgs(exp_args)):
+            return pushes + mov + p + mov2 + add + lbl # [mov;p;mov2;add;lbl]
 
-            def range(i, j ): if i >= j then [] else i :: (range (i+1) j) in
+        elif type(stmt) == ExtCall:
+            (tagid, ExpArgs(exp_args)) = stmt.param()
+
+            def range(i, j ): 
+                if i >= j:
+                    return [] 
+                else:
+                    return i+range(i+1, j)
             def make_filler(n):
-                def m(x): x = x land 0xFF in (x lsl 24) lor (x lsl 16) lor (x lsl 8) lor x
-                def f(acc, x ): RawHex(m x)::acc in
-                nums = range(0 n)
-                let filler = List.fold_left f [] nums in
-                filler = List.rev(filler)
-                filler
+                def m(x):
+                    x = x&0xFF
+                    return (x<<24)|(x<<16)|(x<<8)|x
+                    #x = x land 0xFF in (x lsl 24) lor (x lsl 16) lor (x lsl 8) lor x#先算iｎ里面的还是外面的？？？
+                def f(acc, x ): 
+                    return RawHex(m x)+acc 
+                nums = range(0, n)
+                let filler = List.fold_left f [] nums in #从先前的文件拷贝
+                filler.reverse() 
+                return filler
 
             def store_args(imp_addr, args):
                 addr_reg = f_next_reg()
@@ -255,58 +279,59 @@ def rewrite_stmt(stack_ptr, frame_ptr locals fun_id stmt ):
 
                 def per_arg(acc, arg ):
                     iarg = rewrite_exp(arg v_reg)
-                    let wm = WriteM(addr_reg, v_reg) in
-                    let set = MovRegConst(off_reg, 4) in
-                    let add = BinO(addr_reg, addr_reg, Add, off_reg) in
-                    acc @ (iarg@[wm;set;add]) #(* O(n^2) *)
+                    wm = WriteM(addr_reg, v_reg)
+                    set = MovRegConst(off_reg, 4)
+                    add = BinO(addr_reg, addr_reg, Add, off_reg)
+                    return acc + iarg+[wm,set,add] #(* O(n^2) *) 
 
                 tmp_reg = f_next_reg()
                 lbl = Lbl(nO_NAME_LABEL)
-                let save_esp = MovRegReg(tmp_reg, C(ESP)) in
-                let mov = MovRegSymb(fix_reg, FromTo(Unnamed(Backward), Unnamed(Forward))) in
-                let fix1 = BinO(addr_reg, tmp_reg, Add, fix_reg) in
+                save_esp = MovRegReg(tmp_reg, C(ESP))
+                mov = MovRegSymb(fix_reg, FromTo(Unnamed(Backward), Unnamed(Forward)))
+                fix1 = BinO(addr_reg, tmp_reg, Add, fix_reg)
                 #(* Restore import address *)
                 reg = f_next_reg()
-                let set_imp = MovRegConst(reg, imp_addr) in
-                let wm = WriteM(addr_reg, reg) in
+                set_imp = MovRegConst(reg, imp_addr)
+                wm = WriteM(addr_reg, reg)
                 reg = f_next_reg()
-                let set8 = MovRegConst(reg, 8) in
-                let fix2 = BinO(addr_reg, addr_reg, Add, reg) in
-                let stores = List.fold_left per_arg [] args in
-                [save_esp;lbl;mov;fix1;set_imp;wm;set8;fix2] @ stores
+                set8 = MovRegConst(reg, 8)
+                fix2 = BinO(addr_reg, addr_reg, Add, reg)
+                stores = List.fold_left per_arg [] args #从先前的文件拷贝
+                return [save_esp,lbl,mov,fix1,set_imp,wm,set8,fix2]+stores 
 
             def jmp_over_locals(locals_filler):
-                n = List.length(locals_filler)
+                n = len(locals_filler)
                 reg = f_next_reg()
-                let mov = MovRegConst(reg, n*4) in
-                let ops = OpStack(Add, reg) in
-                [mov;ops]
+                mov = MovRegConst(reg, n*4)
+                ops = OpStack(Add, reg)
+                return [mov,ops]
 
             imp_addr = hARDCODED_PRINTF
-            let cmt_s = sprint "jmp %s" id in
+            let cmt_s = sprint "jmp %s" id in #???
             #(* At least 128 bytes for locals *)
-            n_args = List.length(exp_args)
-            let locals_filler = make_filler (256/4) in
+            n_args = len(exp_args)
+            locals_filler = make_filler (256/4)
             jmp_skip_locals = jmp_over_locals(locals_filler)
             #(* FIXME: hardcoded print *)
             jmp_imp = RawHex(imp_addr)
             #(* FIXME: we don't need equality in AdvStack, just >= *)
-            let adv = AdvanceStack(n_args*4+4) in
+            adv = AdvanceStack(n_args*4+4)
             lbl = Lbl(nO_NAME_LABEL)
             args_filler = make_filler(n_args)
-            write_args = store_args(imp_addr exp_args)
-            write_args @ jmp_skip_locals @ locals_filler @
-                [Comment(cmt_s);lbl;jmp_imp;adv] @ (args_filler)
-        elif type() == Branch(cond, tagid):
+            write_args = store_args(imp_addr, exp_args)
+            return write_args + jmp_skip_locals + locals_filler +
+                [Comment(cmt_s),lbl,jmp_imp,adv] + (args_filler)
+        elif type(stmt) == Branch:
+            (cond, tagid) = stmt.param()
 
             #(* eax=1 iff cond, 0 otherwise *)
-            let setz = set_eax_on_cond cond in
+            setz = set_eax_on_cond cond in
             reg = f_next_reg()
             start = Unnamed(Forward)
-            fin = Named(fun_local_label fun_id tagid)
-            let mov = MovRegSymb(reg, FromTo(start, fin)) in
-            let mul = BinO(C(EAX), C(EAX), Mul, reg) in
-            let add = OpStack(Add, C(EAX)) in #(* jmp *)
+            fin = Named(fun_local_label, fun_id, tagid)
+            mov = MovRegSymb(reg, FromTo(start, fin))
+            mul = BinO(C(EAX), C(EAX), Mul, reg)
+            add = OpStack(Add, C(EAX))  #(* jmp *)
             lbl = Lbl(nO_NAME_LABEL)
             setz @ [mov; mul; add; lbl;]
         elif type() == Label(id):

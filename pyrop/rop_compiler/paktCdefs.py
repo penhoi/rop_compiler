@@ -191,7 +191,7 @@ def dump_dir(x):
 
 def dump_symb(x):
     if type(x) == Named:
-        (tagid) = x.param():
+        (tagid) = x.param()
         s = "Named(%s)" % tagid
     elif type(x) == Unnamed:
         (direction) = x.param()
@@ -222,7 +222,7 @@ def dump_instr(x):
         s = "%s = %s" % (dump_sreg(r1), dump_sreg(r2))
     elif type(x) == MovRegSymb:
         (r,FromTo_s_f)  = x.param()
-        (s, f) = FromTo_s_f.param())
+        (s, f) = FromTo_s_f.param()
         s = "%s = (from: %s, to: %s)" % (dump_sreg(r), dump_symb(s), dump_symb(f))
     elif type(x) == WriteM:
         (r1,r2) = x.param()
@@ -237,7 +237,7 @@ def dump_instr(x):
         s = "esp = esp %s %s" % (dump_op(op), dump_sreg(r))
     elif type(x) == BinO:
         (ro,r1,op,r2) = x.param()
-        s = "%s = %s %s %s" % (dump_sreg(ro), dump_sreg(r1), Ast.dump_op(op), dump_sreg(r2))
+        s = "%s = %s %s %s" % (dump_sreg(ro), dump_sreg(r1), dump_op(op), dump_sreg(r2))
     elif type(x) == ReadMConst:
         (r,addr) = x.param()
         s = "%s = [0x%08x]" % (dump_sreg(r), addr)
@@ -290,46 +290,48 @@ def ast_op_to_gadget_op(op):
         print "'Not x' should be: x xor 0xffffffff"
 
 def make_generator(f):
-    r = ref(0)
-    def next():
+    r = 0
+    def fnext():
         tagid = r
         r = r + 1
         f(tagid)
-    next()
+    fnext()
 
 def make_reg_generator():
     make_generator(lambda tagid: S(tagid))
 
 class RegOrder(object):
-    self.t = reg
-    self.compare = cmp
+    def __init__(self):
+        self.t = reg
+        self.compare = cmp
 #Set.Make((RegOrder)
 RegSet = set([])
 
 class SRegOrder(object):
-    self.t = sreg
-    self.compare = cmp
+    def __init__(self):
+        self.t = sreg
+        self.compare = cmp
 #Set.Make( SRegOrder )
 SRegSet = set([])
 
 def set_from_list(l):
-    def f(set, x): 
-        RegSet.add(x, set)
+    def f(setx, x): 
+        RegSet.add(x, setx)
     fold_left(f, RegSet, l)
 
 def sreg_set_from_list(l):
-    def f(set, x):
-        SRegSet.add(x, set)
+    def f(setx, x):
+        SRegSet.add(x, setx)
     fold_left(f, SRegSet, l)
 
-def common_reg_set_to_sreg_set(set):
-    l = RegSet.elements(set)
+def common_reg_set_to_sreg_set(setx):
+    l = RegSet.elements(setx)
     l = map((lambda r: C(r)), l)
-    set = sreg_set_from_list(l)
-    return set
+    setx = sreg_set_from_list(l)
+    return setx
 
-def dump_sreg_set(set):
-    sregs = SRegSet.elements(set)
+def dump_sreg_set(setx):
+    sregs = SRegSet.elements(setx)
     generic_dumper((lambda r: dump_sreg(r)), sregs)
     return ()
 
