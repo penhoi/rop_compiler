@@ -1,5 +1,3 @@
-import os, sys
-
 '''
 type reg = EAX | EBX | ECX | EDX | ESI | EDI | EBP | ESP
 type op = ADD | SUB | MUL | DIV | XOR | OR | AND
@@ -129,6 +127,8 @@ class Gmeta(gmeta):
         self.fmeta_v = fmeta_val
         self.reglist_v = reglist_val
         self.int_v = int_val
+    def param(self):
+        return (self.gadget_v, self.fmeta_v, self.reglist_v, self.int_v)
 
 class gcontainer(object): pass
 class GContainer(gcontainer):
@@ -194,22 +194,22 @@ def dump_gadget(g):
         s = "CopyReg(%s, %s)" % (dump_reg(r1), dump_reg(r2))
     elif type(g) == BinOp:
         (r_dst, r1, op, r2) = g.param()
-        s = "BinOp(%s, %s, %s, %s)" (dump_reg(r_dst), dump_reg(r1), dump_op(op), dump_reg(r2))
+        s = "BinOp(%s, %s, %s, %s)" % (dump_reg(r_dst), dump_reg(r1), dump_op(op), dump_reg(r2))
     elif type(g) == ReadMem:
         (r_dst, r_addr, off) = g.param()
-        s = "ReadMem(%s = [%s+0x%lx])" (dump_reg(r_dst), dump_reg(r_addr), off)
+        s = "ReadMem(%s = [%s+0x%lx])" % (dump_reg(r_dst), dump_reg(r_addr), off)
     elif type(g) == WriteMem:
         (r_addr, r_src, off) = g.param()
-        s = "WriteMem([%s+0x%lx] = %s)" (dump_reg(r_addr), off, dump_reg(r_src))
+        s = "WriteMem([%s+0x%lx] = %s)" % (dump_reg(r_addr), off, dump_reg(r_src))
     elif type(g) == ReadMemOp:
         (r_dst, r_addr, op, off) = g.param()
-        s = "ReadMemOp(%s %s= [%s+0x%lx])" (dump_reg(r_dst), dump_op(op), dump_reg(r_addr), off)
+        s = "ReadMemOp(%s %s= [%s+0x%lx])" % (dump_reg(r_dst), dump_op(op), dump_reg(r_addr), off)
     elif type(g) == WriteMemOp:
         (r_dst, r_addr, op) = g.param()
-        s = "WriteMemOp([%s+0x%lx] %s= %s)" (dump_reg(r_addr), off, dump_op(op), dump_reg(r_src))
+        s = "WriteMemOp([%s+0x%lx] %s= %s)" % (dump_reg(r_addr), off, dump_op(op), dump_reg(r_src))
     elif type(g) == OpEsp:
         (r, op, sf) = g.param()
-        s = "OpEsp(%s, %s, %d)" (dump_op(op), dump_reg(r), sf)
+        s = "OpEsp(%s, %s, %d)" % (dump_op(op), dump_reg(r), sf)
     elif type(g) == Lahf:
         s = "Lahf"
     else:

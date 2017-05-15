@@ -315,7 +315,7 @@ class SRegOrder(object):
 SRegSet = set([])
 
 def set_from_list(l):
-    def f(setx, x): 
+    def f(setx, x):
         RegSet.add(x, setx)
     fold_left(f, RegSet, l)
 

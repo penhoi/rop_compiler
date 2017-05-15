@@ -1,23 +1,22 @@
-import os, sys
 from paktCommon import *
 
 class meta(object):
     def __init__(self, int_data):
         self.lnum = int_data
     def param(self):
-        return self.lnum    
+        return self.lnum
 
 class operator(object): pass
 class Add(operator): pass
 class Sub(operator): pass
 class Mul(operator): pass
 class Div(operator): pass
-class Xor(operator): pass  
+class Xor(operator): pass
 class And(operator): pass
 class Or(operator): pass
-class Not(operator): pass 
-class exp(object): pass 
-    
+class Not(operator): pass
+class exp(object): pass
+
 class BinOp(exp):
     def __init__(self, exp_value_l, op_value, exp_value_r):
         self.expl = exp_value_l
@@ -25,44 +24,44 @@ class BinOp(exp):
         self.expr = exp_value_r
     def param(self):
         return self.expl, self.op, self.expr
-    
+
 class UnOp(exp):
     def __init__(self, op_value, exp_value):
         self.op = op_value
         self.exp = exp_value
     def param(self):
         return self.op, self.exp
-    
+
 class Var(exp):
     def __init__(self, id_value):
         self.id = id_value  #(* address of var *)
     def param(self):
         return self.id
-    
+
 class Ref(exp):
     def __init__(self, id_value):
         self.id = id_value  #(* address of var *)
     def param(self):
         return self.id
-    
+
 class ReadMem(exp):
     def __init__(self, id_value):
         self.id = id_value
     def param(self):
         return self.id
-    
+
 class Const(exp):
     def __init__(self, int_value):
         self.val = int_value
     def param(self):
         return self.val
-        
+
 
 E = "flag E"
 A = "flag A"
 B = "flag B"
 MP = "flag MP"  #(* jMP = jump always *)
- 
+
 #type cond = Cond of flag list | NCond of flag list
 class cond(object): pass
 class Cond(cond):
@@ -70,7 +69,7 @@ class Cond(cond):
         self.list = flag_list
     def param(self):
         return self.list
-    
+
 class NCond(cond):
     def __init__(self, flag_list):
         self.list = flag_list
@@ -85,7 +84,7 @@ class ExpArgs(exp_args):
         self.list = list_value
     def param(self):
         return self.exp, self.list
-            
+
 
 class stmt(object): pass
 class Assign(stmt):
@@ -94,35 +93,35 @@ class Assign(stmt):
         self.exp = exp_value
     def param(self):
         return self.id, self.exp
-            
+
 class DerefAssign(stmt):
     def __init__(self, id_value, exp_value):    #(* *var = 1 *)
         self.id = id_value
         self.exp = exp_value
     def param(self):
         return self.id, self.exp
-            
+
 class AssignTab(stmt):
     def __init__(self, id_value, int_list):     #(* var = [1,2,3] *)
         self.id = id_value
         self.list = int_list
     def param(self):
         return self.id, self.list
-            
+
 class WriteMem(stmt):
     def __init__(self, id_value, exp_value):
         self.id = id_value
         self.exp = exp_value
     def param(self):
         return self.id, self.exp
-            
+
 class Branch(stmt):
     def __init__(self, cond_value, exp_value):
         self.cond = cond_value
         self.exp = exp_value
     def param(self):
         return self.cond, self.exp
-            
+
 class Label(stmt):
     def __init__(self, id_value):
         self.id = id_value
@@ -132,27 +131,27 @@ class Cmp(stmt):
         self.expr = exp_value_r
     def param(self):
         return self.expl, self.expr
-    
+
 class Call(stmt):
     def __init__(self, id_value, exp_args_value):
         self.id = id_value
         self.args = exp_args_value
     def param(self):
         return self.id, self.args
-    
+
 class ExtCall(stmt):
     def __init__(self, id_value, exp_args_value):
         self.id = id_value
         self.args = exp_args_value
     def param(self):
         return self.id, self.args
-    
+
 class Enter(stmt):
     def __init__(self, int_value):
         self.v = int_value
     def param(self):
         return self.v
-    
+
 class Leave(stmt): pass
 class Ret(stmt):
     def __init__(self, id_value):
@@ -210,7 +209,7 @@ class Func_prime(func_prime):
         self.func_body = func_body_value
     def param(self):
         return (self.id, self.args, self.func_body)
-    
+
 #type program' = Prog_prime of func' wrapped list
 class program_prime(object): pass
 class Prog_prime(program):
@@ -218,7 +217,7 @@ class Prog_prime(program):
         self.list = func_wrapped_list
     def param(self):
         return self.list
-    
+
 #type error = Error of meta * string
 class error(object): pass
 class Error(error):
@@ -246,7 +245,7 @@ def unwrap_prog(p):
     fl = Prog_prime_fl.param()
     fl = map(unwrap_func, fl)
     return Prog(fl)
-    
+
 br = ["e", "a", "b"]
 branches = br + map(lambda x: "n"+x, br) + ["mp"]
 
@@ -257,14 +256,14 @@ f2c = create_hashtable(8, fl_to_char)
 #let c2f = Common.create_hashtable 8 ch_to_flag
 c2f = create_hashtable(8, ch_to_flag)
 
- 
+
 def str_to_cond(s):
-    def char_to_flag (c): 
+    def char_to_flag (c):
         if c in c2f:
             return c2f[c]
         else:
             raise Exception("Not find reg c")
-        
+
     def str_to_flag_list(s): #{
         def aux(s, i, n, acc): #{
             if i == n:
@@ -279,7 +278,7 @@ def str_to_cond(s):
         aux(s, 0, len(s), [])
         #}end aux
     #}end str_to_flag_list
-    
+
     if s == "mp": #{
         c = Cond([MP])
     else:
@@ -315,7 +314,7 @@ def dump_exp(exp):
     elif type(exp) == Ref:
         x = exp.param()
         s = "&%s" % x
-    elif type(exp) == UnOp: 
+    elif type(exp) == UnOp:
         (op, e) = exp.param()
         s = "UnOp(%s, %s)" % (dump_op(op), dump_exp(e))
     elif type(exp) == BinOp:
@@ -345,7 +344,7 @@ def dump_flag_list(ll):
             else:
                 raise Exception("hd not in f2c")
     # end aux(l, acc)
-    
+
     chars = aux(ll, [])
     strs = map((lambda c: str(c)), chars)
     s = str_fold(tagid, strs, ";")
@@ -359,7 +358,7 @@ def dump_cond(cond):
     elif type(cond) == NCond:
         l = cond.param()
         s = dump_flag_list(l)
-        s = "~[%s]" % s 
+        s = "~[%s]" % s
     return s
 
 def dump_stmt(stmt):
@@ -394,7 +393,6 @@ def dump_stmt(stmt):
         (n) = stmt.param()
         s = "Enter(%d)" % n
     elif type(stmt) == Leave:
-        () = stmt.param()
         s = "Leave"
     elif type(stmt) == Ret:
         (s) = stmt.param()
@@ -402,9 +400,9 @@ def dump_stmt(stmt):
     else:
         s = ""
     return s
-        
 
-def dump_args (args): 
+
+def dump_args (args):
     if type(args) == Args:
         Args_args = args.param()
         s_args = str_fold(tagid, Args_args, ",")
@@ -415,7 +413,7 @@ def dump_body(body):
         FunBody_stmt_list = body.param()
         str_fold(dump_stmt, FunBody_stmt_list, "\n")
 
-def dump_func_head(f): 
+def dump_func_head(f):
     if type(f) == Fun:
         (tagid, args, _) = f.param()
         s_args = dump_args (args)
@@ -429,13 +427,13 @@ def dump_func (f):
         s_body = dump_body(body)
         s = "%s\n%s\n" %  (head, s_body)
         return s
-    
+
 def dump_prog (p):
     if type(p) == Prog:
         Prog_func_list = p.param()
         str_fold(dump_func, Prog_func_list, "\n")
 
-#(* AST verification 
+#(* AST verification
 #  * - are all vars initialized before use? (done)
 #  * - branches only to defined labels (done)
 #  * - calls only to defined functions (done)
@@ -444,13 +442,13 @@ def dump_prog (p):
 #  * - calls with correct number of params (done)
 #  *)
 
-def is_label(x): 
+def is_label(x):
     if type(x) == Label:
         return True
     else:
         return False
 
-def is_fun_wr(x): 
+def is_fun_wr(x):
     if type(x) == Fun_prime:
         return True
     else:
@@ -482,13 +480,13 @@ def is_init_id(x):
         return False, "NOT AN ID"
 
 
-def make_collect(is_thing, stmts): 
-    def aux(stmts, acc): 
+def make_collect(is_thing, stmts):
+    def aux(stmts, acc):
         if [] != stmts:
             hd = stmts[0]
             tl = stmts[1:]
             ok = is_thing(hd)
-            if ok: 
+            if ok:
                 aux(tl, [hd] + acc)
             else:
                 aux(tl, acc)
@@ -497,7 +495,7 @@ def make_collect(is_thing, stmts):
 
     aux(stmts, [])
 
-def make_collect_wr(is_thing, stmts): 
+def make_collect_wr(is_thing, stmts):
     is_thing = lambda x: is_thing(unwrap (x))
     make_collect(is_thing, stmts)
 
@@ -512,8 +510,8 @@ collect_ext_call_targets = make_collect is_ext_call_target
 *)
 """
 
-def collect_used_vars_exp(exp): 
-    def aux(x, acc): #{ 
+def collect_used_vars_exp(exp):
+    def aux(x, acc): #{
         if type(x) in [Const, ReadMem]:
             return acc
         elif type(x) in [Var, Ref]:
@@ -526,9 +524,9 @@ def collect_used_vars_exp(exp):
             acc = aux(e1, acc)
             aux(e2, acc)
     #}end aux
-    aux(exp, [])        
+    aux(exp, [])
 
-def update_init_vars(vars, stmt): 
+def update_init_vars(vars, stmt):
     ok, tagid = is_init_id(stmt)
     if ok:
         return id+vars
@@ -552,27 +550,27 @@ def collect_used_vars_stmt(x):
         return l1 + l2
     elif type(x) in [Call, ExtCall]:
         (_, e_args) = x.param()
-        def f(acc, exp): 
+        def f(acc, exp):
             vars = collect_used_vars_exp(exp)
             return vars+acc
 
         (expl) = e_args.param()
         ll = fold_left(f, [], expl)
-        List.concat ll
+        return (ll[0] + ll[1])
     else:
         return []
-    
-def collect_init_var(x)
+
+def collect_init_var(x):
     if type(x) == AssignTab:
-        (v,_) = x.param() 
+        (v,_) = x.param()
         return []
     elif type(x) == Assign:
         (v,_) = x.param()
         return Some(v)
     else:
         return None
-    
-def var_id(hd):    
+
+def var_id(hd):
     tagid = None
     if type(hd) == Ref:
         (tagid) = hd.param()
@@ -600,7 +598,7 @@ def fun_id_prime(x):
     (tagid, _, _) = x.param()
     return tagid
 
-def make_error_fun(f, l): 
+def make_error_fun(f, l):
     def aux(acc, node):
         pos, s = f(node)
         e = Error(pos, s)
@@ -608,10 +606,10 @@ def make_error_fun(f, l):
 
     fold_left(aux, [], l)
 
-def fancy_filter_(f, g, defs, nodes, flip): 
-    def p(node): 
-        pred = lambda x: f(x, =, g, node)
-        found = (List.exists pred defs)
+def fancy_filter_(f, g, defs, nodes, flip):
+    def p(node):
+        pred = lambda x: f(x) == g(node)
+        found = any(map(pred, defs))
         if flip:
             return not found
         else:
@@ -622,12 +620,12 @@ def fancy_filter_(f, g, defs, nodes, flip):
 #(* return nodes not 'defined' in defs *)
 def fancy_filter(f, g, defs, nodes):
     return fancy_filter_(f, g, defs, nodes, True)
-    
+
 #(* return nodes 'defined' in defs *)
 def fancy_filter_prime(f, g, defs, nodes):
     return fancy_filter_(f, g, defs, nodes, False)
 
-def used_before_init(init_vars, vars): 
+def used_before_init(init_vars, vars):
     f = var_id
     bad = fancy_filter(id, f, init_vars, vars)
     return bad
@@ -638,7 +636,7 @@ def verify_vars_in_func(func):
             tagid = var_id(var)
             s = "Uninitialized variable: %s" % tagid
             return (pos, s)
-        
+
         erf = make_error_fun(f)
         return erf, vars
         #}end f
@@ -647,10 +645,10 @@ def verify_vars_in_func(func):
     (tagid, Args_args, FunBody_prime_stmts) = func.param()
     args =  Args_args.param()
     stmts = FunBody_prime_stmts.param()
-     
+
     #(* uninit. ids are reported only once *)
-    def find_uninitialized(stmts): 
-        def aux(stmts, init_vars errors): 
+    def find_uninitialized(stmts):
+        def aux(stmts, init_vars, errors):
             if len(stmts) != 0:
                 hd = stmts[0]
                 tl = stmts[1:]
@@ -661,7 +659,6 @@ def verify_vars_in_func(func):
                 bad = used_before_init(init_vars, vars)
                 new_errors = error_not_init(pos, bad)
                 errors = new_errors + errors
-                match new_init with
                 if type(new_init) == Some(v):
                     aux(tl, [v] + init_vars, errors)
                 elif new_init == None:
@@ -673,7 +670,7 @@ def verify_vars_in_func(func):
     #}end find_uninitialized
     return find_uninitialized(stmts)
 
-def verify_jumps_in_func(func): 
+def verify_jumps_in_func(func):
     def branch_target(b):
         if type(b) == Branch:
             (_, t) = b.param()
@@ -681,8 +678,8 @@ def verify_jumps_in_func(func):
         else:
             raise Exception("verify_jumps_in_func")
 
-    def error_bad_label(branches): 
-        def f(branch): 
+    def error_bad_label(branches):
+        def f(branch):
             pos = get_meta(branch)
             branch = unwrap(branch)
             tagid = branch_target(branch)
@@ -696,19 +693,19 @@ def verify_jumps_in_func(func):
     stmts = FunBody_prime_stmts.param()
     def_labels = collect_labels_wr(stmts)
     branches = collect_branches_wr(stmts)
-    def f(label): 
+    def f(label):
         label_id(unwrap(label))
-    def g(branch): 
+    def g(branch):
         branch_target(unwrap(branch))
     bad = fancy_filter(f, g, def_labels, branches)
     return error_bad_label, bad
-            
+
 def cmp_by_pos(e1, e2):
     (p1, _) = e1.param()
     (p2, _) = e2.param()
     return p1.lnum - p2.lnum
 
-def cmp_by_str(e1, e2): 
+def cmp_by_str(e1, e2):
     (_, s1) = e1.param()
     (_, s2) = e2.param()
     if s1 < s2:
@@ -718,30 +715,30 @@ def cmp_by_str(e1, e2):
     else:
         return 1
 
-def sort_by_pos(errors): 
-    errors.sort(cmp_by_pos) 
+def sort_by_pos(errors):
+    errors.sort(cmp_by_pos)
 
-def sort_and_cut(errors): 
+def sort_and_cut(errors):
     errors = sort_by_pos(errors)
     errors = errors.stable_sort(cmp_by_str)
     errors = unique(cmp_by_str, errors)
     errors = sort_by_pos(errors)
     return errors
 
-def pos_id_call(call): 
+def pos_id_call(call):
     pos = get_meta(call)
     tagid = call_id(unwrap(call))
     return (pos, tagid)
 
-def collect_calls_in_func(func): 
+def collect_calls_in_func(func):
     (_, _, FunBody_prime_stmts) = func.param()
     stmts =  FunBody_prime_stmts.param()
     calls = collect_calls_wr(stmts)
     return calls
 
-def verify_calls(f_ids, func): 
+def verify_calls(f_ids, func):
     calls = collect_calls_in_func(func)
-    def f(call): 
+    def f(call):
         (pos, tagid) = pos_id_call(call)
         s = "No such function: %s" % tagid
         return (pos, s)
@@ -753,70 +750,73 @@ def verify_calls(f_ids, func):
     return erf, bad,_calls
 
 #(* id_count = [(f_id, f_param_count); ...] *)
-def verify_calls_params(id_count, func): 
-    def call_arg_count(x): 
+def verify_calls_params(id_count, func):
+    def call_arg_count(x):
         if type(x) == Call:
-            (tagid, ExpArgs_l) = x.param():
+            (tagid, ExpArgs_l) = x.param()
             l = ExpArgs_l.param()
             return len(l)
         else:
             raise Exception("verify_calls_params")
 
     calls = collect_calls_in_func(func)
-    def f(call): 
+    def f(call):
         (pos, tagid) = pos_id_call(call)
         c_count = call_arg_count(unwrap(call))
-        let(_, f_count) = List.find(fun (f_id, _) -> f_id = tagid) id_count in
+        f_count = id_count.count(tagid)
         s = "Function \"%s\" takes %d params, not %d" % (tagid, f_count, c_count)
         return (pos, s)
 
-    def g(call): 
-        call = (unwrap call)
+    def g(call):
+        call = (unwrap, call)
         tagid = call_id(call)
         c_count = call_arg_count(call)
         return (tagid, c_count)
 
     def g_id(call):
         call_id(unwrap(call))
-    defined_calls = fancy_filter_prime(fst, g_id id_count, calls)
+    defined_calls = fancy_filter_prime(fst, g_id, id_count, calls)
     bad = fancy_filter(id, g, id_count, defined_calls)
     erf = make_error_fun(f)
     return erf, bad
 
-def cmp_func_by_pos(f1, f2): 
+def cmp_func_by_pos(f1, f2):
     m1 = get_meta(f1)
     m2 = get_meta(f2)
     return m1.lnum - m2.lnum
 
-def cmp_func_by_id(f1, f2): 
+def cmp_func_by_id(f1, f2):
     f1 = unwrap(f1)
     f2 = unwrap(f2)
     (id1, _, _) = f1.param()
     (id2, _, _) = f2.param()
-    if id1 = id2:
-        return 0 
+    if id1 == id2:
+        return 0
     elif id1 < id2:
         return -1
     else:
         return 1
 
-def verify_funs(f_list): 
+def verify_funs(f_list):
     f_list = f_list.sort(cmp_func_by_pos)
     f_list = f_list.sort(cmp_func_by_id)
-    def f(func): 
+    def f(func):
         pos = get_meta(func)
-        tagid = fun_id_prime(unwrap(func)) 
-        first = List.find(fun f -> fun_id_prime (unwrap f) = tagid) f_list in
+        tagid = fun_id_prime(unwrap(func))
+        first = None
+        for f in f_list:
+            if fun_id_prime(unwrap(f) == tagid):
+                first = f
         m = get_meta(first)
-        lnum = m.lnum 
+        lnum = m.lnum
         s = "Function %s already defined @ %d" % (tagid, lnum)
         return (pos, s)
 
-    bad = nonunique(cmp_func_by_id, f_list) 
+    bad = nonunique(cmp_func_by_id, f_list)
     erf = make_error_fun(f)
     return erf, bad
 
-def cmp_by_meta(n1, n2): 
+def cmp_by_meta(n1, n2):
     return n1.m.lnum - n2.m.lnum
 
 def arg_len(func):
@@ -826,33 +826,33 @@ def arg_len(func):
     return len(args)
 
 #(* exactly one "main" without params *)
-def verify_main_func(f_list): 
+def verify_main_func(f_list):
     mains = filter((lambda x: fun_id_prime(unwrap(x)) == "main"), f_list)
     if len(mains) == 0:
         s = "There must be exactly one \"main\" function (with no params)"
-        error = Error({lnum=0}, s)
+        error = Error({lnum:0}, s)
         return [error]
-    else
+    else:
         #(* we don't care about dupes, since verify_funs will take care of that *)
         mains = mains.sort(cmp_by_meta)
-        let bad = filter((lambda x: arg_len(x) > 0), mains)
+        bad = filter((lambda x: arg_len(x) > 0), mains)
         def f(func):
             pos = get_meta(func)
-            s = Printf.sprint "\"main\" can't have parameters (this one has %d)" % (arg_len(func))
+            s = "\"main\" can't have parameters (this one has %d)" % (arg_len(func))
             return (pos, s)
         #end f
         erf = make_error_fun(f)
         return erf, bad
 
-def verify_prog(p): 
+def verify_prog(p):
     (f_list) = p.param()
-    f_id_count = map(lambda f: fun_id_prime(unwrap(f), arg_len, f)), f_list) 
-    f_ids = map(fst, f_id_count) 
-    def f(acc, func): 
+    f_id_count = map((lambda f: fun_id_prime(unwrap(f), arg_len, f)), f_list)
+    f_ids = map(fst, f_id_count)
+    def f(acc, func):
         func = unwrap(func)
         err1 = verify_jumps_in_func(func)
         err2 = verify_vars_in_func(func)
-        err3 = verify_calls(f_ids func)
+        err3 = verify_calls(f_ids, func)
         err4 = verify_calls_params(f_id_count, func)
         err = err1 + err2 + err3 + err4
         err = sort_and_cut(err)
@@ -860,8 +860,8 @@ def verify_prog(p):
 
     errors = fold_left(f, [], f_list)
     errors = errors[0] + errors[1]
-    errors = errors + verify_funs(f_list) 
-    errors = errors + verify_main_func(f_list) 
+    errors = errors + verify_funs(f_list)
+    errors = errors + verify_main_func(f_list)
     errors = sort_by_pos(errors)
     return errors
 
@@ -869,7 +869,7 @@ def dump_error(error):
     if type(error) == Error:
         (pos, s) = error.param()
         lnum = pos.lnum
-        s = print "%d: %s" lnum s
+        s = "%d: %s" % (lnum, s)
         return s
 
 def dump_errors(errors):
@@ -885,12 +885,12 @@ def dump_errors(errors):
 # *)
 
 def wrap_flatten_exp(exp, n):
-    def new_tmp(n): 
+    def new_tmp(n):
             tmp = "tmp" + str(n)
             eid = Var(tmp)
             return eid, tmp
 
-    def wrap(e, l n): 
+    def wrap(e, l, n):
         if type(e) == Const:
             return e,l,n
         elif type(e) == Var:
@@ -906,9 +906,9 @@ def wrap_flatten_exp(exp, n):
     e_prime, l, n = flatten_exp(exp(n))
     e_prime, l, n = wrap(e_prime, l, n)
     return e_prime, l, n
-and
+
 def flatten_exp(exp, n):
-    elif type(exp) == Const:
+    if type(exp) == Const:
         x = exp.param()
         return exp, [], n
     elif type(exp) == Var:
@@ -924,7 +924,7 @@ def flatten_exp(exp, n):
         (op,e) = exp.param()
         e_prime, l, n = wrap_flatten_exp(e, n)
         return UnOp(op,e_prime), l, n
-        
+
     elif type(exp) == BinOp:
         (e1, op, e2) = exp.param()
         e1_prime, l1, n = wrap_flatten_exp(e1, n)
@@ -932,15 +932,15 @@ def flatten_exp(exp, n):
         l = l1 + l2
         return BinOp(e1_prime,op, e2_prime), l, n
 
-def flatten_stmt(s, n): 
+def flatten_stmt(s, n):
     def handle_call(tagid, el, n):
-        def f((ids, ll, n) e):
+        def f((ids, ll, n), e):
             v,l_prime,n = wrap_flatten_exp(e, n)
             return (v + ids, l_prime + ll, n)
 
         (ids, ll, n) = fold_left(f, ([], [], n), el)
         l = ll[0] + ll[1]
-        ids = ids.reverse() 
+        ids = ids.reverse()
         return ids, l, n
 
     #end handle_call
@@ -956,7 +956,7 @@ def flatten_stmt(s, n):
 
     elif type(s) == WriteMem:
         (tagid, e) = s.param()
-        let e_prime, l, n = flatten_exp(e, n)
+        e_prime, l, n = flatten_exp(e, n)
         return WriteMem(tagid,e_prime) + l, n
 
     elif type(s) == Cmp:
@@ -965,62 +965,62 @@ def flatten_stmt(s, n):
         v2, l2, n = wrap_flatten_exp(e2, n)
         l = l1 + l2
         return Cmp(v1, v2) + l, n
-    
+
     elif type(s) == Call:
         (tagid, ExpArgs_el) = s.param()
         el = ExpArgs_el.param()
         ids, l, n = handle_call(id, el, n)
         c = Call(tagid, ExpArgs(ids))
         return c+l, n
-    
+
     elif type(s) == ExtCall:
         (tagid, ExpArgs_el) = s.param()
         el = ExpArgs_el.param()
         ids, l, n = handle_call(id, el, n)
         c = ExtCall(tagid, ExpArgs(ids))
         return c+l, n
-    
+
     else:
         return [s], n
 
-def flatten_fun_body(fb): 
+def flatten_fun_body(fb):
     def f( (ll, n), stmt):
         l, n = flatten_stmt(stmt, n)
-        retun (l::ll, n)
+        retun ([l] +ll, n)
 
     stmts = None
     if type(fb) == FunBody:
         stmts = fb.param()
-        
+
     ll = folder_left(f, ([], 0), stmts)
     ll = ll[0] + ll[1]
     l = l.reverse()
 
-def flatten_fun(func): 
+def flatten_fun(func):
     if type(func) == Fun:
-        (tagid, args, body) = func.param():
+        (tagid, args, body) = func.param()
         l = flatten_fun_body(body)
         fb = FunBody(l)
         Fun(tagid, args, fb)
 
-def flatten_prog(p): 
+def flatten_prog(p):
     if type(p) == Prog:
         (func_list) = p.param()
         fl = map(flatten_fun, func_list)
         Prog(fl)
 
-def move_main_to_front(p): 
-    def aux(main, acc, l): 
+def move_main_to_front(p):
+    def aux(main, acc, l):
         if [] != l:
             (tagid,_,_) == hd.param()
-            if tagid = "main":
+            if tagid == "main":
                 aux((Some(hd)), acc, tl)
-            else
-                aux(main, [hd::acc], tl)
-        elif:
+            else:
+                aux(main, [hd] + acc, tl)
+        else:
             if type(main) == Some:
-                (f) = main.param())
-                f::(List.rev acc)
+                (f) = main.param()
+                return [f] +  acc.reverse()
             elif type(main) == OcamlNone:
                 assert False
 
