@@ -14,8 +14,9 @@ dATA_OFF = 8 #(* start writing tables here *)
 nO_NAME_LABEL = "@@"
 gLOBAL_END_LABEL = "global_end"
 
-def trd (_,_,x):
+def trd (_1,_2,x):
     return x
+
 def fun_label(tagid):
     return "function_" + tagid
 def fun_local_label(fun_id, tagid):

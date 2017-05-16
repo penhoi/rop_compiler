@@ -6,6 +6,13 @@ class meta(object):
     def param(self):
         return self.lnum
 
+class type_wrapped(object):
+    def __init__(self, type_obj, meta_data):
+        self.n = type_obj
+        self.m = meta_data
+    def param(self):
+        return  (self.n, self.m)
+
 class operator(object): pass
 class Add(operator): pass
 class Sub(operator): pass
@@ -194,7 +201,7 @@ class Prog(program):
 
 #type func_body' = FunBody_prime of stmt wrapped list
 class func_body_prime(object): pass
-class Func_body_prime(func_body_prime):
+class FunBody_prime(func_body_prime):
     def __init__(self, stmt_wrapped_list):
         self.list = stmt_wrapped_list
     def param(self):
@@ -202,7 +209,7 @@ class Func_body_prime(func_body_prime):
 
 #type func' = Fun_prime of tagid * args * func_body'
 class func_prime(object): pass
-class Func_prime(func_prime):
+class Fun_prime(func_prime):
     def __init__(self, id_value, args_value, func_body_value):
         self.id = id_value
         self.args = args_value

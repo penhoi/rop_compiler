@@ -1,12 +1,11 @@
-
-
+#
 tokens = (
     'NUM', 'PLUS', 'MINUS', 'MUL', 'DIV', 'AND', 'OR', 'NOT', 'XOR', 'ASSIGN',
     'LPAREN', 'RPAREN', 'LBRACKET', 'RBRACKET', 'LCURLY', 'RCURLY', 'COMMA',
     'ID',  'LABEL', 'BRANCH', 'STR', 'EOF',
     'DOLLAR', 'AT', 'BANG',
     'FUN', 'CMP',
-    )
+)
 
 KEYWORDS = {'fun':"FUN", 'cmp':"CMP"}
 
@@ -35,7 +34,7 @@ t_BANG      = r'!'
 
 def t_INUM(t):
     r'\d+'
-    
+
     try:
         num = int(t.value, 10)
     except ValueError:
@@ -44,10 +43,10 @@ def t_INUM(t):
     t.type = "NUM"
     t.value = num
     return t
-    
+
 def t_HNUM(t):
     r'0x[0-9afAF]+'
-    
+
     try:
         num = int(t.value, 16)
     except ValueError:
@@ -70,7 +69,7 @@ def t_COMMENT(t):
 
 def t_ID(t):
     r'[a-zA-Z][a-zA-Z0-9_]*[:]?'
-    
+
     if t.value in KEYWORDS:
         t.type = KEYWORDS[t.value]
     elif t.value[-1] == ":":
@@ -81,34 +80,36 @@ def t_ID(t):
         t.value = t.value[1:]
     elif t.value == "eof":
         t.type = "EOF"
+        t.value = t.value[1:]
+
     return t
 
-           
+
 t_ignore = " \t"
-  
+
 def t_newline(t):
     r'\n+'
     t.lexer.lineno += t.value.count("\n")
-    
+
 def t_error(t):
     print("Illegal character '%s'" % t.value[0])
     t.lexer.skip(1)
-    
+
 # Build the lexer
 import ply.lex as lex
 lexer = lex.lex()
 
 def debug_lexor(ropl_file):
-    
+
     lines = None
     with open(ropl_file) as f:
         lines = f.readlines()
-    
+
     for line in lines:
-        
+
         # Give the lexer some input
         lexer.input(line)
-        
+
         print line
         # Tokenize
         while True:
@@ -116,6 +117,7 @@ def debug_lexor(ropl_file):
             if not tok: break      # No more input
             print tok
 
+            # Get the token map from the lexer.  This is required.
 
 if __name__ == '__main__':
     import sys
