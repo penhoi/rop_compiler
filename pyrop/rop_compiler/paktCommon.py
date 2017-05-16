@@ -314,6 +314,13 @@ def fold_right(f, list_data, b):
         tmp = f(el, tmp)
     return tmp
 
+def Hashtbl_fold(f, tbl, init):
+    temp = init
+    for k, v in tbl.items():
+        temp = f(k, v, temp)
+    
+    return temp
+
 def find_all(p, l ):
     def f(acc, x ):
         if p(x):
