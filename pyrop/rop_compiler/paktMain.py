@@ -1,5 +1,5 @@
 import sys
-import paktpaktCommon
+import paktCommon
 import paktAst  #(* for types *)
 import paktCdefs
 import paktAnalysis
@@ -14,7 +14,7 @@ dATA_OFF = 8 #(* start writing tables here *)
 nO_NAME_LABEL = "@@"
 gLOBAL_END_LABEL = "global_end"
 
-def trd (_1,_2,x):
+def trd (_1, _2, x):
     return x
 
 def fun_label(tagid):
@@ -64,9 +64,9 @@ def make_rewrite_exp(f_next_reg, read_local, ref_local):
         elif type(x) == UnOp:
             (op, exp) = x.param()
             if type(op) == Sub:
-                rewrite_exp(BinOp(Const(0),op,exp), oreg)
+                rewrite_exp(BinOp(Const(0),op, exp), oreg)
             elif type(op) == Not:
-                rewrite_exp(BinOp(Const(-1),Xor,exp), oreg)
+                rewrite_exp(BinOp(Const(-1),Xor, exp), oreg)
             else:
                 raise Exception("make_rewrite_exp")
 
@@ -103,10 +103,10 @@ def rewrite_stmt(stack_ptr, frame_ptr, locals, fun_id, stmt):
         f_ctor(off, reg)
 
     def write_local(tagid, reg):
-        rw_local(tagid, reg, (lambda off, reg: WriteLocal(off,reg)))
+        rw_local(tagid, reg, (lambda off, reg: WriteLocal(off, reg)))
 
     def read_local(tagid, reg):
-        rw_local(tagid, reg, (lambda off, reg: ReadLocal(off,reg)))
+        rw_local(tagid, reg, (lambda off, reg: ReadLocal(off, reg)))
 
     def ref_local(tagid, reg):
         rw_local(tagid, reg, (lambda off, reg: LocalAddr(off, reg)))
@@ -155,11 +155,11 @@ def rewrite_stmt(stack_ptr, frame_ptr, locals, fun_id, stmt):
             elif type(flag) == A:
                 mask, v = 1|(1<<6), 0
             elif type(flag) == B:
-                mask, v = 1,1
+                mask, v = 1, 1
             else : # type(flag) == _:
                 raise Exception("set_eax_on_cond")
 
-            mask,v = mask <<  8, v << 8
+            mask, v = mask <<  8, v << 8
             return mask, v
 
         neg = None
@@ -277,7 +277,7 @@ def rewrite_stmt(stack_ptr, frame_ptr, locals, fun_id, stmt):
                     wm = WriteM(addr_reg, v_reg)
                     set = MovRegConst(off_reg, 4)
                     add = BinO(addr_reg, addr_reg, Add, off_reg)
-                    return acc + iarg+[wm,set,add] #(* O(n^2) *)
+                    return acc + iarg+[wm, set, add] #(* O(n^2) *)
 
                 tmp_reg = f_next_reg()
                 lbl = Lbl(nO_NAME_LABEL)
@@ -292,14 +292,14 @@ def rewrite_stmt(stack_ptr, frame_ptr, locals, fun_id, stmt):
                 set8 = MovRegConst(reg, 8)
                 fix2 = BinO(addr_reg, addr_reg, Add, reg)
                 stores = fold_left(per_arg, [], args)
-                return [save_esp,lbl,mov,fix1,set_imp,wm,set8,fix2]+stores
+                return [save_esp, lbl, mov, fix1, set_imp, wm, set8, fix2]+stores
 
             def jmp_over_locals(locals_filler):
                 n = len(locals_filler)
                 reg = f_next_reg()
                 mov = MovRegConst(reg, n*4)
                 ops = OpStack(Add, reg)
-                return [mov,ops]
+                return [mov, ops]
 
             imp_addr = hARDCODED_PRINTF
             cmt_s = "jmp %s" % tagid
@@ -314,7 +314,7 @@ def rewrite_stmt(stack_ptr, frame_ptr, locals, fun_id, stmt):
             lbl = Lbl(nO_NAME_LABEL)
             args_filler = make_filler(n_args)
             write_args = store_args(imp_addr, exp_args)
-            return write_args + jmp_skip_locals + locals_filler + [Comment(cmt_s),lbl,jmp_imp,adv] + (args_filler)
+            return write_args + jmp_skip_locals + locals_filler + [Comment(cmt_s),lbl, jmp_imp, adv] + (args_filler)
 
         elif type(stmt) == Branch:
             (cond, tagid) = stmt.param()
@@ -348,7 +348,7 @@ def rewrite_stmt(stack_ptr, frame_ptr, locals, fun_id, stmt):
             reg3 = f_next_reg()
             sub = BinO(reg3, reg1, Sub, reg2)
             wm2 = WriteMConst(stack_ptr, reg3)
-            return [rm1,push,rm2,wm1,rm3,mov,sub,wm2]
+            return [rm1, push, rm2, wm1, rm3, mov, sub, wm2]
         elif type(stmt) == Leave:
 
             reg = f_next_reg()
@@ -357,7 +357,7 @@ def rewrite_stmt(stack_ptr, frame_ptr, locals, fun_id, stmt):
             reg = f_next_reg()
             pop = PopReg(reg)
             wm2 = WriteMConst(frame_ptr, reg)
-            return [rm,wm1,pop,wm2]
+            return [rm, wm1, pop, wm2]
         elif type(stmt) == Ret:
             tagid = stmt.param()
             reg1 = f_next_reg()
@@ -368,8 +368,8 @@ def rewrite_stmt(stack_ptr, frame_ptr, locals, fun_id, stmt):
             sub = BinO(reg3, reg2, Add, reg1)
             add = OpStack(Add, reg3) #(* jmp *)
             lbl = Lbl(nO_NAME_LABEL)
-            return [p2,mov,sub,add,lbl]
-            #(* AssignTab is replaced with Assign(tagid,C) earlier *)
+            return [p2, mov, sub, add, lbl]
+            #(* AssignTab is replaced with Assign(tagid, C) earlier *)
         elif type(stmt) == AssignTab:
             raise Exception("Exception main.py 397")
 
@@ -393,7 +393,7 @@ def rewrite_prog(prog, stack_ptr, frame_ptr):
                     hd == stmts[0]
                     tl == stmts[1::]
                     if type(hd) == Assign:
-                        (tagid,_) = hd.param()
+                        (tagid, _) = hd.param()
                         return aux([tagid]+acc, tl)
                     else:
                         return aux(acc, tl)
@@ -406,18 +406,18 @@ def rewrite_prog(prog, stack_ptr, frame_ptr):
         args = Args_args.param()
         stmts = FunBody_stmts.param()
         htbl = {}
-        def f((h,n), arg):
+        def f((h, n), arg):
             h[arg] = n
-            return (h,n+4)
+            return (h, n+4)
 
-        #(* v1,frame,ret,arg1,...,argN *)
-        (htbl,_) = fold_left(f, (htbl,12), args)
-        def g((h,n), tagid):
+        #(* v1, frame, ret, arg1,...,argN *)
+        (htbl, _) = fold_left(f, (htbl, 12), args)
+        def g((h, n), tagid):
             h[tagid] = n
-            return (h,n-4)
+            return (h, n-4)
 
         ids = collect_locals(stmts)
-        (htbl,_) = fold_left(g, (htbl,0), ids)
+        (htbl, _) = fold_left(g, (htbl, 0), ids)
         return htbl
 
     def rewrite_func(func):
@@ -445,12 +445,12 @@ def rewrite_prog(prog, stack_ptr, frame_ptr):
 
     (func_list) = prog.param()
     rew = map(rewrite_func, func_list)
-    #(* let rew = List.concat (rew) in *)
+    #(* let rew = List.concat(rew) in *)
     return rew
 
 """
 (* Extract tables and create a stub that writes them to the data section.
- * All AssignTable(tagid,list) are changed to Assign(tagid,C), where C is the
+ * All AssignTable(tagid, list) are changed to Assign(tagid, C), where C is the
  * address in .data section *)
  """
 def handle_tables(data_s, prog):
@@ -463,7 +463,7 @@ def handle_tables(data_s, prog):
 
                 new_stmt = Assign(tagid, Const(off))
                 new_off = off + len(l)
-                return new_off, [(off,l)]+pairs, [new_stmt] +rew
+                return new_off, [(off, l)]+pairs, [new_stmt] +rew
 
             else:
                 return off, pairs, [stmt] + rew
@@ -476,7 +476,7 @@ def handle_tables(data_s, prog):
         Func = Fun(fun_id, Args(args), FunBody(stmts))
         return data_end, pairs, func
 
-    def per_func_fold((data_start,l_pairs,funs), func):
+    def per_func_fold((data_start, l_pairs, funs), func):
         data_end, f_pairs, new_func = per_func(data_start, func)
         (data_end, f_pairs+l_pairs, new_func+funs)
 
@@ -496,13 +496,13 @@ def handle_tables(data_s, prog):
             return [mov, wm]
 
         def chop(l, n):
-            def f((i,a,b), x):
+            def f((i, a, b), x):
                 if i<n:
-                    return (i+1,[x]+a,b)
+                    return (i+1,[x]+a, b)
                 else:
-                    return (i+1,a,[x]+b)
+                    return (i+1, a,[x]+b)
 
-            (_,a,b) = fold_left(f, (0,[],[]), l)
+            (_, a, b) = fold_left(f, (0,[],[]), l)
             return a.reverse(), b.reverse()
 
         def to_int(l):
@@ -512,7 +512,7 @@ def handle_tables(data_s, prog):
 
         def make_one(off, l):
             def aux(acc, off, l):
-                pre,suf = chop(l, 3)
+                pre, suf = chop(l, 3)
                 if [] != pre:
                     v = to_int(pre.reverse())
                     s = store(off, v)
@@ -522,7 +522,7 @@ def handle_tables(data_s, prog):
 
             return aux([], off, l)
 
-        def f(acc, (off,l)):
+        def f(acc, (off, l)):
             s = make_one(off, l)
             return [s] + acc
 
@@ -531,7 +531,7 @@ def handle_tables(data_s, prog):
 
     data_start = data_s+dATA_OFF
     (func_list) = prog.param()
-    (_,l_pairs,funs) = fold_left(per_func_fold, (data_start,[],[]), func_list)
+    (_, l_pairs, funs) = fold_left(per_func_fold, (data_start,[],[]), func_list)
     funs = funs.reverse()
     pairs = (List.flatten(l_pairs)).reverse()
     dump_pairs(pairs)
@@ -548,11 +548,11 @@ def add_comments(f_comment, new_instrs, prefix, instr):
     return comments + new_instrs
 
 #(* concretize symbolic constants *)
-#(* IN: (instr,gm) pairs
-# * OUT: (instr,gm) pairs without MovRegSymb *)
+#(* IN: (instr, gm) pairs
+# * OUT: (instr, gm) pairs without MovRegSymb *)
 def fix_symblic(pairs):
     def get_size(gm):
-        (_,_,_,stack_fix) = gm.param()
+        (_, _, _, stack_fix) = gm.param()
         return stack_fix
 
     def check_lbl(label, instr):
@@ -613,9 +613,9 @@ def fix_symblic(pairs):
         sign = None
         chunk = None
         if type(dir) == Forward:
-            sign, chunk = 1,suf
+            sign, chunk = 1, suf
         elif type() == Backward:
-            sign, chunk = -1,pre
+            sign, chunk = -1, pre
 
         dist = distance_to_lbl(nO_NAME_LABEL, chunk)
         if type(dist) == Some:
@@ -646,7 +646,7 @@ def fix_symblic(pairs):
                 dist = dfin - dstart
                 print "FromTo: (%s,%s)->(%d,%d)->%d\n" % (dump_symb(start), dump_symb(fin), dstart, dfin, dist)
                 fix = MovRegConst(reg, dist)
-                aux ([(fix,gm)] + pre, tl)
+                aux([(fix, gm)] + pre, tl)
             else:
                 return aux([hd] + pre, tl)
     #end aux
@@ -663,10 +663,10 @@ def fix_ext_call_stuff(pairs):
         return off_s
 
     def set_stack_fix(gm, sf):
-        (g,fm,mod_reg,_) = gm.param()
-        return GMeta(g,fm,mod_reg,sf)
+        (g, fm, mod_reg, _) = gm.param()
+        return GMeta(g, fm, mod_reg, sf)
 
-    def f(acc, (instr,gmeta)):
+    def f(acc, (instr, gmeta)):
         new_instr = instr
         if type(instr) == AdvanceStack:
             (n) = instr.param()
@@ -679,7 +679,7 @@ def fix_ext_call_stuff(pairs):
             p2 = (cmt, gmeta)
             return [p1, p2] + acc
         else:
-            return [(instr,gmeta)] + acc
+            return [(instr, gmeta)] + acc
 
     pairs = fold_left(f, [], pairs)
     return pairs.reverse()
@@ -706,10 +706,10 @@ def global_prefix_suffix(data_s, data_e):
     suf = [lbl]
     return pre, suf, st_ptr, sf_ptr
 
-def to_binary_one(io, (instr,gm)):
+def to_binary_one(io, (instr, gm)):
     def get_lc_off(g):
         if type(g) == LoadConst:
-            (_,off) = g.param()
+            (_, off) = g.param()
             return off
         else:
             raise Exception("to_binary_one")
@@ -745,7 +745,7 @@ def to_binary_one(io, (instr,gm)):
     IO.write_i32(io, v)
 
     if type(instr) == MovRegConst:
-            (r,v) = instr.param()
+            (r, v) = instr.param()
 
             off = get_lc_off(g)
             assert(stack_fix - off - 4 >= 0)
@@ -753,7 +753,7 @@ def to_binary_one(io, (instr,gm)):
             IO.write_i32(io, v)
             fill(io, (stack_fix - off - 8))
     elif type(instr) == RawHex(_):
-        assert (stack_fix == 4)
+        assert(stack_fix == 4)
     else:
         fill(io, (stack_fix-4))
 
@@ -761,7 +761,7 @@ def to_binary_one(io, (instr,gm)):
     return ()
 
 def filter_trash(pairs):
-    def p (i,_):
+    def p(i, _):
         if type(i) ==  Lbl:
             return False
         elif type(i) ==  Comment:
@@ -772,8 +772,8 @@ def filter_trash(pairs):
 
 def to_binary(pairs):
     io = IO.output_string()
-    def consume(acc, (instr,gm)):
-        to_binary_one(io, (instr,gm))
+    def consume(acc, (instr, gm)):
+        to_binary_one(io, (instr, gm))
 
     fold_left(consume, (), pairs)
     map((lambda i: IO.write_i32(io, cRASH_ADDRESS)), [1, 2, 3, 4, 5, 6, 7])
@@ -807,8 +807,8 @@ def dump_instrs(cl):
 
 def dump_pairs(pairs):
     print "~~~~~~~~~~~~~"
-    def pr(acc, (instr,gmeta)):
-        (_,_,_,stack_fix) = gmeta.param()
+    def pr(acc, (instr, gmeta)):
+        (_, _, _, stack_fix) = gmeta.param()
         if is_lbl_or_comment(instr):
             (off, sep) = acc, " "
         else:
@@ -868,7 +868,7 @@ def compile(prog, container):
     """
     (* instr list list list.
      * 1st level: list of functions
-     * 2nd level: list of (rewritten) stmts
+     * 2nd level: list of(rewritten) stmts
      * 3rd level: instructions *)
      """
     instrs_ll = rewrite_prog(prog, stack_ptr, frame_ptr)

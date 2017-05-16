@@ -230,7 +230,7 @@ def uniq(eq, l):
             return uni, dupes
 
     if len(l) == 0:
-        return l,l
+        return l, l
     elif len(l) == 1: #?????
         return l,[]
     else:
@@ -271,9 +271,9 @@ def open_file(fn, fopen ):
         file_exc(fn, e)
 
 def open_file_in(fn):
-    return open_file (fn, "r+b")
+    return open_file(fn, "r+b")
 def open_file_out(fn):
-    return open_file (fn, "w+b")
+    return open_file(fn, "w+b")
 
 def write_str_to_file(filename, sstr ):
     co = open_file_out(filename)
@@ -338,7 +338,7 @@ def dump_int_list(l):
 
 def get_gadgets(gmetas):
     def strip(acc, gm ):
-        (g,_,_,_) = gm.param()
+        (g, _, _, _) = gm.param()
         return g + acc
 
-    return fold_left (strip, [], gmetas)
+    return fold_left(strip, [], gmetas)

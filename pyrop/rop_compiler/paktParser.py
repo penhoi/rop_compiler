@@ -17,7 +17,7 @@ def only_small(l):
     return any(map((lambda x: x>255), l))
 
 def unescape(s):
-    #Scanf.sscanf ("\"" ^ s ^ "\"") "%S" (fun u -> u)
+    #Scanf.sscanf("\"" ^ s ^ "\"") "%S" (fun u -> u)
     pass
 
 def explode(s):
@@ -39,7 +39,7 @@ def assign_tab(id, l):
         s = AssignTab(id, l)
         return s
     else:
-        raise Exception("Only byte values (0-255) allowed in tabs")
+        raise Exception("Only byte values(0-255) allowed in tabs")
 
 precedence = (
     ('left','PLUS','MINUS'),

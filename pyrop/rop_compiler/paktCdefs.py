@@ -215,20 +215,20 @@ def dump_instr(x):
         (n) = x.param()
         s = "hex(0x%08x)" % n
     elif type(x) == MovRegConst:
-        (r,c) = x.param()
+        (r, c) = x.param()
         s = "%s = 0x%08x" % (dump_sreg(r), c)
     elif type(x) == MovRegReg:
-        (r1,r2)  = x.param()
+        (r1, r2)  = x.param()
         s = "%s = %s" % (dump_sreg(r1), dump_sreg(r2))
     elif type(x) == MovRegSymb:
-        (r,FromTo_s_f)  = x.param()
+        (r, FromTo_s_f)  = x.param()
         (s, f) = FromTo_s_f.param()
         s = "%s = (from: %s, to: %s)" % (dump_sreg(r), dump_symb(s), dump_symb(f))
     elif type(x) == WriteM:
-        (r1,r2) = x.param()
+        (r1, r2) = x.param()
         s = "[%s] = %s" % (dump_sreg(r1), dump_sreg(r2))
     elif type(x) == ReadM:
-        (r1,r2) = x.param()
+        (r1, r2) = x.param()
         s = "%s = [%s]" % (dump_sreg(r1), dump_sreg(r2))
     elif type(x) == SaveFlags:
         s = "SaveFlags"
@@ -236,17 +236,17 @@ def dump_instr(x):
         (op, r) = x.param()
         s = "esp = esp %s %s" % (dump_op(op), dump_sreg(r))
     elif type(x) == BinO:
-        (ro,r1,op,r2) = x.param()
+        (ro, r1, op, r2) = x.param()
         s = "%s = %s %s %s" % (dump_sreg(ro), dump_sreg(r1), dump_op(op), dump_sreg(r2))
     elif type(x) == ReadMConst:
-        (r,addr) = x.param()
+        (r, addr) = x.param()
         s = "%s = [0x%08x]" % (dump_sreg(r), addr)
     elif type(x) == WriteMConst:
-        (addr,r) = x.param()
+        (addr, r) = x.param()
         s = "[0x%08x] = %s" % (addr, dump_sreg(r))
 
     elif type(x) == LocalAddr:
-        (off,r) = x.param()
+        (off, r) = x.param()
         s = "%s = &local(%d)" % (dump_sreg(r), off)
     elif type(x) == PushReg:
         (r) = x.param()
@@ -256,10 +256,10 @@ def dump_instr(x):
         s = "pop(%s)" (dump_sreg(r))
 
     elif type(x) == ReadLocal:
-        (off,r) = x.param()
+        (off, r) = x.param()
         s = "%s = *local(%d)" % (dump_sreg(r), off)
     elif type(x) == WriteLocal:
-        (off,r) = x.param()
+        (off, r) = x.param()
         s = "*local(%d) = %s" % (off, dump_sreg(r))
     elif type(x) == Lbl:
         (tagid) = x.param()
@@ -315,14 +315,12 @@ class SRegOrder(object):
 SRegSet = set([])
 
 def set_from_list(l):
-    def f(setx, x):
-        RegSet.add(x, setx)
-    fold_left(f, RegSet, l)
+    RegSet = set(l)
+    return RegSet
 
 def sreg_set_from_list(l):
-    def f(setx, x):
-        SRegSet.add(x, setx)
-    fold_left(f, SRegSet, l)
+    SRegSet = set(l)
+    return SRegSet
 
 def common_reg_set_to_sreg_set(setx):
     l = RegSet.elements(setx)

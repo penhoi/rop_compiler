@@ -109,7 +109,7 @@ class DerefAssign(stmt):
         return self.id, self.exp
 
 class AssignTab(stmt):
-    def __init__(self, id_value, int_list):     #(* var = [1,2,3] *)
+    def __init__(self, id_value, int_list):     #(* var = [1, 2, 3] *)
         self.id = id_value
         self.list = int_list
     def param(self):
@@ -257,7 +257,7 @@ br = ["e", "a", "b"]
 branches = br + map(lambda x: "n"+x, br) + ["mp"]
 
 fl_to_char = [(E, 'e'), (A, 'a'), (B, 'b'), (MP, '@')]
-ch_to_flag = map((lambda (x,y): (y,x)), fl_to_char)
+ch_to_flag = map((lambda(x, y): (y, x)), fl_to_char)
 #let f2c = Common.create_hashtable 8 fl_to_char
 f2c = create_hashtable(8, fl_to_char)
 #let c2f = Common.create_hashtable 8 ch_to_flag
@@ -265,7 +265,7 @@ c2f = create_hashtable(8, ch_to_flag)
 
 
 def str_to_cond(s):
-    def char_to_flag (c):
+    def char_to_flag(c):
         if c in c2f:
             return c2f[c]
         else:
@@ -409,7 +409,7 @@ def dump_stmt(stmt):
     return s
 
 
-def dump_args (args):
+def dump_args(args):
     if type(args) == Args:
         Args_args = args.param()
         s_args = str_fold(tagid, Args_args, ",")
@@ -423,11 +423,11 @@ def dump_body(body):
 def dump_func_head(f):
     if type(f) == Fun:
         (tagid, args, _) = f.param()
-        s_args = dump_args (args)
+        s_args = dump_args(args)
         s = "# Fun: %s, args: %s" % (tagid, s_args)
         return s
 
-def dump_func (f):
+def dump_func(f):
     if type(f) == Fun:
         (tagid, args, body) = f.param()
         head = dump_func_head(f)
@@ -435,18 +435,18 @@ def dump_func (f):
         s = "%s\n%s\n" %  (head, s_body)
         return s
 
-def dump_prog (p):
+def dump_prog(p):
     if type(p) == Prog:
         Prog_func_list = p.param()
         str_fold(dump_func, Prog_func_list, "\n")
 
 #(* AST verification
 #  * - are all vars initialized before use? (done)
-#  * - branches only to defined labels (done)
-#  * - calls only to defined functions (done)
-#  * - unique function names (done)
-#  * - exactly one "main" function without(?) params (done)
-#  * - calls with correct number of params (done)
+#  * - branches only to defined labels(done)
+#  * - calls only to defined functions(done)
+#  * - unique function names(done)
+#  * - exactly one "main" function without(?) params(done)
+#  * - calls with correct number of params(done)
 #  *)
 
 def is_label(x):
@@ -503,7 +503,7 @@ def make_collect(is_thing, stmts):
     aux(stmts, [])
 
 def make_collect_wr(is_thing, stmts):
-    is_thing = lambda x: is_thing(unwrap (x))
+    is_thing = lambda x: is_thing(unwrap(x))
     make_collect(is_thing, stmts)
 
 #collect_labels_wr = make_collect_wr is_label
@@ -524,10 +524,10 @@ def collect_used_vars_exp(exp):
         elif type(x) in [Var, Ref]:
             return x+acc
         elif type(x) == UnOp:
-            (_,e) = x.param()
+            (_, e) = x.param()
             aux(e, acc)
         elif type() == BinOp:
-            (e1,_,e2) = x.param()
+            (e1, _, e2) = x.param()
             acc = aux(e1, acc)
             aux(e2, acc)
     #}end aux
@@ -569,10 +569,10 @@ def collect_used_vars_stmt(x):
 
 def collect_init_var(x):
     if type(x) == AssignTab:
-        (v,_) = x.param()
+        (v, _) = x.param()
         return []
     elif type(x) == Assign:
-        (v,_) = x.param()
+        (v, _) = x.param()
         return Some(v)
     else:
         return None
@@ -754,7 +754,7 @@ def verify_calls(f_ids, func):
         call_id(unwrap(call))
     bad_calls = fancy_filter(id, g, f_ids, calls)
     erf = make_error_fun(f)
-    return erf, bad,_calls
+    return erf, bad, _calls
 
 #(* id_count = [(f_id, f_param_count); ...] *)
 def verify_calls_params(id_count, func):
@@ -845,7 +845,7 @@ def verify_main_func(f_list):
         bad = filter((lambda x: arg_len(x) > 0), mains)
         def f(func):
             pos = get_meta(func)
-            s = "\"main\" can't have parameters (this one has %d)" % (arg_len(func))
+            s = "\"main\" can't have parameters(this one has %d)" % (arg_len(func))
             return (pos, s)
         #end f
         erf = make_error_fun(f)
@@ -888,7 +888,7 @@ def dump_errors(errors):
 #  * BinOp(e1, op, e2) ->
 #  * tmp1 = flat(e1)
 #  * tmp2 = flat(e2)
-#  * BinOp(tmp1,op,tmp2)
+#  * BinOp(tmp1, op, tmp2)
 # *)
 
 def wrap_flatten_exp(exp, n):
@@ -899,11 +899,11 @@ def wrap_flatten_exp(exp, n):
 
     def wrap(e, l, n):
         if type(e) == Const:
-            return e,l,n
+            return e, l, n
         elif type(e) == Var:
-            return e,l,n
+            return e, l, n
         elif type(e) == Ref:
-            return e,l,n
+            return e, l, n
         else:
             e_prime, tmp = (new_tmp(n)).param()
             e = e_prime.param()
@@ -928,21 +928,21 @@ def flatten_exp(exp, n):
         (tagid) = exp.param()
         return exp, [], n
     elif type(exp) == UnOp:
-        (op,e) = exp.param()
+        (op, e) = exp.param()
         e_prime, l, n = wrap_flatten_exp(e, n)
-        return UnOp(op,e_prime), l, n
+        return UnOp(op, e_prime), l, n
 
     elif type(exp) == BinOp:
         (e1, op, e2) = exp.param()
         e1_prime, l1, n = wrap_flatten_exp(e1, n)
         e2_prime, l2, n = wrap_flatten_exp(e2, n)
         l = l1 + l2
-        return BinOp(e1_prime,op, e2_prime), l, n
+        return BinOp(e1_prime, op, e2_prime), l, n
 
 def flatten_stmt(s, n):
     def handle_call(tagid, el, n):
         def f((ids, ll, n), e):
-            v,l_prime,n = wrap_flatten_exp(e, n)
+            v, l_prime, n = wrap_flatten_exp(e, n)
             return (v + ids, l_prime + ll, n)
 
         (ids, ll, n) = fold_left(f, ([], [], n), el)
@@ -959,12 +959,12 @@ def flatten_stmt(s, n):
     elif type(s) == Assign:
         (tagid, e) = s.param()
         e_prime, l, n = flatten_exp(e, n)
-        return Assign(tagid,e_prime) + l, n
+        return Assign(tagid, e_prime) + l, n
 
     elif type(s) == WriteMem:
         (tagid, e) = s.param()
         e_prime, l, n = flatten_exp(e, n)
-        return WriteMem(tagid,e_prime) + l, n
+        return WriteMem(tagid, e_prime) + l, n
 
     elif type(s) == Cmp:
         (e1, e2) = s.param()
@@ -1019,7 +1019,7 @@ def flatten_prog(p):
 def move_main_to_front(p):
     def aux(main, acc, l):
         if [] != l:
-            (tagid,_,_) == hd.param()
+            (tagid, _, _) == hd.param()
             if tagid == "main":
                 aux((Some(hd)), acc, tl)
             else:
