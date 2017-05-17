@@ -65,7 +65,6 @@ def t_STR(t):
 def t_COMMENT(t):
     r'\#[^\n]*'
     t.value = t.value[1:]
-    print "comment:", t.value
 
 def t_ID(t):
     r'[a-zA-Z][a-zA-Z0-9_]*[:]?'
@@ -99,30 +98,29 @@ def t_error(t):
 import ply.lex as lex
 lexer = lex.lex()
 
-def debug_lexor(ropl_file):
+def debug_lexer(ropl_file):
+    f = open(ropl_file)
+    if f is None:
+        print "Failed to open file %s" % ropl_file
+        sys.exit()
+    
+    data  = f.read()
+    print data
 
-    lines = None
-    with open(ropl_file) as f:
-        lines = f.readlines()
-
-    for line in lines:
-
-        # Give the lexer some input
-        lexer.input(line)
-
-        print line
-        # Tokenize
-        while True:
-            tok = lexer.token()
-            if not tok: break      # No more input
-            print tok
-
-            # Get the token map from the lexer.  This is required.
+    # Give the lexer some input
+    lexer.input(data)
+    # Tokenize
+    while True:
+        tok = lexer.token()
+        if not tok: break   # No more input
+        print tok
 
 if __name__ == '__main__':
     import sys
     if len(sys.argv) == 2:
-        fdata =  sys.argv[1]
-        debug_lexor(fdata)
+        fropl =  sys.argv[1]
+        debug_lexer(fropl)
+    else:
+        print "Usage:\n  %s <ropl file>" % sys.argv[0]
 
 

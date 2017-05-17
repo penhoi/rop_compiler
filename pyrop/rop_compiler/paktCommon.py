@@ -220,31 +220,29 @@ def dump_gadget(g):
 def uniq(eq, l):
     def aux(l, last, uni, dupes):
         if l != []:
-            hd = l[0]
-            tl = l[1::]
+            hd, tl = l[0], l[1:]
             if eq(hd, last) == 0 :
-                aux(tl, last, uni, [hd]+dupes)
-            else :
-                aux(tl, hd, [hd]+uni, dupes)
+                return aux(tl, last, uni, [hd]+dupes)
+            else:
+                return aux(tl, hd, [hd]+uni, dupes)
         else:
             return uni, dupes
 
     if len(l) == 0:
         return l, l
-    elif len(l) == 1: #?????
-        return l,[]
+    
+    elif len(l) == 1:
+        return l, []
     else:
-        hd = l[0]
-        tl = l[1:]
+        hd, tl = l[0], l[1:]
         return aux(tl, hd, [hd], [])
-
 
 def unique(eq, l ):
     u, _ = uniq(eq, l)
     return u
 
 
-def nonunique(eq, l ):
+def nonunique(eq, l):
     _, nu = uniq(eq, l)
     return nu
 
@@ -320,6 +318,10 @@ def Hashtbl_fold(f, tbl, init):
         temp = f(k, v, temp)
     
     return temp
+
+def list_flatten(l):
+    return [item for sublist in l for item in sublist]
+
 
 def find_all(p, l ):
     def f(acc, x ):

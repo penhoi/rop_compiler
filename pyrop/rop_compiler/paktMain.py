@@ -1,5 +1,6 @@
 import sys
 import paktCommon
+import paktParser
 import paktAst  #(* for types *)
 import paktCdefs
 import paktAnalysis
@@ -880,7 +881,7 @@ def compile(prog, container):
     pairs = List.flatten(impl_ll)
     pairs = fix_ext_call_stuff(pairs)
 
-    instrs = List.map(fst, pairs)
+    instrs = map((lambda x: x), pairs)
     dump_pairs(pairs)
     verify_impl(instrs)
 
@@ -889,34 +890,35 @@ def compile(prog, container):
     bin_str = to_binary(pairs)
     return strs, pairs, bin_str
 
-def parse_src(src_fn):
-    cin = open_in(src_fn)
-    lexbuf = Lexing.from_channel(cin)
-    p = Parser.input(Lexer.token, lexbuf)
+def parse_ropl_file(src_fn):
+    data = open(src_fn).read()
+    p = paktParser.parser.parse(data)
+    
     errors = paktAst.verify_prog(p)
+    
     return (p, errors)
 
 def main ():
     argc = len(sys.argv)
-    if argc > 2:
-        src_fn = sys.argv[1]
-        vg_fn = sys.argv[2]
-        out_fn = "compiled.bin"
-        (p, errors) = parse_src(src_fn)
-        if errors != []:
-            print_errors(errors)
-        else:
-            p = paktAst.unwrap_prog(p)
-            p = paktAst.move_main_to_front(p)
-            p = paktAst.flatten_prog(p)
-            container = paktCommon.unmarshal_from_file(vg_fn)
-            s = paktAst.dump_prog(p)
-            cl, pairs, bin_str = compile(p, container)
-            print "DUMPED:\n%s\n####\n" % (s)
-            write_str_to_file(out_fn, bin_str)
+    if argc <= 2:
+        print "Usage:\n%s <ropl file> <gadget file>" % sys.argv[0]
+        sys.exit()
+        
+    ropl_file = sys.argv[1]
+    gadget_file = sys.argv[2]
+    out_fn = "compiled.bin"
+    (p, errors) = parse_ropl_file(ropl_file)
+    if errors != []:
+        print_errors(errors)
     else:
-        err = "Usage:\n%s <src fn> <vg fn>\n" % sys.argv[0]
-        print err
+        p = paktAst.unwrap_prog(p)
+        p = paktAst.move_main_to_front(p)
+        p = paktAst.flatten_prog(p)
+        #container = paktCommon.unmarshal_from_file(gadget_file)
+        s = paktAst.dump_prog(p)
+        cl, pairs, bin_str = compile(p, container)
+        print "DUMPED:\n%s\n####\n" % (s)
+        write_str_to_file(out_fn, bin_str)
 
 if __name__ == "__main__":
     main()
