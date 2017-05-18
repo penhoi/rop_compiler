@@ -298,13 +298,13 @@ def ast_op_to_gadget_op(op):
 def make_generator(f):
     r = 0
     def fnext():
-        tagid = r
+        yield f(r)
         r = r + 1
-        f(tagid)
-    fnext()
+        
+    return fnext
 
 def make_reg_generator():
-    make_generator(lambda tagid: S(tagid))
+    make_generator(lambda idx: S(idx))
 
 class RegOrder(object):
     def __init__(self):
