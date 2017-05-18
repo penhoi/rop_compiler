@@ -217,25 +217,21 @@ def dump_gadget(g):
 
 
 def uniq(eq, l):
-    def aux(l, last, uni, dupes):
-        if l != []:
-            hd, tl = l[0], l[1:]
-            if eq(hd, last) == 0 :
-                return aux(tl, last, uni, [hd]+dupes)
-            else:
-                return aux(tl, hd, [hd]+uni, dupes)
-        else:
-            return uni, dupes
-
     if len(l) == 0:
         return l, l
     
     elif len(l) == 1:
         return l, []
+    
     else:
-        hd, tl = l[0], l[1:]
-        return aux(tl, hd, [hd], [])
-
+        uni, dupes = [], []
+        for e in l:
+            if e not in uni:
+                uni.append(e)
+            elif e not in dupes:
+                dupes.append(e)
+        return uni, dupes
+                
 def unique(eq, l ):
     u, _ = uniq(eq, l)
     return u
@@ -246,7 +242,7 @@ def nonunique(eq, l):
     return nu
 
 def generic_unique(l):
-    l = l.sort()
+    l.sort()
     return unique(cmp, l)
 
 def create_hashtable(size, init):
@@ -285,9 +281,10 @@ def read_file(fn):
         s.append(l)
     return s
 
-def marshal_to_file(fn, thing ):
-    co = open_file_out(fn)
+def marshal_to_gadgetfile(fn, gadgets):
+    #co = open_file_out(fn)
     #Marshal.to_channel co thing []
+    return
 
 def unmarshal_gadget_file(gadget_file):
     from  file_finder import FileFinder
@@ -295,6 +292,18 @@ def unmarshal_gadget_file(gadget_file):
     gadget_list = handle.find_gadgets()
 
     return gadget_list
+
+def IO_output_string():
+    pass
+
+def IO_write_i32(io, num):
+    pass
+
+def IO_write_byte(io, nbytes):
+    pass
+
+def IO_close_out(io):
+    pass
 
 #(* this assumes that RET is the last instruction *)
 def drop_last(stmts):
@@ -320,7 +329,15 @@ def Hashtbl_fold(f, tbl, init):
     return temp
 
 def list_flatten(l):
-    return [item for sublist in l for item in sublist]
+    #return [item for sublist in l for item in sublist]
+    acc = []
+    for e in l:
+        if type(e) == list:
+            acc += e
+        else:
+            acc.append(e)
+    #end for
+    return acc       
 
 
 def find_all(p, l ):

@@ -22,12 +22,14 @@ class Unnamed(symb_simple):
         return self.drt
 
 #(* (start, end) - what's the distance from label "start" to label "end" ? *)
-class symb(object):
+class symb(object): pass
+class FromTo(symb):
     def __init__(self, symb_simple_from, symb_simple_to):
         self.frm = symb_simple_from
         self.to = symb_simple_to
     def param(self):
         return self.frm, self.to
+
 
 #(* symbolic(tagid), concrete(reg) *)
 class sreg(object): pass
@@ -176,6 +178,10 @@ class ityp(object): pass
 class T0(ityp): pass
 class T1(ityp): pass
 class T2(ityp): pass
+class T3(ityp): pass
+
+#32 bit zero
+class Int32_zero(object): pass
 
 def is_lbl_or_comment(instr):
     if type(instr) in [Lbl, Comment]:

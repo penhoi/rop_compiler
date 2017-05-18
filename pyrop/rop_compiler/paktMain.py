@@ -2,8 +2,8 @@ import sys
 import paktCommon
 import paktParser
 import paktAst  #(* for types *)
-import paktCdefs
-import paktAnalysis
+from paktAnalysis import *
+from paktCdefs import *
 
 #(* Assumes the parser file is parser.mly and the lexer file is "lexer.mll". *)
 hARDCODED_PRINTF = 0x080484a0
@@ -27,9 +27,8 @@ def print_errors(errors):
     errors = paktAst.dump_errors(errors)
     def aux(errors):
         if [] != errors:
-            hd = errors[0]
-            tl = errors[1::]
-            hd = "ERROR. " + hd + "\n"
+            hd, tl = errors[0], errors[1:]
+            hd = "ERROR. " + hd
             print "%s" % (hd)
             return aux(tl)
         else:
@@ -69,7 +68,7 @@ def make_rewrite_exp(f_next_reg, read_local, ref_local):
             elif type(op) == Not:
                 rewrite_exp(BinOp(Const(-1),Xor, exp), oreg)
             else:
-                raise Exception("make_rewrite_exp")
+                assert False
 
         elif type(x) == Var:
             (tagid) = x.param()
@@ -93,14 +92,14 @@ def make_rewrite_exp(f_next_reg, read_local, ref_local):
             mov = MovRegConst(oreg, x)
             return [mov]
 
-    rewrite_exp
+    return rewrite_exp
 
-def rewrite_stmt(stack_ptr, frame_ptr, locals, fun_id, stmt):
+def rewrite_stmt(stack_ptr, frame_ptr, vlocals, fun_id, stmt):
     f_next_reg = make_reg_generator()
     def rw_local(tagid, reg, f_ctor):
-        if tagid not in locals:
+        if tagid not in vlocals:
             raise Exception("rewrite_stmt")
-        off = locals(tagid)
+        off = vlocals(tagid)
         f_ctor(off, reg)
 
     def write_local(tagid, reg):
@@ -167,7 +166,7 @@ def rewrite_stmt(stack_ptr, frame_ptr, locals, fun_id, stmt):
         flags = None
         if type(flags) == Cond:
             flags = flags.param()
-            neg, flags = false, flags
+            neg, flags = False, flags
         if type(flags) == NCond:
             flags = flags.param()
             neg, flags = True, flags
@@ -236,7 +235,7 @@ def rewrite_stmt(stack_ptr, frame_ptr, locals, fun_id, stmt):
             return iexp1 + iexp2  +sub+ lahf
         elif type(stmt) == Call:
             (tagid, ExpArgs_exp_args) = stmt.param()
-            exp_args = ExpArgs_exp_arg.param()
+            exp_args = ExpArgs_exp_args.param()
             pushes = push_args(exp_args)
             reg = f_next_reg()
             mov = MovRegSymb(reg, FromTo(Named(fun_label, tagid), Unnamed(Forward)))
@@ -249,13 +248,8 @@ def rewrite_stmt(stack_ptr, frame_ptr, locals, fun_id, stmt):
 
         elif type(stmt) == ExtCall:
             (tagid, ExpArgs_exp_args) = stmt.param()
-            exp_args = ExpArgs_exp_arg.param()
+            exp_args = ExpArgs_exp_args.param()
 
-            def range(i, j):
-                if i >= j:
-                    return []
-                else:
-                    return i+range(i+1, j)
             def make_filler(n):
                 def m(x):
                     x = x&0xFF
@@ -276,9 +270,9 @@ def rewrite_stmt(stack_ptr, frame_ptr, locals, fun_id, stmt):
                 def per_arg(acc, arg):
                     iarg = rewrite_exp(arg, v_reg)
                     wm = WriteM(addr_reg, v_reg)
-                    set = MovRegConst(off_reg, 4)
+                    rset = MovRegConst(off_reg, 4)
                     add = BinO(addr_reg, addr_reg, Add, off_reg)
-                    return acc + iarg+[wm, set, add] #(* O(n^2) *)
+                    return acc + iarg+[wm, rset, add] #(* O(n^2) *)
 
                 tmp_reg = f_next_reg()
                 lbl = Lbl(nO_NAME_LABEL)
@@ -391,8 +385,7 @@ def rewrite_prog(prog, stack_ptr, frame_ptr):
                 if len(stmts) == 0:
                     return acc
                 else:
-                    hd == stmts[0]
-                    tl == stmts[1::]
+                    hd, tl = stmts[0], stmts[1:]
                     if type(hd) == Assign:
                         (tagid, _) = hd.param()
                         return aux([tagid]+acc, tl)
@@ -422,22 +415,26 @@ def rewrite_prog(prog, stack_ptr, frame_ptr):
         return htbl
 
     def rewrite_func(func):
-        def add_stack_stuff(fun_id, locals, stmts):
-            locals_count = len(locals)
+        def add_stack_stuff(fun_id, vlocals, stmts):
+            locals_count = len(vlocals)
             #(* every local is a dword *)
             pre = [Enter(locals_count*4)]
             suf = [Leave, Ret(fun_id)]
             stmts = pre + stmts + suf
             return stmts
 
-        rewrite_stmt = rewrite_stmt(stack_ptr, frame_ptr)
         (fun_id, Args_args, FunBody_stmts) = func.param()
         args = Args_args.param()
         stmts = FunBody_stmts.param()
 
-        locals = assign_vars(func)
-        stmts = add_stack_stuff(fun_id, locals, stmts)
-        instrs = map((lambda stmt: rewrite_stmt(locals, fun_id, stmt)), stmts)
+        vlocals = assign_vars(func)
+        stmts = add_stack_stuff(fun_id, vlocals, stmts)
+        
+        instrs = []
+        for stmt in stmts:
+            news = rewrite_stmt(stack_ptr, frame_ptr, vlocals, fun_id, stmt)
+            instrs.append(news)
+            
         head = paktAst.dump_func_head(func)
         fun_lbl = fun_label(fun_id)
         pre = [Comment(head), Lbl(fun_lbl)]
@@ -456,38 +453,37 @@ def rewrite_prog(prog, stack_ptr, frame_ptr):
  """
 def handle_tables(data_s, prog):
     def per_func(data_start, func):
-        h = Hashtbl.create(8)
         def per_stmt(acc, stmt):
-            (off, pairs, rew) = acc.param()
+            (off, pairs, rew) = acc
             if type(stmt) == AssignTab:
                 (tagid, l) = stmt.param()
 
                 new_stmt = Assign(tagid, Const(off))
                 new_off = off + len(l)
-                return new_off, [(off, l)]+pairs, [new_stmt] +rew
+                return new_off, [(off, l)]+pairs, [new_stmt] + rew
 
             else:
                 return off, pairs, [stmt] + rew
 
         (fun_id, Args_args, FunBody_stmts) = func.param()
-        args = Args_args.param()
+
         stmts = FunBody_stmts.param()
         data_end, pairs, stmts = fold_left(per_stmt, (data_start,[],[]), stmts)
-        stmts = stmts.reverse()
-        Func = Fun(fun_id, Args(args), FunBody(stmts))
+        stmts.reverse()
+
+        func = Fun(fun_id, Args_args, FunBody(stmts))
         return data_end, pairs, func
 
     def per_func_fold((data_start, l_pairs, funs), func):
         data_end, f_pairs, new_func = per_func(data_start, func)
-        (data_end, f_pairs+l_pairs, new_func+funs)
+        return (data_end, f_pairs+l_pairs, [new_func]+funs)
 
     def dump_pairs(pairs):
-        def pr(off, l):
+        def pr((off, l)):
             s = dump_int_list(l)
-            s = "0x%08x,%s\n" % (off, s)
-            return s
+            print "0x%08x,%s\n" % (off, s)
 
-        return map(pr, pairs)
+        map(pr, pairs)
 
     def make_stub(pairs):
         def store(addr, v):
@@ -497,29 +493,30 @@ def handle_tables(data_s, prog):
             return [mov, wm]
 
         def chop(l, n):
-            def f((i, a, b), x):
-                if i<n:
-                    return (i+1,[x]+a, b)
-                else:
-                    return (i+1, a,[x]+b)
-
-            (_, a, b) = fold_left(f, (0,[],[]), l)
-            return a.reverse(), b.reverse()
+            if len(l) > n:
+                a, b = l[:n], l[n:]
+            else:
+                a, b = l, []
+            return a, b
 
         def to_int(l):
-            def f(acc, x):
-                return (acc << 8)+x
-            fold_left(f, 0, l)
+            acc = 0
+            for e in l:
+                acc = acc << 8 + e
+            return acc
+
 
         def make_one(off, l):
             def aux(acc, off, l):
                 pre, suf = chop(l, 3)
                 if [] != pre:
-                    v = to_int(pre.reverse())
+                    pre.reverse()
+                    v = to_int(pre)
                     s = store(off, v)
-                    aux([s]+acc, (off+3), suf)
+                    return aux([s]+acc, (off+3), suf)
                 else:
-                    List.flatten (acc.reverse())
+                    acc.reverse()
+                    return paktCommon.list_flatten(acc)
 
             return aux([], off, l)
 
@@ -528,23 +525,27 @@ def handle_tables(data_s, prog):
             return [s] + acc
 
         ss = fold_left(f, [], pairs)
-        List.flatten(ss.reverse())
+        ss.reverse()
+        paktCommon.list_flatten(ss)
 
     data_start = data_s+dATA_OFF
     (func_list) = prog.param()
-    (_, l_pairs, funs) = fold_left(per_func_fold, (data_start,[],[]), func_list)
-    funs = funs.reverse()
-    pairs = (List.flatten(l_pairs)).reverse()
+    (_, l_pairs, funs) = paktCommon.fold_left(per_func_fold, (data_start,[],[]), func_list)
+    pairs = list_flatten(l_pairs)
+    pairs.reverse()
     dump_pairs(pairs)
-    new_prog = Prog(funs)
     stub = make_stub(pairs)
+
+    funs.reverse()
+    new_prog = Prog(funs)
+
     return stub, new_prog
 
 def add_comments(f_comment, new_instrs, prefix, instr):
     comments = []
     if f_comment(instr):
         s = dump_instr(instr)
-        comments = [Comment(prefix^s)]
+        comments = [Comment(prefix+s)]
 
     return comments + new_instrs
 
@@ -569,8 +570,7 @@ def fix_symblic(pairs):
             if len(pairs) == 0:
                 return None
             else:
-                hd = pairs[0]
-                tl = pairs[1::]
+                hd, tl = pairs[0], pairs[1:]
                 instr, gm = hd.param()
                 if f_match(instr):
                     """
@@ -610,10 +610,10 @@ def fix_symblic(pairs):
             (n) = before.param()
             return n
 
-    def distance_to_unnamed(dir, pre, suf):
+    def distance_to_unnamed(vdir, pre, suf):
         sign = None
         chunk = None
-        if type(dir) == Forward:
+        if type(vdir) == Forward:
             sign, chunk = 1, suf
         elif type() == Backward:
             sign, chunk = -1, pre
@@ -630,15 +630,15 @@ def fix_symblic(pairs):
             (tagid) = symb.param()
             return try_both_ways(tagid, pre, suf)
         elif type(symb) == Unnamed:
-            (dir) = symb.param()
-            return distance_to_unnamed(dir, pre, suf)
+            (vdir) = symb.param()
+            return distance_to_unnamed(vdir, pre, suf)
 
     def aux(pre, suf):
         if len(suf) == 0:
-            return pre.reverse()
+            pre.reverse()
+            return pre
         else:
-            hd = suf[0]
-            tl = suf[1::]
+            hd, tl = suf[0], suf[1:]
             if type(hd) == MovRegSymb:
                 (reg, FromTo_start_fin, gm) = suf.param()
                 (start, fin) = FromTo_start_fin.param()
@@ -665,12 +665,11 @@ def fix_ext_call_stuff(pairs):
 
     def set_stack_fix(gm, sf):
         (g, fm, mod_reg, _) = gm.param()
-        return GMeta(g, fm, mod_reg, sf)
+        return paktCommon.GMeta(g, fm, mod_reg, sf)
 
     def f(acc, (instr, gmeta)):
         new_instr = instr
         if type(instr) == AdvanceStack:
-            (n) = instr.param()
             new_instr = RawHex(get_addr, gmeta)
 
         if new_instr != instr:
@@ -683,7 +682,8 @@ def fix_ext_call_stuff(pairs):
             return [(instr, gmeta)] + acc
 
     pairs = fold_left(f, [], pairs)
-    return pairs.reverse()
+    pairs.reverse()
+    return pairs
 
 def write_const_const(src_reg, addr_reg, addr, value):
     m1 = MovRegConst(src_reg, value)
@@ -700,7 +700,7 @@ def global_prefix_suffix(data_s, data_e):
     write_st = write_const_const(src_reg, addr_reg, st_ptr, stack_top)
     write_sf = write_const_const(src_reg, addr_reg, sf_ptr, stack_frame)
     reg = S(-3)
-    mov = MovRegSymb(reg, FromTo(Named(fun_label, "main"), Named(gLOBAL_END_LABEL)))
+    mov = MovRegSymb(reg, FromTo(Named(fun_label("main")), Named(gLOBAL_END_LABEL)))
     push = PushReg(reg)
     lbl = Lbl(gLOBAL_END_LABEL)
     pre = write_st + write_sf + [mov, push]
@@ -717,7 +717,7 @@ def to_binary_one(io, (instr, gm)):
 
     def fill(io, n):
         dwords = n / 4
-        bytes = n % 4
+        nbytes = n % 4
         def aux(i, f, m):
             if i < m :
                 f(n, io)
@@ -726,11 +726,11 @@ def to_binary_one(io, (instr, gm)):
                 return ()
 
         def f_d(n, io):
-            IO.write_i32(io, n)
+            paktCommon.IO_write_i32(io, n)
         def f_b(n, io):
-            IO.write_byte(io, n)
+            paktCommon.IO_write_byte(io, n)
         aux(0, f_d ,dwords)
-        aux(dwords, f_b, (dwords+bytes))
+        aux(dwords, f_b, (dwords+nbytes))
         return ()
 
     def value_to_write(instr, off_s):
@@ -743,7 +743,7 @@ def to_binary_one(io, (instr, gm)):
     (g, fm, _, stack_fix) = gm.param()
     (off_s, _) = fm.param()
     v = value_to_write(instr, off_s)
-    IO.write_i32(io, v)
+    paktCommon.IO_write_i32(io, v)
 
     if type(instr) == MovRegConst:
             (r, v) = instr.param()
@@ -751,7 +751,7 @@ def to_binary_one(io, (instr, gm)):
             off = get_lc_off(g)
             assert(stack_fix - off - 4 >= 0)
             fill(io, off)
-            IO.write_i32(io, v)
+            paktCommon.IO_write_i32(io, v)
             fill(io, (stack_fix - off - 8))
     elif type(instr) == RawHex(_):
         assert(stack_fix == 4)
@@ -772,13 +772,13 @@ def filter_trash(pairs):
     filter(p, pairs)
 
 def to_binary(pairs):
-    io = IO.output_string()
+    io = paktCommon.IO_output_string()
     def consume(acc, (instr, gm)):
         to_binary_one(io, (instr, gm))
 
     fold_left(consume, (), pairs)
-    map((lambda i: IO.write_i32(io, cRASH_ADDRESS)), [1, 2, 3, 4, 5, 6, 7])
-    IO.close_out(io)
+    map((lambda i: paktCommon.IO_write_i32(io, cRASH_ADDRESS)), [1, 2, 3, 4, 5, 6, 7])
+    paktCommon.IO_close_out(io)
 
 def dump_possible(gadgets, stack_ptr, frame_ptr, instrs):
     implement = make_implement(stack_ptr, frame_ptr)
@@ -788,8 +788,8 @@ def dump_possible(gadgets, stack_ptr, frame_ptr, instrs):
         args = arg_dumper(instr)
         def per_arg(_, arg):
             print "| %s: " % (dump_sreg(arg))
-            set = p_by_arg(instr(arg))
-            regs = RegSet.elements(set)
+            rset = p_by_arg(instr(arg))
+            regs = RegSet.elements(rset)
             generic_dumper((lambda r: dump_reg(r)), regs)
             return ()
 
@@ -823,25 +823,24 @@ def dump_pairs(pairs):
     return ()
 
 #(* FIXME: main has to be at the beginning *)
-def compile(prog, gadget_list):
+def compile_ropl_file(prog, gadget_list):
     def process_func(assign_regs, instr_lll):
         def per_stmt(acc, instrs):
             #(* list of instructions, set of regs to preserve *)
-            impl = None
-            try:
-                impl = assign_regs(instrs, SRegSet.empty)
-            except Not_found:
+            impl = assign_regs(instrs, SRegSet.empty)
+            if not impl:
                 dump_instrs(instrs)
                 assert False
-            return impl+acc
+            return [impl]+acc
 
         def per_func(acc, stmts):
             impl = fold_left(per_stmt, [], stmts)
-            impl = impl.reverse()
+            impl.reverse()
             return impl+acc
 
         impl_lll = fold_left(per_func, [], instr_lll)
-        return impl_lll.reverse()
+        impl_lll.reverse()
+        return impl_lll
 
     def verify_impl(impl):
         def p(instr):
@@ -855,7 +854,7 @@ def compile(prog, gadget_list):
     #(fn, (data_s, data_e), gmetas) = container.param()
     data_s = 0x08049f08 + 0x0011c
     data_e = data_s + 0x200
-    
+
     gadgets = paktCommon.get_gadgets(gadget_list)
     prefix, suffix, stack_ptr, frame_ptr = global_prefix_suffix(data_s, data_e)
     """
@@ -880,8 +879,8 @@ def compile(prog, gadget_list):
     instrs_lll = [[[Comment("lol"), Lbl("1")]]]
     instrs_lll = [[stub]]
     impl_lll = process_func(assign_regs, instrs_ll)
-    impl_ll = List.flatten(impl_lll)
-    pairs = List.flatten(impl_ll)
+    impl_ll = paktCommon.list_flatten(impl_lll)
+    pairs = paktCommon.list_flatten(impl_ll)
     pairs = fix_ext_call_stuff(pairs)
 
     instrs = map((lambda x: x), pairs)
@@ -891,14 +890,14 @@ def compile(prog, gadget_list):
     pairs = fix_symblic(pairs)
     pairs = filter_trash(pairs)
     bin_str = to_binary(pairs)
-    return strs, pairs, bin_str
+    return instrs, pairs, bin_str
 
 def parse_ropl_file(src_fn):
     data = open(src_fn).read()
     p = paktParser.parser.parse(data)
-    
+
     errors = paktAst.verify_prog(p)
-    
+
     return (p, errors)
 
 def main ():
@@ -906,7 +905,7 @@ def main ():
     if argc <= 2:
         print "Usage:\n%s <ropl file> <gadget file>" % sys.argv[0]
         sys.exit()
-        
+
     ropl_file = sys.argv[1]
     gadget_file = sys.argv[2]
     out_fn = "compiled.bin"
@@ -918,13 +917,13 @@ def main ():
         p = paktAst.move_main_to_front(p)
         p = paktAst.flatten_prog(p)
         gl = paktCommon.unmarshal_gadget_file(gadget_file)
-        #for g in gl.foreach():
-        #    print g
-        #s = paktAst.dump_prog(p)
-        #print "DUMPED:\n%s\n####\n" % (s)
-        
-        cl, pairs, bin_str = compile(p, gl)
-        
+        for g in gl.foreach():
+            print g
+        s = paktAst.dump_prog(p)
+        print "DUMPED:\n%s\n####\n" % (s)
+
+        cl, pairs, bin_str = compile_ropl_file(p, gl)
+
         #write_str_to_file(out_fn, bin_str)
 
 if __name__ == "__main__":
