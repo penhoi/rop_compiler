@@ -288,8 +288,8 @@ def str_to_cond(s):
                     assert False
                 else:
                     f = char_to_flag(c)
-                    aux(s, i+1, n, [f]+acc)
-        aux(s, 0, len(s), [])
+                    return aux(s, i+1, n, [f]+acc)
+        return aux(s, 0, len(s), [])
         #}end aux
     #}end str_to_flag_list
 
@@ -308,7 +308,9 @@ def str_to_cond(s):
     return c
 
 def str_fold(f, l, sep):
-    s = fold_left((lambda (acc, s): acc + f(s) + sep), "", l)
+    def combine(acc, s):
+        return acc + f(s) + sep
+    s = fold_left(combine, "", l)
     if len(s) > 0:
         return s[:-1]
     else: 
@@ -357,18 +359,19 @@ def dump_exp_args(ea):
 def dump_flag_list(ll):
     def aux(l, acc):
         if l != []:
-            hd = l[0]
-            tl = l[1::]
+            hd, tl = l[0], l[1:]
             if hd in f2c:
-                c = f2c(hd)
-                aux(tl, [c] + acc)
+                c = f2c[hd]
+                return aux(tl, [c] + acc)
             else:
-                raise Exception("hd not in f2c")
+                assert False
+        else:
+            return acc
     # end aux(l, acc)
 
     chars = aux(ll, [])
     strs = map((lambda c: str(c)), chars)
-    s = str_fold(tagid, strs, ";")
+    s = str_fold((lambda x: x), strs, ";")
     return s
 
 def dump_cond(cond):
@@ -426,33 +429,30 @@ def dump_stmt(stmt):
 def dump_args(args):
     if type(args) == Args:
         Args_args = args.param()
-        s_args = str_fold(tagid, Args_args, ",")
-        return s_args
+        return str_fold((lambda x: x), Args_args, ",")
 
 def dump_body(body):
     if type(body) == FunBody:
         FunBody_stmt_list = body.param()
-        str_fold(dump_stmt, FunBody_stmt_list, "\n")
+        return str_fold(dump_stmt, FunBody_stmt_list, "\n")
 
 def dump_func_head(f):
     if type(f) == Fun:
         (tagid, args, _) = f.param()
         s_args = dump_args(args)
-        s = "# Fun: %s, args: %s" % (tagid, s_args)
-        return s
+        return "# Fun: %s, args: %s" % (tagid, s_args)
 
 def dump_func(f):
     if type(f) == Fun:
         (tagid, args, body) = f.param()
         head = dump_func_head(f)
         s_body = dump_body(body)
-        s = "%s\n%s\n" %  (head, s_body)
-        return s
+        return "%s\n%s\n" %  (head, s_body)
 
 def dump_prog(p):
     if type(p) == Prog:
         Prog_func_list = p.param()
-        str_fold(dump_func, Prog_func_list, "\n")
+        return str_fold(dump_func, Prog_func_list, "\n")
 
 #(* AST verification
 #  * - are all vars initialized before use? (done)
@@ -638,10 +638,9 @@ def verify_vars_in_func(func):
                 hd, tl = stmts[0], stmts[1:]
                 pos = get_meta(hd)
                 hd = unwrap(hd)
-                print hd
-                vars = collect_used_vars_stmt(hd)
+                usedvars = collect_used_vars_stmt(hd)
                 new_init = collect_init_var(hd)     #(* Some(v) / OcamlNone *)
-                bad = used_before_init(init_vars, vars)
+                bad = used_before_init(init_vars, usedvars)
                 new_errors = error_not_init(pos, bad)
                 errors = new_errors + errors
                 if type(new_init) == Some:

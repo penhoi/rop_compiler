@@ -172,9 +172,14 @@ def p_statement(p):
     #end len(toks) == 4
             
     elif len(toks) == 5:
-        """DOLLAR ID ASSIGN exp"""
-        s = DerefAssign(p[2], p[4])
-        p[0] = wrap(s, p.slice[1].lineno)
+        """DOLLAR ID ASSIGN exp
+        CMP exp COMMA exp"""
+        if toks[1].type == "DOLLAR":
+            s = DerefAssign(p[2], p[4])
+            p[0] = wrap(s, p.slice[1].lineno)
+        elif toks[1].type == "CMP":
+            s = Cmp(p[2], p[4])
+            p[0] = wrap(s, p.slice[1].lineno)   
     #end len(toks) == 5
       
     elif len(toks) == 6:

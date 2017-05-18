@@ -31,10 +31,10 @@ def print_errors(errors):
             tl = errors[1::]
             hd = "ERROR. " + hd + "\n"
             print "%s" % (hd)
-            aux(tl)
+            return aux(tl)
         else:
             return ()
-    aux(errors)
+    return aux(errors)
 
 def pick_different_reg(used):
     regs = paktCommon.rEGS_NO_ESP
@@ -914,11 +914,15 @@ def main ():
         p = paktAst.unwrap_prog(p)
         p = paktAst.move_main_to_front(p)
         p = paktAst.flatten_prog(p)
-        #container = paktCommon.unmarshal_from_file(gadget_file)
+        gl = paktCommon.unmarshal_gadget_file(gadget_file)
+        for g in gl.foreach():
+            print g
         s = paktAst.dump_prog(p)
-        cl, pairs, bin_str = compile(p, container)
         print "DUMPED:\n%s\n####\n" % (s)
-        write_str_to_file(out_fn, bin_str)
+        
+        cl, pairs, bin_str = compile(p, gl)
+        
+        #write_str_to_file(out_fn, bin_str)
 
 if __name__ == "__main__":
     main()

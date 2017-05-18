@@ -290,11 +290,12 @@ def marshal_to_file(fn, thing ):
     co = open_file_out(fn)
     #Marshal.to_channel co thing []
 
-def unmarshal_from_file(fn):
-    ic = open_file_in(fn)
-    #obj = Marshal.from_channel(ic)
-    obj = ""
-    return obj
+def unmarshal_gadget_file(gadget_file):
+    from  file_finder import FileFinder
+    handle = FileFinder(gadget_file, "i386")
+    gadget_list = handle.find_gadgets()
+
+    return gadget_list
 
 #(* this assumes that RET is the last instruction *)
 def drop_last(stmts):
