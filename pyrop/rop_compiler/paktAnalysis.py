@@ -884,7 +884,7 @@ def make_assign_regs(gmetas, stack_ptr, frame_ptr):
                 SRegSet.union(nvars, args_set)
 
             rset = fold_left(collect, SRegSet.empty, instrs)
-            SRegSet.elements(rset)
+            return SRegSet.elements(rset)
 
         def all_assignments(sregs, possible, conflicts):
             def all_perms(f_acc, sregs):
@@ -1128,7 +1128,7 @@ def make_assign_regs(gmetas, stack_ptr, frame_ptr):
 
     #(* depth = 0 *)
     def assign_regs0(instrs, top_preserved):
-        return assign_regs0(0, instrs, top_preserved)
+        return assign_regs(0, instrs, top_preserved)
     
     
     return assign_regs0

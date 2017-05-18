@@ -300,11 +300,10 @@ def make_generator(f):
     def fnext():
         yield f(r)
         r = r + 1
-        
     return fnext
 
 def make_reg_generator():
-    make_generator(lambda idx: S(idx))
+    return make_generator(lambda idx: S(idx))
 
 class RegOrder(object):
     def __init__(self):

@@ -58,7 +58,7 @@ def make_rewrite_exp(f_next_reg, read_local, ref_local):
             iexp1 = rewrite_exp(exp1, reg1)
             reg2 = f_next_reg()
             iexp2 = rewrite_exp(exp2, reg2)
-            o = BinOp(oreg, reg1, op, reg2)
+            o = BinO(oreg, reg1, op, reg2)
             return iexp1 + iexp2 + [o]
 
         elif type(x) == UnOp:
@@ -98,18 +98,18 @@ def rewrite_stmt(stack_ptr, frame_ptr, vlocals, fun_id, stmt):
     f_next_reg = make_reg_generator()
     def rw_local(tagid, reg, f_ctor):
         if tagid not in vlocals:
-            raise Exception("rewrite_stmt")
-        off = vlocals(tagid)
-        f_ctor(off, reg)
+            assert False
+        off = vlocals[tagid]
+        return f_ctor(off, reg)
 
     def write_local(tagid, reg):
-        rw_local(tagid, reg, (lambda off, reg: WriteLocal(off, reg)))
+        return rw_local(tagid, reg, (lambda off, reg: WriteLocal(off, reg)))
 
     def read_local(tagid, reg):
-        rw_local(tagid, reg, (lambda off, reg: ReadLocal(off, reg)))
+        return rw_local(tagid, reg, (lambda off, reg: ReadLocal(off, reg)))
 
     def ref_local(tagid, reg):
-        rw_local(tagid, reg, (lambda off, reg: LocalAddr(off, reg)))
+        return rw_local(tagid, reg, (lambda off, reg: LocalAddr(off, reg)))
 
     def deref_local(tagid, reg):
         def f(off, reg):
@@ -118,7 +118,7 @@ def rewrite_stmt(stack_ptr, frame_ptr, vlocals, fun_id, stmt):
             wm = WriteM(addr_reg, reg)
             return [rl, wm]
 
-        rw_local(tagid, reg, f)
+        return rw_local(tagid, reg, f)
 
     rewrite_exp = make_rewrite_exp(f_next_reg, read_local, ref_local)
     def push_arg(arg):
@@ -136,49 +136,44 @@ def rewrite_stmt(stack_ptr, frame_ptr, vlocals, fun_id, stmt):
     def push_args(args):
         def aux(acc, args):
             if len(args) != 0:
-                pa = push_arg(args[0])
-                return aux(pa+acc, args[1:])
+                arg, tl = args[0], args[1:]
+                pa = push_arg(arg)
+                return aux([pa]+acc, args[1:])
             else:
                 return acc
 
         pushes = aux([], args)
-        return pushes[0] + pushes[1]
+        return paktCommon.list_flatten(pushes)
 
     def set_eax_on_cond(cond):
         #(* ah = SF ZF xx AF xx PF xx CF *)
         #(* returns mask and the value required to take the jump *)
         def flag_mask_const(flag):
-            mask = None
-            v = None
-            if type(flag) == E:
+            if flag == E:
                 mask, v =  1<<6, 1<<6
-            elif type(flag) == A:
+            elif flag == A:
                 mask, v = 1|(1<<6), 0
-            elif type(flag) == B:
+            elif flag == B:
                 mask, v = 1, 1
-            else : # type(flag) == _:
-                raise Exception("set_eax_on_cond")
+            else:
+                assert False
 
-            mask, v = mask <<  8, v << 8
-            return mask, v
+            return mask << 8, v << 8
 
-        neg = None
-        flags = None
-        if type(flags) == Cond:
-            flags = flags.param()
+        if type(cond) == Cond:
+            flags = cond.param()
             neg, flags = False, flags
-        if type(flags) == NCond:
-            flags = flags.param()
+        elif type(cond) == NCond:
+            flags = cond.param()
             neg, flags = True, flags
 
         #(* FIXME: just one flag atm *)
-        flag = None
         if len(flags)==1:
             flag = flags[0]
         else:
-            raise Exception("set_eax_on_cond 2")
+            assert False
 
-        if flag==MP:
+        if flag == MP:
             mov = MovRegConst(C(EAX), 1)
             return [mov]
         else:
@@ -209,7 +204,7 @@ def rewrite_stmt(stack_ptr, frame_ptr, vlocals, fun_id, stmt):
             reg = f_next_reg()
             iexp = rewrite_exp(exp, reg)
             wl = write_local(tagid, reg)
-            return iexp+[wl]
+            return iexp + [wl]
         elif type(stmt) == DerefAssign:
             (tagid, exp) = stmt.param()
             reg = f_next_reg()
@@ -223,7 +218,7 @@ def rewrite_stmt(stack_ptr, frame_ptr, vlocals, fun_id, stmt):
             addr_reg = f_next_reg()
             rl = read_local(tagid, addr_reg)
             wm = WriteM(addr_reg, exp_reg)
-            return iexp + rl + wm
+            return iexp + [rl, wm]
         elif type(stmt) == Cmp:
             (exp1, exp2) = stmt.param()
             reg1, reg2 = f_next_reg(), f_next_reg()
@@ -232,30 +227,30 @@ def rewrite_stmt(stack_ptr, frame_ptr, vlocals, fun_id, stmt):
             reg = f_next_reg()
             sub = BinO(reg, reg1, Sub, reg2)
             lahf = SaveFlags
-            return iexp1 + iexp2  +sub+ lahf
+            return iexp1 + iexp2 + [sub, lahf]
         elif type(stmt) == Call:
             (tagid, ExpArgs_exp_args) = stmt.param()
             exp_args = ExpArgs_exp_args.param()
             pushes = push_args(exp_args)
             reg = f_next_reg()
-            mov = MovRegSymb(reg, FromTo(Named(fun_label, tagid), Unnamed(Forward)))
+            mov = MovRegSymb(reg, FromTo(Named(fun_label(tagid)), Unnamed(Forward)))
             p = PushReg(reg)
             reg = f_next_reg()
-            mov2 = MovRegSymb(reg, FromTo(Unnamed(Forward), Named(fun_label, tagid)))
+            mov2 = MovRegSymb(reg, FromTo(Unnamed(Forward), Named(fun_label(tagid))))
             add = OpStack(Add, reg)  #(* jmp *)
             lbl = Lbl(nO_NAME_LABEL)
-            return pushes + mov + p + mov2 + add + lbl
+            return pushes + [mov, p, mov2, add, lbl]
 
         elif type(stmt) == ExtCall:
             (tagid, ExpArgs_exp_args) = stmt.param()
             exp_args = ExpArgs_exp_args.param()
 
             def make_filler(n):
-                def m(x):
-                    x = x&0xFF
-                    return (x<<24)|(x<<16)|(x<<8)|x
                 def f(acc, x):
-                    return RawHex(m, x)+acc
+                    x = x & 0xFF
+                    x = (x<<24)|(x<<16)|(x<<8)|x
+                    return [RawHex(x)] + acc
+                
                 nums = range(0, n)
                 filler = fold_left(f, [], nums)
                 filler.reverse()
@@ -314,11 +309,11 @@ def rewrite_stmt(stack_ptr, frame_ptr, vlocals, fun_id, stmt):
         elif type(stmt) == Branch:
             (cond, tagid) = stmt.param()
 
-            #(* eax=1 iff cond, 0 otherwise *)
+            #(* eax = 1 iff cond, 0 otherwise *)
             setz = set_eax_on_cond(cond)
             reg = f_next_reg()
             start = Unnamed(Forward)
-            fin = Named(fun_local_label, fun_id, tagid)
+            fin = Named(fun_local_label(fun_id, tagid))
             mov = MovRegSymb(reg, FromTo(start, fin))
             mul = BinO(C(EAX), C(EAX), Mul, reg)
             add = OpStack(Add, C(EAX))  #(* jmp *)
@@ -326,7 +321,7 @@ def rewrite_stmt(stack_ptr, frame_ptr, vlocals, fun_id, stmt):
             return setz + [mov, mul, add, lbl]
         elif type(stmt) == Label:
             tagid = stmt.param()
-            return [Lbl(fun_local_label, fun_id, tagid)]
+            return [Lbl(fun_local_label(fun_id, tagid))]
 
         elif type(stmt) == Enter:
             n = stmt.param()
@@ -344,8 +339,8 @@ def rewrite_stmt(stack_ptr, frame_ptr, vlocals, fun_id, stmt):
             sub = BinO(reg3, reg1, Sub, reg2)
             wm2 = WriteMConst(stack_ptr, reg3)
             return [rm1, push, rm2, wm1, rm3, mov, sub, wm2]
-        elif type(stmt) == Leave:
-
+        
+        elif type(stmt) == type and stmt == Leave:
             reg = f_next_reg()
             rm = ReadMConst(reg, frame_ptr)
             wm1 = WriteMConst(stack_ptr, reg)
@@ -353,28 +348,30 @@ def rewrite_stmt(stack_ptr, frame_ptr, vlocals, fun_id, stmt):
             pop = PopReg(reg)
             wm2 = WriteMConst(frame_ptr, reg)
             return [rm, wm1, pop, wm2]
+        
         elif type(stmt) == Ret:
             tagid = stmt.param()
             reg1 = f_next_reg()
             reg2 = f_next_reg()
             reg3 = f_next_reg()
             p2 = PopReg(reg1)
-            mov = MovRegSymb(reg2, FromTo(Unnamed(Forward), Named(fun_label, tagid)))
+            mov = MovRegSymb(reg2, FromTo(Unnamed(Forward), Named(fun_label(tagid))))
             sub = BinO(reg3, reg2, Add, reg1)
             add = OpStack(Add, reg3) #(* jmp *)
             lbl = Lbl(nO_NAME_LABEL)
             return [p2, mov, sub, add, lbl]
-            #(* AssignTab is replaced with Assign(tagid, C) earlier *)
+        
+        #(* AssignTab is replaced with Assign(tagid, C) earlier *)
         elif type(stmt) == AssignTab:
             raise Exception("Exception main.py 397")
 
     new_instrs = rewrite(stmt)
-    comments = None
     if type(stmt) == Label:
-        return
+        comments = []
     else:
         s = paktAst.dump_stmt(stmt)
         comments = [Comment(s)]
+        
     return comments + new_instrs
 
 def rewrite_prog(prog, stack_ptr, frame_ptr):
@@ -875,7 +872,7 @@ def compile_ropl_file(prog, gadget_list):
      * 3rd level: instructions *)
      """
     instrs_ll = rewrite_prog(prog, stack_ptr, frame_ptr)
-    instrs_ll = [stub] + [prefix] + instrs_ll + [[suffix]]
+    instrs_ll = [[stub], [prefix]] + instrs_ll + [[suffix]]
     instrs_lll = [[[Comment("lol"), Lbl("1")]]]
     instrs_lll = [[stub]]
     impl_lll = process_func(assign_regs, instrs_ll)
