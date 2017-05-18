@@ -767,11 +767,11 @@ def inverse_hash(h):
     inv = {}
     kv_pairs = get_kv(h)
     def f(h, (k, v)):
-        cur = SRegSet.empty
         if v in h:
             cur = h[v]
-
-        cur = SRegSet.add(k, cur)
+        else:
+            cur = set()
+        cur.add()
         h[v] = cur
 
     inv = fold_left(f, inv, kv_pairs)
@@ -796,40 +796,45 @@ def analyse_liveness(instrs):
     l2rd = inverse_hash(reads)
     l2wr = inverse_hash(writes)
     in_args = find_read_but_not_written(reads, writes)
-    cur = hash_get(l2wr, 0, SRegSet.empty)
-    cur = SRegSet.union(cur, in_args)
+    cur = hash_get(l2wr, 0, set())
+    #cur = SRegSet.union(cur, in_args)
+    cur = cur | in_args
     l2wr[0] =  cur
     def attach(instrs):
         def aux ((line_no, pairs, alive), instrs):
             if len(instrs) != 0:
                 instr, tl = instrs[0], instrs[1:]
-                new_alive = hash_get(l2wr, line_no, SRegSet.empty)
-                new_dead = hash_get(l2rd, line_no, SRegSet.empty)
-                alive = SRegSet.union ((SRegSet.diff (alive, new_dead)), new_alive)
+                new_alive = hash_get(l2wr, line_no, set())
+                new_dead = hash_get(l2rd, line_no, set())
+                #alive = SRegSet.union ((SRegSet.diff (alive, new_dead)), new_alive)
+                alive = (alive - new_dead) + new_alive
                 pair = (instr, alive)
                 aux((line_no+1, pair+pairs, alive), tl)
             else:
                 pairs.reverse()
                 return pairs
 
-        return aux((0, [], SRegSet.empty), instrs)
+        return aux((0, [], set()), instrs)
 
     return attach(instrs)
 
 def calc_conflicts(pairs):
     def f (h, (_, alive)):
         def g(acc, sreg):
-            cur = hash_get(h, sreg, SRegSet.empty)
-            new_set = SRegSet.union(cur, alive)
+            cur = hash_get(h, sreg, set())
+            #new_set = SRegSet.union(cur, alive)
+            new_set = cur + alive
             h[sreg] =  new_set
 
-        elems = SRegSet.elements(alive)
+        #elems = SRegSet.elements(alive)
+        elems = list(alive)
         fold_left(g, (), elems)
         return h
 
     def fix (h, (sreg, rset)):
-        set1 = SRegSet.remove(sreg, rset)
-        h[sreg] = set1
+        #set1 = SRegSet.remove(sreg, rset)
+        sreg.remove(rset)
+        h[sreg] = sreg
         return h
 
     tmp_hash = {}
@@ -881,10 +886,13 @@ def make_assign_regs(gmetas, stack_ptr, frame_ptr):
             def collect(nvars, instr):
                 args = symbolic_args(instr)
                 args_set = sreg_set_from_list(args)
-                SRegSet.union(nvars, args_set)
+                #SRegSet.union(nvars, args_set)
+                return nvars + args_set
 
-            rset = fold_left(collect, SRegSet.empty, instrs)
-            return SRegSet.elements(rset)
+            rset = fold_left(collect, set(), instrs)
+            #SRegSet.elements(rset)
+            rset = list(rset)
+            return rset
 
         def all_assignments(sregs, possible, conflicts):
             def all_perms(f_acc, sregs):
@@ -905,18 +913,27 @@ def make_assign_regs(gmetas, stack_ptr, frame_ptr):
                     #(* Collect conflicting regs *)
                     def f(sreg, acc):
                         if type(sreg) == C:
-                            SRegSet.add(sreg, acc)
-                            
+                            #SRegSet.add(sreg, acc)
+                            rset = acc
+                            rset.add(sreg)
+                            return rset
+
                         elif type(sreg) == S:
                             try:
                                 creg = f_acc(sreg)
-                                SRegSet.add(creg, acc)
+                                #SRegSet.add(creg, acc)
+                                rset = acc
+                                rset.add(creg)
+                                return rset
+                                
                             except:
                                 return acc
 
-                    used = SRegSet.fold(f, conflicting(SRegSet.empty))
-                    p_concrete_set = SRegSet.diff(p_concrete_set, used)
-                    p_concrete_list = SRegSet.elements(p_concrete_set)
+                    used = SRegSet_fold(f, conflicting, set())
+                    #p_concrete_set = SRegSet.diff(p_concrete_set, used)
+                    p_concrete_set = p_concrete_set - used
+                    #p_concrete_list = SRegSet.elements(p_concrete_set)
+                    p_concrete_list = list(p_concrete_set)
                     def assign_one(acc, concrete):
                         def g(sr):
                             if sr==sreg:
@@ -943,8 +960,12 @@ def make_assign_regs(gmetas, stack_ptr, frame_ptr):
             def f (acc, (instr, alive)):#?????
                 i = apply_assignment(f_assign, instr)
                 def g(x, acc):
-                    SRegSet.add(f_assign(x), acc)
-                alive = SRegSet.fold(g, alive, SRegSet.empty)
+                    #SRegSet.add(f_assign(x), acc)
+                    rset = acc
+                    rset.add(f_assign(x))
+                    return rset
+                    
+                alive = SRegSet_fold(g, alive, set())
                 return [(i, alive)]+acc
 
             pairs = fold_left(f, [], pairs)
@@ -957,7 +978,8 @@ def make_assign_regs(gmetas, stack_ptr, frame_ptr):
                 mod_params = mod_vars(instr)
                 mod_params = sreg_set_from_list(mod_params)
                 #(* Instruction can't preserve a param, if it writes to it *)
-                preserved = SRegSet.diff(alive, mod_params)
+                #preserved = SRegSet.diff(alive, mod_params)
+                preserved = alive - mod_params
                 return instr+preserved+acc
 
             pairs = fold_left(f, [], pairs)
@@ -967,7 +989,8 @@ def make_assign_regs(gmetas, stack_ptr, frame_ptr):
         def dump_preserved(preserved):
             def pr(sreg):
                 print "%s;"% (dump_sreg(sreg))
-            sregs = SRegSet.elements(preserved)
+            #sregs = SRegSet.elements(preserved)
+            sregs = list(preserved)
             def f(x): print "$ top_preserved: "
             dprintf(depth, f)
             map(pr, sregs)
@@ -981,9 +1004,11 @@ def make_assign_regs(gmetas, stack_ptr, frame_ptr):
                     (_, _, mod_regs, _) = gmeta.param()
                     mod_regs = map((lambda x : C(x)), mod_regs)
                     mod_regs = sreg_set_from_list(mod_regs)
-                    inter = SRegSet.inter(preserved, mod_regs)
+                    #inter = SRegSet.inter(preserved, mod_regs)
+                    inter = preserved ^ mod_regs
                     #(* If the intersection is empty, none of the preserved regs is modified *)
-                    SRegSet.is_empty(inter)
+                    #SRegSet.is_empty(inter)
+                    return len(inter) == 0
 
                 possible_gmetas =  find_all_gmetas(instr, gmetas)
                 #(* let _ = dprintf depth(fun _ -> printf "possible gmetas: %d\n" (List.length possible_gmetas)) in *)
@@ -1001,7 +1026,8 @@ def make_assign_regs(gmetas, stack_ptr, frame_ptr):
             def satisfy_one((instr, preserved), top_preserved):
                 def f(x): print "implementing %s" % (dump_instr(instr))
                 dprintf (depth, f)
-                preserved = SRegSet.union(preserved, top_preserved)
+                #preserved = SRegSet.union(preserved, top_preserved)
+                preserved = preserved + top_preserved
                 typ = instr_type(instr)
                 pairs = None
                 if type(typ) == T0:

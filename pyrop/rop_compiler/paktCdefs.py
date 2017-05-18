@@ -312,13 +312,6 @@ class RegOrder(object):
 #Set.Make((RegOrder)
 RegSet = set([])
 
-class SRegOrder(object):
-    def __init__(self):
-        self.t = sreg
-        self.compare = cmp
-#Set.Make( SRegOrder )
-SRegSet = set([])
-
 def set_from_list(l):
     RegSet = set(l)
     return RegSet

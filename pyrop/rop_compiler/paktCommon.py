@@ -328,6 +328,13 @@ def Hashtbl_fold(f, tbl, init):
     
     return temp
 
+def SRegSet_fold(f, rset, a):
+    temp = a
+    for ele in rset:
+        temp = f(ele, temp)
+    
+    return temp
+
 def list_flatten(l):
     #return [item for sublist in l for item in sublist]
     acc = []

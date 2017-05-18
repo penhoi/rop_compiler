@@ -824,7 +824,7 @@ def compile_ropl_file(prog, gadget_list):
     def process_func(assign_regs, instr_lll):
         def per_stmt(acc, instrs):
             #(* list of instructions, set of regs to preserve *)
-            impl = assign_regs(instrs, SRegSet.empty)
+            impl = assign_regs(instrs, set())
             if not impl:
                 dump_instrs(instrs)
                 assert False
