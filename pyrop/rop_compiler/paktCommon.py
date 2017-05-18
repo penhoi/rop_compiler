@@ -132,13 +132,12 @@ class Gmeta(gmeta):
 
 class gcontainer(object): pass
 class GContainer(gcontainer):
-    def __init__(self, str_val, int_val1, int_val2, gmetalist_val):#[int, int]
+    def __init__(self, str_val, (int_val1, int_val2), gmetalist_val): #[int, int]
         self.str_v = str_val
-        self.int_v1 = int_val1
-        self.int_v2 = int_val2
+        self.int_v1v2 = (int_val1, int_val2)
         self.gmetalist_v = gmetalist_val
     def param(self):
-        return (self.str_v, self.int_v1, self.int_v2, self.gmetalist_v)
+        return (self.str_v, (self.int_v1v2[0], self.int_v1v2[1]), self.gmetalist_v)
 
 rEGS = [EAX, EBX, ECX, EDX, ESI, EDI, EBP, ESP]
 rEGS_NO_ESP = [EAX, EBX, ECX, EDX, ESI, EDI, EBP]
@@ -346,9 +345,8 @@ def dump_int_list(l):
 
     return fold_left(f, "", l)
 
-def get_gadgets(gmetas):
-    def strip(acc, gm ):
-        (g, _, _, _) = gm.param()
-        return g + acc
-
-    return fold_left(strip, [], gmetas)
+def get_gadgets(gadget_list):
+    gadgets = []
+    for g in gadgets:
+        gadgets.append(g)
+    return gadgets

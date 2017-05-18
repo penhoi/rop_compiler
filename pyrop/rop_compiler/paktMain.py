@@ -823,7 +823,7 @@ def dump_pairs(pairs):
     return ()
 
 #(* FIXME: main has to be at the beginning *)
-def compile(prog, container):
+def compile(prog, gadget_list):
     def process_func(assign_regs, instr_lll):
         def per_stmt(acc, instrs):
             #(* list of instructions, set of regs to preserve *)
@@ -852,8 +852,11 @@ def compile(prog, container):
         else:
             return ()
 
-    (fn, (data_s, data_e), gmetas) = container.param()
-    gadgets = get_gadgets(gmetas)
+    #(fn, (data_s, data_e), gmetas) = container.param()
+    data_s = 0x08049f08 + 0x0011c
+    data_e = data_s + 0x200
+    
+    gadgets = paktCommon.get_gadgets(gadget_list)
     prefix, suffix, stack_ptr, frame_ptr = global_prefix_suffix(data_s, data_e)
     """
     (* Swap AssignTable with Assign (const).
@@ -865,7 +868,7 @@ def compile(prog, container):
     * Ultimately instruction is converted to a list of gadgets. *)
     """
     implement = make_implement(stack_ptr, frame_ptr)
-    assign_regs = make_assign_regs(gmetas, stack_ptr, frame_ptr)
+    assign_regs = make_assign_regs(gadgets, stack_ptr, frame_ptr)
     """
     (* instr list list list.
      * 1st level: list of functions
@@ -915,10 +918,10 @@ def main ():
         p = paktAst.move_main_to_front(p)
         p = paktAst.flatten_prog(p)
         gl = paktCommon.unmarshal_gadget_file(gadget_file)
-        for g in gl.foreach():
-            print g
-        s = paktAst.dump_prog(p)
-        print "DUMPED:\n%s\n####\n" % (s)
+        #for g in gl.foreach():
+        #    print g
+        #s = paktAst.dump_prog(p)
+        #print "DUMPED:\n%s\n####\n" % (s)
         
         cl, pairs, bin_str = compile(p, gl)
         
