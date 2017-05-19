@@ -199,17 +199,22 @@ def make_implement(stack_ptr, frame_ptr):
             elif typ == T1:
                 return 0
             elif typ == T0:
-                raise Exception("analysys 197")
+                assert False
         def init():
             f_next_reg = make_reg_generator()
-            funs = [implement_t1, implement_t2, implement_t3]
-            return map((lambda f: f(f_next_reg)), funs)
-
+            f1 = lambda x: implement_t1(f_next_reg, x)
+            f2 = lambda x: implement_t2(f_next_reg, x)
+            f3 = lambda x: implement_t3(f_next_reg, x)
+            return [f1, f2, f3]
+        
         funs = init()
         typ = instr_type(instr)
         idx = type2idx(typ)
         f_implement = funs[idx]
         return f_implement(instr)
+    #end def implement
+    
+    return implement
 
 def arg_dumper(instr):
     if type(instr) in [AdvanceStack, RawHex]:
@@ -343,12 +348,10 @@ def possible_regs_t0(gms, instr):
         return aux([], regs)
 
     def make_sets(groups):
-        def f(acc, l):
-            rset = set_from_list(l)
-            return [rset] + acc
-
-        sets = fold_left(f, [], groups)
-        sets.reverse()
+        sets = []
+        for l in groups:
+            sets = sets + [set(l)] 
+        
         return sets
 
     def f_collect():
@@ -564,20 +567,32 @@ def make_cache_funs():
  * Use noncolliding regs for params: S(-1), S(-2) ... *)
 """
 def make_fake_instr(instr):
-    args = arg_dumper
+    args = arg_dumper(instr)
+    """
     def f((n, f_assign), arg):
         def f_new(x):
             if x==arg:
                 return (S(-n))
             else:
                 f_assign(x)
+                
         return (n+1, f_new)
-
+    """
 
     def f_assert(x):
         assert False
 
-    (_, f_assign) = fold_left(f, (1, f_assert), args)
+    n, f_assign = 1, f_assert
+    for arg in args:
+        def f_new(x):
+            if x == arg:
+                return (S(-n))
+            else:
+                return f_assign(x)
+        n = n+1
+        f_assign =  f_new
+    
+    #(_, f_assign) = fold_left(f, (1, f_assert), args)
     fake_instr = apply_assignment(f_assign, instr)
     return fake_instr
 
@@ -591,7 +606,6 @@ def make_fake_instr(instr):
 def make_possible_regs_funs(gadgets, implement):
     #(* let(cache_add, cache_test, cache_get) = make_cache_funs() in *)
     def possible_regs_by_pos(gadgets, implement, instr, pos):
-        possible_regs_t0 = possible_regs_t0(gadgets)
         def cache_add(instr, reg_set_list):
             return
 
@@ -604,35 +618,34 @@ def make_possible_regs_funs(gadgets, implement):
 
         def higher_t(instr, pos):
             def process_impl(impl, arg):
-                def collect(reg_set, instr):
+                reg_set = fULL_REG_SET
+                for instr in impl:
                     regs = possible_regs_by_arg(gadgets, implement, instr, arg)
-                    RegSet.inter(reg_set, regs)
-
-                fold_left(collect, fULL_REG_SET, impl)
+                    #RegSet.inter
+                    reg_set = reg_set ^ regs
+                return reg_set
 
             #(* Beware: this works correctly only because higher types don't take multiple reg params *)
             fake_instr = make_fake_instr(instr)
             args = arg_dumper(fake_instr)
             impl = implement(fake_instr)
-            def f(acc, arg):
+
+            possible_for_all_args = []
+            for arg in args:
                 regs = process_impl(impl, arg)
-                return [regs] +acc
+                possible_for_all_args.append(regs)
 
-            possible_for_all_args = fold_left(f, [], args)
-            possible_for_all_args.reverse()
             return possible_for_all_args
-
-        #end def possible_regs_by_pos
-
+        #end def higher_t
+        
         if (cache_test(instr, pos)):
             cache_get(instr, pos)
         else:
             #(* list of sets. i-th set contains possible regs for ith param *)
-            reg_set_list = None
             typ = instr_type(instr)
             if type(typ) == T0:
                 #(* get possible regs for all arguments *)
-                reg_set_list = possible_regs_t0(instr)
+                reg_set_list = possible_regs_t0(gadgets, instr)
             else:
                 reg_set_list = higher_t(instr, pos)
 
@@ -642,14 +655,18 @@ def make_possible_regs_funs(gadgets, implement):
                 assert False
             else:
                 return reg_set_list[pos]
-
+    #end def possible_regs_by_pos
+    
     def possible_regs_by_arg(gadgets, implement, instr, arg):
         positions = arg_positions(instr, arg)
-        def collect(reg_set, pos):
-            regs = possible_regs_by_pos(gadgets, implement, instr, pos)
-            RegSet.inter(reg_set, regs)
 
-        return fold_left(collect, fULL_REG_SET, positions)
+        reg_set = fULL_REG_SET
+        for pos in positions:
+            regs = possible_regs_by_pos(gadgets, implement, instr, pos)
+            #RegSet.inter
+            reg_set = reg_set ^ regs
+        
+        return reg_set
 
     def by_arg(instr, arg):
         return possible_regs_by_arg(gadgets, implement, instr, arg)
@@ -736,6 +753,7 @@ def analyse_reads_writes(instrs):
         #(* last read *)
         def f_r(acc, reg):
             reads[reg] = i
+            
         fold_left(f_w, (), wr)
         fold_left(f_r, (), rd)
         
@@ -751,7 +769,6 @@ def get_kv(h):
     """
     (* Hashtbl_fold provides history of bindings, but we only want the most
      * recent one. *)
-     """
     seen = {}
     def f(k, v, acc):
         if k in seen:
@@ -762,19 +779,19 @@ def get_kv(h):
 
     l = Hashtbl_fold(f, h, [])
     return l
+    """
+    return h.items()
 
 def inverse_hash(h):
     inv = {}
-    kv_pairs = get_kv(h)
-    def f(h, (k, v)):
-        if v in h:
+    for k, v in h.items():
+        if v in inv:
             cur = h[v]
         else:
             cur = set()
-        cur.add()
-        h[v] = cur
-
-    inv = fold_left(f, inv, kv_pairs)
+        cur.add(k)
+        inv[v] = cur
+    
     return inv
 
 def hash_get(h, k, empty):
@@ -788,7 +805,7 @@ def find_read_but_not_written(reads, writes):
             return [k] + acc
 
     in_args = Hashtbl_fold(f, reads, [])
-    return sreg_set_from_list(in_args)
+    return set(in_args)
 
 #(* liveness analysis *)
 def analyse_liveness(instrs):
@@ -807,9 +824,9 @@ def analyse_liveness(instrs):
                 new_alive = hash_get(l2wr, line_no, set())
                 new_dead = hash_get(l2rd, line_no, set())
                 #alive = SRegSet.union ((SRegSet.diff (alive, new_dead)), new_alive)
-                alive = (alive - new_dead) + new_alive
+                alive = (alive - new_dead) | new_alive
                 pair = (instr, alive)
-                aux((line_no+1, pair+pairs, alive), tl)
+                return aux((line_no+1, [pair]+pairs, alive), tl)
             else:
                 pairs.reverse()
                 return pairs
@@ -820,21 +837,22 @@ def analyse_liveness(instrs):
 
 def calc_conflicts(pairs):
     def f (h, (_, alive)):
-        def g(acc, sreg):
-            cur = hash_get(h, sreg, set())
-            #new_set = SRegSet.union(cur, alive)
-            new_set = cur + alive
-            h[sreg] =  new_set
-
         #elems = SRegSet.elements(alive)
         elems = list(alive)
-        fold_left(g, (), elems)
+        for sreg in elems:
+            cur = h.get(sreg, set())
+            new_set = cur | alive
+            h[sreg] =  new_set
+            
         return h
-
+    
     def fix (h, (sreg, rset)):
         #set1 = SRegSet.remove(sreg, rset)
-        sreg.remove(rset)
-        h[sreg] = sreg
+        if sreg in rset:
+            cur = rset.remove(sreg)
+        else:
+            cur = rset
+        h[sreg] = cur
         return h
 
     tmp_hash = {}
@@ -858,15 +876,15 @@ def symbolic_args(instr):
 def possible_regs(possible_regs_by_arg, instrs):
     def analyse_one(possible, instr):
         args = symbolic_args(instr)
-        def f(h, arg_reg):
+        
+        h = possible
+        for arg_reg in args:
             regs = possible_regs_by_arg(instr, arg_reg)
             cur = hash_get(h, arg_reg, regs)
-            cur = RegSet.inter(cur, regs)
+            cur = cur & regs
             h[arg_reg] = cur
-            return h
-
-        possible = fold_left(f, possible, args)
-        return possible
+        
+        return h
 
     possible = {}
     fold_left(analyse_one, possible, instrs)
@@ -885,9 +903,9 @@ def make_assign_regs(gmetas, stack_ptr, frame_ptr):
         def collect_all_vars(instrs):
             def collect(nvars, instr):
                 args = symbolic_args(instr)
-                args_set = sreg_set_from_list(args)
+                args_set = set(args)
                 #SRegSet.union(nvars, args_set)
-                return nvars + args_set
+                return nvars | args_set
 
             rset = fold_left(collect, set(), instrs)
             #SRegSet.elements(rset)
@@ -976,7 +994,7 @@ def make_assign_regs(gmetas, stack_ptr, frame_ptr):
         def calc_preserved(pairs):
             def f (acc, (instr, alive)):
                 mod_params = mod_vars(instr)
-                mod_params = sreg_set_from_list(mod_params)
+                mod_params = set(mod_params)
                 #(* Instruction can't preserve a param, if it writes to it *)
                 #preserved = SRegSet.diff(alive, mod_params)
                 preserved = alive - mod_params
@@ -1003,7 +1021,7 @@ def make_assign_regs(gmetas, stack_ptr, frame_ptr):
                 def check_possible(gmeta):
                     (_, _, mod_regs, _) = gmeta.param()
                     mod_regs = map((lambda x : C(x)), mod_regs)
-                    mod_regs = sreg_set_from_list(mod_regs)
+                    mod_regs = set(mod_regs)
                     #inter = SRegSet.inter(preserved, mod_regs)
                     inter = preserved ^ mod_regs
                     #(* If the intersection is empty, none of the preserved regs is modified *)
@@ -1027,7 +1045,7 @@ def make_assign_regs(gmetas, stack_ptr, frame_ptr):
                 def f(x): print "implementing %s" % (dump_instr(instr))
                 dprintf (depth, f)
                 #preserved = SRegSet.union(preserved, top_preserved)
-                preserved = preserved + top_preserved
+                preserved = preserved | top_preserved
                 typ = instr_type(instr)
                 pairs = None
                 if type(typ) == T0:

@@ -523,7 +523,7 @@ def handle_tables(data_s, prog):
 
         ss = fold_left(f, [], pairs)
         ss.reverse()
-        paktCommon.list_flatten(ss)
+        return paktCommon.list_flatten(ss)
 
     data_start = data_s+dATA_OFF
     (func_list) = prog.param()
@@ -873,8 +873,8 @@ def compile_ropl_file(prog, gadget_list):
      """
     instrs_ll = rewrite_prog(prog, stack_ptr, frame_ptr)
     instrs_ll = [[stub], [prefix]] + instrs_ll + [[suffix]]
-    instrs_lll = [[[Comment("lol"), Lbl("1")]]]
-    instrs_lll = [[stub]]
+    #instrs_lll = [[[Comment("lol"), Lbl("1")]]]
+    #instrs_lll = [[stub]]
     impl_lll = process_func(assign_regs, instrs_ll)
     impl_ll = paktCommon.list_flatten(impl_lll)
     pairs = paktCommon.list_flatten(impl_ll)
