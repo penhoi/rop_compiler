@@ -13,7 +13,6 @@ def instr_type(x):
     elif type(x) in [WriteLocal, ReadLocal]:
         return T3
 
-
 #(* IN: instr, gmeta list *)
 #(* OUT: gmeta corresponding to instr *)
 def find_all_gmetas(instr, gms):
@@ -182,13 +181,10 @@ def make_implement(stack_ptr, frame_ptr):
             return [la, wm]
 
         #(* Caller should be aware these are special *)
-        elif type(instr) == Lbl:
-            return []
-
-        elif type(instr) == Comment:
-            raise Exception("analysys 184")
+        elif type(instr) in [Lbl, Comment]:
+            assert False
         else:
-            raise Exception("analysys 186")
+            assert False
 
     def implement(instr):
         def type2idx(typ):
@@ -206,14 +202,14 @@ def make_implement(stack_ptr, frame_ptr):
             f2 = lambda x: implement_t2(f_next_reg, x)
             f3 = lambda x: implement_t3(f_next_reg, x)
             return [f1, f2, f3]
-        
+
         funs = init()
         typ = instr_type(instr)
         idx = type2idx(typ)
         f_implement = funs[idx]
         return f_implement(instr)
     #end def implement
-    
+
     return implement
 
 def arg_dumper(instr):
@@ -280,10 +276,7 @@ def possible_regs_t0(gms, instr):
                 (r0, r1, op_prime, r2) = g.param()
                 if op == op_prime:
                     return [r0, r1, r2]+acc
-                else:
-                    return acc
-            else:
-                return acc
+            return acc
         #end def f
         return f
 
@@ -293,10 +286,8 @@ def possible_regs_t0(gms, instr):
                 (op_prime, r, _) = g.param()
                 if op == op_prime:
                     return [r] + acc
-                else:
-                    return acc
-            else:
-                return acc
+            return acc
+        #end def f
         return f
 
     def f_write_mem(acc, g):
@@ -346,40 +337,41 @@ def possible_regs_t0(gms, instr):
                 return acc
 
         return aux([], regs)
+    #end def group_args
 
     def make_sets(groups):
         sets = []
         for l in groups:
-            sets = sets + [set(l)] 
-        
+            sets = sets + [set(l)]
+
         return sets
+    #end def make_sets
 
-    def f_collect():
-        if type(instr) == OpStack:
-            (op, _) = instr.param()
-            op_prime = ast_op_to_gadget_op(op)
-            return f_op_esp(op_prime)
+    if type(instr) == OpStack:
+        (op, _) = instr.param()
+        op_prime = ast_op_to_gadget_op(op)
+        f_collect = f_op_esp(op_prime)
 
-        elif type(instr) == WriteM:
-            return f_write_mem
+    elif type(instr) == WriteM:
+        f_collect = f_write_mem
 
-        elif type(instr) == BinO:
-            (_, _, op, _) = instr.param()
-            op_prime = ast_op_to_gadget_op(op)
-            return f_binop(op_prime)
+    elif type(instr) == BinO:
+        (_, _, op, _) = instr.param()
+        op_prime = ast_op_to_gadget_op(op)
+        f_collect = f_binop(op_prime)
 
-        elif type(instr) == ReadM:
-            return f_read_mem
+    elif type(instr) == ReadM:
+        f_collect = f_read_mem
 
-        #(* movregsymb will be converted to mov reg const *)#?????
-        elif type(instr) in [MovRegConst, MovRegSymb]:
-            return f_load_const
+    #(* movregsymb will be converted to mov reg const *)#?????
+    elif type(instr) in [MovRegConst, MovRegSymb]:
+        f_collect = f_load_const
 
-        elif type(instr) == MovRegReg:
-            return f_copy_reg
+    elif type(instr) == MovRegReg:
+        f_collect = f_copy_reg
 
-        else:
-            assert False
+    else:
+        assert False
     #end def f_collect
 
     #(* regs is a list of lists *)
@@ -575,7 +567,7 @@ def make_fake_instr(instr):
                 return (S(-n))
             else:
                 f_assign(x)
-                
+
         return (n+1, f_new)
     """
 
@@ -591,7 +583,7 @@ def make_fake_instr(instr):
                 return f_assign(x)
         n = n+1
         f_assign =  f_new
-    
+
     #(_, f_assign) = fold_left(f, (1, f_assert), args)
     fake_instr = apply_assignment(f_assign, instr)
     return fake_instr
@@ -637,13 +629,14 @@ def make_possible_regs_funs(gadgets, implement):
 
             return possible_for_all_args
         #end def higher_t
-        
+
         if (cache_test(instr, pos)):
             cache_get(instr, pos)
+
         else:
             #(* list of sets. i-th set contains possible regs for ith param *)
             typ = instr_type(instr)
-            if type(typ) == T0:
+            if typ == T0:
                 #(* get possible regs for all arguments *)
                 reg_set_list = possible_regs_t0(gadgets, instr)
             else:
@@ -656,7 +649,7 @@ def make_possible_regs_funs(gadgets, implement):
             else:
                 return reg_set_list[pos]
     #end def possible_regs_by_pos
-    
+
     def possible_regs_by_arg(gadgets, implement, instr, arg):
         positions = arg_positions(instr, arg)
 
@@ -665,7 +658,7 @@ def make_possible_regs_funs(gadgets, implement):
             regs = possible_regs_by_pos(gadgets, implement, instr, pos)
             #RegSet.inter
             reg_set = reg_set ^ regs
-        
+
         return reg_set
 
     def by_arg(instr, arg):
@@ -753,10 +746,10 @@ def analyse_reads_writes(instrs):
         #(* last read *)
         def f_r(acc, reg):
             reads[reg] = i
-            
+
         fold_left(f_w, (), wr)
         fold_left(f_r, (), rd)
-        
+
 
     def f(i, instr):
         update_hashes(i, instr, reads, writes)
@@ -791,7 +784,7 @@ def inverse_hash(h):
             cur = set()
         cur.add(k)
         inv[v] = cur
-    
+
     return inv
 
 def hash_get(h, k, empty):
@@ -843,9 +836,9 @@ def calc_conflicts(pairs):
             cur = h.get(sreg, set())
             new_set = cur | alive
             h[sreg] =  new_set
-            
+
         return h
-    
+
     def fix (h, (sreg, rset)):
         #set1 = SRegSet.remove(sreg, rset)
         if sreg in rset:
@@ -863,7 +856,7 @@ def calc_conflicts(pairs):
 
 def just_symbolic(args):
     return filter((lambda x: type(x) == S), args)
-    
+
 def just_concrete(args):
     return filter((lambda x: type(x) == C), args)
 
@@ -876,14 +869,14 @@ def symbolic_args(instr):
 def possible_regs(possible_regs_by_arg, instrs):
     def analyse_one(possible, instr):
         args = symbolic_args(instr)
-        
+
         h = possible
         for arg_reg in args:
             regs = possible_regs_by_arg(instr, arg_reg)
             cur = hash_get(h, arg_reg, regs)
             cur = cur & regs
             h[arg_reg] = cur
-        
+
         return h
 
     possible = {}
@@ -901,18 +894,19 @@ def make_assign_regs(gmetas, stack_ptr, frame_ptr):
     def assign_regs(depth, instrs, top_preserved):
         #(* Make assignments only for symbolic regs *)
         def collect_all_vars(instrs):
-            def collect(nvars, instr):
+            rset = set()
+            for instr in instrs:
                 args = symbolic_args(instr)
-                args_set = set(args)
                 #SRegSet.union(nvars, args_set)
-                return nvars | args_set
+                rset = rset | set(args)
 
-            rset = fold_left(collect, set(), instrs)
             #SRegSet.elements(rset)
             rset = list(rset)
             return rset
+        #end def collect_all_vars
 
         def all_assignments(sregs, possible, conflicts):
+
             def all_perms(f_acc, sregs):
                 if len(sregs) != 0:
                     sreg, tl = sregs[0], sregs[:1]
@@ -929,113 +923,104 @@ def make_assign_regs(gmetas, stack_ptr, frame_ptr):
                         assert False
 
                     #(* Collect conflicting regs *)
-                    def f(sreg, acc):
+                    rset = set()
+                    for sreg in conflicting:
                         if type(sreg) == C:
-                            #SRegSet.add(sreg, acc)
-                            rset = acc
                             rset.add(sreg)
-                            return rset
 
                         elif type(sreg) == S:
-                            try:
-                                creg = f_acc(sreg)
-                                #SRegSet.add(creg, acc)
-                                rset = acc
-                                rset.add(creg)
-                                return rset
-                                
-                            except:
-                                return acc
+                            creg = f_acc(sreg)
+                            #SRegSet.add(creg, acc)
+                            rset.add(creg)
+                    #end for sreg
 
-                    used = SRegSet_fold(f, conflicting, set())
+
                     #p_concrete_set = SRegSet.diff(p_concrete_set, used)
-                    p_concrete_set = p_concrete_set - used
+                    p_concrete_set = p_concrete_set - rset
                     #p_concrete_list = SRegSet.elements(p_concrete_set)
                     p_concrete_list = list(p_concrete_set)
-                    def assign_one(acc, concrete):
-                        def g(sr):
-                            if sr==sreg:
-                                return concrete
-                            else:
-                                return f_acc(sr)
-                        new_perms = all_perms(g, tl)
-                        return new_perms+acc
 
-                    fold_left(assign_one, [], p_concrete_list)
+                    acc = []
+                    for concrete in p_concrete_list:
+                        g = lambda sr: concrete if sr==sreg else f_acc(sr)
+                        new_perms = all_perms(g, tl)
+                        acc = new_perms+acc
+                    #end for concrete
+
+                #end if len(sregs) != 0:
                 else:
                     return [f_acc]
 
             def f_fail(r):
-                def err():
-                    print "Unable to assign to: %s" % dump_sreg(r)
-                    assert False
+                print "Unable to assign to: %s" % dump_sreg(r)
+                assert False
 
             return  all_perms(f_fail, sregs)
+        #end def all_perms
 
         def apply_assignment_to_all(f_assign, pairs):
             #(* Don't throw exceptions on concretized regs *)
             f_assign = wrap_f_assign(f_assign)
-            def f (acc, (instr, alive)):#?????
+            acc = []
+            for (instr, alive) in pairs:
                 i = apply_assignment(f_assign, instr)
-                def g(x, acc):
+                rset = set()
+                for x in alive:
                     #SRegSet.add(f_assign(x), acc)
-                    rset = acc
                     rset.add(f_assign(x))
-                    return rset
-                    
-                alive = SRegSet_fold(g, alive, set())
-                return [(i, alive)]+acc
 
-            pairs = fold_left(f, [], pairs)
-            pairs.reverse()
-            return pairs
+                acc.append((i, rset))
+
+            return acc
+        #end  def apply_assignment_to_all
 
         #(* Which concrete regs need to be preserved between instructions *)
         def calc_preserved(pairs):
-            def f (acc, (instr, alive)):
+            acc = []
+            for (instr, alive) in pairs:
                 mod_params = mod_vars(instr)
                 mod_params = set(mod_params)
                 #(* Instruction can't preserve a param, if it writes to it *)
                 #preserved = SRegSet.diff(alive, mod_params)
                 preserved = alive - mod_params
-                return instr+preserved+acc
-
-            pairs = fold_left(f, [], pairs)
-            pairs.reverse()
-            return pairs
+                acc.append((instr, preserved))
+            return acc
+        #end def calc_preserved
 
         def dump_preserved(preserved):
-            def pr(sreg):
-                print "%s;"% (dump_sreg(sreg))
             #sregs = SRegSet.elements(preserved)
             sregs = list(preserved)
+
             def f(x): print "$ top_preserved: "
             dprintf(depth, f)
+
+            def pr(sreg): print "%s;" % (dump_sreg(sreg))
             map(pr, sregs)
+
             def f2(x): print ""
             dprintf(depth, f2)
+        #end def dump_preserved
 
         def satisfy(perms, pairs):
             #(* Throws Not_found if it's impossible to find a gmeta *)
             def satisfy_t0(instr, preserved):
-                def check_possible(gmeta):
+                possible_gmetas =  find_all_gmetas(instr, gmetas)
+                #(* let _ = dprintf depth(fun _ -> printf "possible gmetas: %d\n" (List.length possible_gmetas)) in *)
+                #(* Throws Not_found *)
+
+                for gmeta in possible_gmetas:
                     (_, _, mod_regs, _) = gmeta.param()
                     mod_regs = map((lambda x : C(x)), mod_regs)
                     mod_regs = set(mod_regs)
+
                     #inter = SRegSet.inter(preserved, mod_regs)
                     inter = preserved ^ mod_regs
                     #(* If the intersection is empty, none of the preserved regs is modified *)
                     #SRegSet.is_empty(inter)
-                    return len(inter) == 0
-
-                possible_gmetas =  find_all_gmetas(instr, gmetas)
-                #(* let _ = dprintf depth(fun _ -> printf "possible gmetas: %d\n" (List.length possible_gmetas)) in *)
-                #(* Throws Not_found *)
-                if possible_gmetas in check_possible:
-                    gmeta = check_possible[possible_gmetas]
-                else:
-                    gmeta = []
-                return gmeta
+                    if len(inter) != 0: #???
+                        return [gmeta]
+                return []
+            #end def satisfy_t0
 
             def satisfy_t(instr, preserved):
                 impl = implement(instr)
@@ -1044,86 +1029,87 @@ def make_assign_regs(gmetas, stack_ptr, frame_ptr):
             def satisfy_one((instr, preserved), top_preserved):
                 def f(x): print "implementing %s" % (dump_instr(instr))
                 dprintf (depth, f)
+
                 #preserved = SRegSet.union(preserved, top_preserved)
                 preserved = preserved | top_preserved
                 typ = instr_type(instr)
                 pairs = None
-                if type(typ) == T0:
+                if typ == T0:
                     gmeta = satisfy_t0(instr, preserved)
-                    pairs = (instr, gmeta)
+                    pairs = [(instr, gmeta)]
                 else:
                     pairs = satisfy_t(instr, preserved)
                 return pairs
+            #end def satisfy_one
 
             def satisfy_all(c_pairs, top_preserved):
-                def f (acc, (instr, preserved)):
+                acc = []
+                for (instr, preserved) in c_pairs:
                     impl = satisfy_one((instr, preserved), top_preserved)
-                    return acc+impl
-                impl = fold_left(f, [], c_pairs)
-                return impl
+                    acc = acc + impl
+                return acc
+            #end def satisfy_all
 
             #(* Test all possible assignments *)
-            def aux(perms):
-                if len(perms) >= 1:
-                    f_assign = perms[0]
-                    tl = perms[1:]
-                    c_pairs = apply_assignment_to_all(f_assign, pairs)
-                    c_pairs = calc_preserved(c_pairs)
-                    impl = satisfy_all(c_pairs, top_preserved)
-                    if impl != []:
-                        return (f_assign, impl)
-                    else:
-                        return aux(tl)
-                else:
-                    assert False
-            return aux(perms)
+            for f_assign in perms:
+                c_pairs = apply_assignment_to_all(f_assign, pairs)
+                c_pairs = calc_preserved(c_pairs)
+                impl = satisfy_all(c_pairs, top_preserved)
+                if impl:
+                    return (f_assign, impl)
+
+            raise Exception("Not found")
+        #end def satisfy
 
         def dump_one_perm(vvars, f_assign):
-            def f(sreg):
-                return (sreg, f_assign(sreg))
-            
-            l = map(f, vvars)
+            l = map((lambda sreg: sreg, f_assign(sreg)) , vvars)
+
             def pr(s, c):
                 def f(x): print "%s -> %s" % (dump_sreg(s), dump_sreg(c))
                 dprintf(depth, f)
             map(pr, l)
-            
+        #end def dump_one_perm(
 
         #(* IN: satisfiable assignment, (instr, gmeta) pairs *)
         def dump_satisfied(nvars, f_assign, pairs):
-
             def f0(x): print ("%%% winner assignment:")
             dprintf (depth, f0)
+
             dump_one_perm(nvars, f_assign)
+
             def f1(x): print("%%% paired:")
             dprintf (depth, f1)
-            def f(instr, gmeta):
-                def f2(x): print ("%s" % (dump_instr(instr)))
-                dprintf (depth, f2)
-                
-            map(f, pairs)
-            
+
+            def f2(instr, gmeta):
+                def f20(x): print ("%s" % (dump_instr(instr)))
+                dprintf (depth, f20)
+            map(f2, pairs)
+        #end def dump_satisfied
 
         def dump(nvars, possible, conflicts, perms, top_preserved, pairs):
             def dump_possible(possible):
                 def pr(sreg, rset):
                     rset = common_reg_set_to_sreg_set(rset)
+
                     def f0(x): print "%s in {"  % (dump_sreg(sreg))
                     dprintf(depth, f0)
+
                     dump_sreg_set(set)
+
                     def f1(x): print "%s" % ("}")
                     dprintf(depth, f1)
-                    
 
                 def f2(x): print "%s" % ("$ possible")
                 dprintf (depth, f2)
-                kv = get_kv(possible)
+
+                kv = possible.items()
                 map(pr, kv)
+            #end def dump_possible
 
             def dump_conflicts(h):
                 def f3(x): print "%s" % ("$ conflicts")
                 dprintf (depth, f3)
-                kv = get_kv(h)
+
                 def pr(k, v):
                     def f0(x): print "%s conflicts: " % (dump_sreg(k))
                     dprintf (depth, f0)
@@ -1131,34 +1117,37 @@ def make_assign_regs(gmetas, stack_ptr, frame_ptr):
                     def f1(x): print ""
                     dprintf (depth, f1)
 
+                kv = h.items()
                 map(pr, kv)
-                
+            #end def dump_conflicts
 
             def dump_perms(perms):
                 def f0(x): print  "%s" %  ("$ perms")
                 dprintf (depth, f0)
+
                 def pr(perm):
                     dump_one_perm(vars, perm)
                     def f1(x): print ("-")
                     dprintf(depth, f1)
-
                 map(pr, perms)
-                
+            #end def dump_perms
 
             def print_pair(instr, alive):
                 def f0(x): print "%s alive: " % (dump_instr(instr))
                 dprintf( depth, f0)
                 dump_sreg_set(alive)
                 print "\n"
+            #end def print_pair
 
             def f10(x): print("--------------")
             dprintf(depth, f10)
+
             map(print_pair, pairs)
             dump_preserved(top_preserved)
             dump_possible(possible)
             dump_conflicts(conflicts)
             dump_perms(perms)
-            
+        #end def dump
 
         pairs = analyse_liveness(instrs)
         conflicts = calc_conflicts(pairs)
@@ -1169,10 +1158,11 @@ def make_assign_regs(gmetas, stack_ptr, frame_ptr):
         (f_assign, s_pairs) = satisfy(perms, pairs)
         dump_satisfied(nvars, f_assign, s_pairs)
         return s_pairs
+    #end def assign_regs
 
     #(* depth = 0 *)
     def assign_regs0(instrs, top_preserved):
         return assign_regs(0, instrs, top_preserved)
-    
-    
+
+
     return assign_regs0

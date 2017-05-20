@@ -20,30 +20,19 @@ def trd (_1, _2, x):
 
 def fun_label(tagid):
     return "function_" + tagid
+
 def fun_local_label(fun_id, tagid):
     return "local_" + fun_id + "_" + tagid
 
 def print_errors(errors):
     errors = paktAst.dump_errors(errors)
-    def aux(errors):
-        if [] != errors:
-            hd, tl = errors[0], errors[1:]
-            hd = "ERROR. " + hd
-            print "%s" % (hd)
-            return aux(tl)
-        else:
-            return ()
-    return aux(errors)
+    for hd in errors:
+        print "ERROR. " + hd
 
 def pick_different_reg(used):
     regs = paktCommon.rEGS_NO_ESP
-    def p(reg):
-        if reg in used:
-            return False
-        else:
-            return True
 
-    not_used = filter(p, regs)
+    not_used = filter((lambda reg: reg not in used), regs)
     if not_used != []:
         return not_used[0]
     else:
@@ -250,7 +239,7 @@ def rewrite_stmt(stack_ptr, frame_ptr, vlocals, fun_id, stmt):
                     x = x & 0xFF
                     x = (x<<24)|(x<<16)|(x<<8)|x
                     return [RawHex(x)] + acc
-                
+
                 nums = range(0, n)
                 filler = fold_left(f, [], nums)
                 filler.reverse()
@@ -339,7 +328,7 @@ def rewrite_stmt(stack_ptr, frame_ptr, vlocals, fun_id, stmt):
             sub = BinO(reg3, reg1, Sub, reg2)
             wm2 = WriteMConst(stack_ptr, reg3)
             return [rm1, push, rm2, wm1, rm3, mov, sub, wm2]
-        
+
         elif type(stmt) == type and stmt == Leave:
             reg = f_next_reg()
             rm = ReadMConst(reg, frame_ptr)
@@ -348,7 +337,7 @@ def rewrite_stmt(stack_ptr, frame_ptr, vlocals, fun_id, stmt):
             pop = PopReg(reg)
             wm2 = WriteMConst(frame_ptr, reg)
             return [rm, wm1, pop, wm2]
-        
+
         elif type(stmt) == Ret:
             tagid = stmt.param()
             reg1 = f_next_reg()
@@ -360,7 +349,7 @@ def rewrite_stmt(stack_ptr, frame_ptr, vlocals, fun_id, stmt):
             add = OpStack(Add, reg3) #(* jmp *)
             lbl = Lbl(nO_NAME_LABEL)
             return [p2, mov, sub, add, lbl]
-        
+
         #(* AssignTab is replaced with Assign(tagid, C) earlier *)
         elif type(stmt) == AssignTab:
             raise Exception("Exception main.py 397")
@@ -371,27 +360,22 @@ def rewrite_stmt(stack_ptr, frame_ptr, vlocals, fun_id, stmt):
     else:
         s = paktAst.dump_stmt(stmt)
         comments = [Comment(s)]
-        
+
     return comments + new_instrs
 
 def rewrite_prog(prog, stack_ptr, frame_ptr):
     def assign_vars(func):
         def collect_locals(stmts):
-            def aux(acc, stmts):
-                #(* all locals are initialized before use *)
-                if len(stmts) == 0:
-                    return acc
-                else:
-                    hd, tl = stmts[0], stmts[1:]
-                    if type(hd) == Assign:
-                        (tagid, _) = hd.param()
-                        return aux([tagid]+acc, tl)
-                    else:
-                        return aux(acc, tl)
+            #(* all locals are initialized before use *)
+            ids = []
+            for hd in stmts:
+                if type(hd) == Assign:
+                    (tagid, _) = hd.param()
+                    ids = [tagid]+ids
 
-            ids = aux([], stmts)
             ids = paktCommon.generic_unique(ids)
             return ids
+        #end def collect_locals
 
         (tagid, Args_args, FunBody_stmts) = func.param()
         args = Args_args.param()
@@ -426,12 +410,12 @@ def rewrite_prog(prog, stack_ptr, frame_ptr):
 
         vlocals = assign_vars(func)
         stmts = add_stack_stuff(fun_id, vlocals, stmts)
-        
+
         instrs = []
         for stmt in stmts:
             news = rewrite_stmt(stack_ptr, frame_ptr, vlocals, fun_id, stmt)
             instrs.append(news)
-            
+
         head = paktAst.dump_func_head(func)
         fun_lbl = fun_label(fun_id)
         pre = [Comment(head), Lbl(fun_lbl)]
@@ -820,7 +804,7 @@ def dump_pairs(pairs):
     return ()
 
 #(* FIXME: main has to be at the beginning *)
-def compile_ropl_file(prog, gadget_list):
+def compile_ropl_file(prog, GadgetList_obj):
     def process_func(assign_regs, instr_lll):
         def per_stmt(acc, instrs):
             #(* list of instructions, set of regs to preserve *)
@@ -852,7 +836,7 @@ def compile_ropl_file(prog, gadget_list):
     data_s = 0x08049f08 + 0x0011c
     data_e = data_s + 0x200
 
-    gadgets = paktCommon.get_gadgets(gadget_list)
+    #gadgets = paktCommon.get_gadgets(GadgetList_obj)
     prefix, suffix, stack_ptr, frame_ptr = global_prefix_suffix(data_s, data_e)
     """
     (* Swap AssignTable with Assign (const).
@@ -864,7 +848,7 @@ def compile_ropl_file(prog, gadget_list):
     * Ultimately instruction is converted to a list of gadgets. *)
     """
     implement = make_implement(stack_ptr, frame_ptr)
-    assign_regs = make_assign_regs(gadgets, stack_ptr, frame_ptr)
+    assign_regs = make_assign_regs(GadgetList_obj, stack_ptr, frame_ptr)
     """
     (* instr list list list.
      * 1st level: list of functions
@@ -925,3 +909,4 @@ def main ():
 
 if __name__ == "__main__":
     main()
+

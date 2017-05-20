@@ -112,6 +112,7 @@ class OpEsp(gadget):
     def param(self):
         return (self.op_v, self.reg_v, self.int_v)
 
+
 class fmeta(object):pass
 class FileMeta(fmeta):
     def __init__(self, int_val1, int_val2):
@@ -219,10 +220,10 @@ def dump_gadget(g):
 def uniq(eq, l):
     if len(l) == 0:
         return l, l
-    
+
     elif len(l) == 1:
         return l, []
-    
+
     else:
         uni, dupes = [], []
         for e in l:
@@ -231,7 +232,7 @@ def uniq(eq, l):
             elif e not in dupes:
                 dupes.append(e)
         return uni, dupes
-                
+
 def unique(eq, l ):
     u, _ = uniq(eq, l)
     return u
@@ -325,14 +326,14 @@ def Hashtbl_fold(f, tbl, init):
     temp = init
     for k, v in tbl.items():
         temp = f(k, v, temp)
-    
+
     return temp
 
 def SRegSet_fold(f, rset, a):
     temp = a
     for ele in rset:
         temp = f(ele, temp)
-    
+
     return temp
 
 def list_flatten(l):
@@ -344,8 +345,7 @@ def list_flatten(l):
         else:
             acc.append(e)
     #end for
-    return acc       
-
+    return acc
 
 def find_all(p, l ):
     def f(acc, x ):
@@ -371,6 +371,6 @@ def dump_int_list(l):
 
 def get_gadgets(gadget_list):
     gadgets = []
-    for g in gadgets:
+    for g in gadget_list.foreach():
         gadgets.append(g)
     return gadgets
