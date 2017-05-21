@@ -68,30 +68,30 @@ class MovRegConst(instr):
 class MovRegReg(instr):
     def __init__(self, sreg_v1, sreg_v2):
         self.sreg1 = sreg_v1
-        self.sreg1 = sreg_v2
+        self.sreg2 = sreg_v2
     def param(self):
-        return self.sreg_v1, self.sreg_v2
+        return self.sreg1, self.sreg2
 
 class MovRegSymb(instr):
     def __init__(self, sreg_v, symb_v):
         self.sreg = sreg_v
         self.symb = symb_v
     def param(self):
-        return self.sreg_v, self.symb_v
+        return self.sreg, self.symb
 
 class WriteM(instr):    #(* [addr_reg] <- src *)
     def __init__(self, sreg_v1, sreg_v2):
         self.sreg1 = sreg_v1
-        self.sreg1 = sreg_v2
+        self.sreg2 = sreg_v2
     def param(self):
-        return self.sreg_v1, self.sreg_v2
+        return self.sreg1, self.sreg2
 
 class ReadM(instr):     #(* dst <- [addr_reg] *)
     def __init__(self, sreg_v1, sreg_v2):
         self.sreg1 = sreg_v1
-        self.sreg1 = sreg_v2
+        self.sreg2 = sreg_v2
     def param(self):
-        return self.sreg_v1, self.sreg_v2
+        return self.sreg1, self.sreg2
 
 class SaveFlags(instr): pass
 
@@ -171,7 +171,7 @@ class Comment(instr):   #(* store deleted instructions as comments *)
     def __init__(self, str_val):
         self.str = str_val
     def param(self):
-        return self.str_val
+        return self.str
 
 #type ityp = T0 | T1 | T2 | T3
 class ityp(object): pass

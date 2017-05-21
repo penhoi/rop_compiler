@@ -17,11 +17,11 @@ def instr_type(x):
 #(* OUT: gmeta corresponding to instr *)
 def find_all_gmetas(instr, gms):
     def find_gms(f_match):
-        def pred(gm):
+        acc = []
+        for gm in gms:
             g = gm.param()[0]
-            return f_match(g, gm)
-
-        return filter(pred, gms)
+            if f_match(g, gm):
+                acc.append(gm)
 
     def is_opstack(g):
         return type(g) == paktCommon.OpEsp
@@ -270,12 +270,13 @@ def arg_positions(instr, arg):
 #(* get possible regs at position pos for instructions matching type of instr.
 # * for example: BinOp(r0, _,+,_) 0 -> possible values for r0 *)
 def possible_regs_t0(gms, instr):
+    import rop_compiler.gadget as jeffG
     def f_binop(op):
         def f(acc, g):
             if type(g) == paktCommon.BinOp:
                 (r0, r1, op_prime, r2) = g.param()
                 if op == op_prime:
-                    return [r0, r1, r2]+acc
+                    acc.append([r0, r1, r2])
             return acc
         #end def f
         return f
@@ -285,42 +286,60 @@ def possible_regs_t0(gms, instr):
             if type(g) == paktCommon.OpEsp:
                 (op_prime, r, _) = g.param()
                 if op == op_prime:
-                    return [r] + acc
+                    acc.append([r])
             return acc
         #end def f
         return f
 
     def f_write_mem(acc, g):
-        if type(g) == paktCommon.WriteMem:
-            (r0, _, r1) = g.param()
-            return [r0, r1]+acc
-        else:
-            return acc
+        #if type(g) == paktCommon.WriteMem:
+        #    (r0, _, r1) = g.param()
+        #    acc.append([r0, r1]+acc
+        #StoreMem
+        if type(g) == jeffG.StoreMem:
+            (r0, r1) = g.outputs[0], g.inputs[0]
+            acc.append([r0, r1])
+
+        return acc
 
     def f_read_mem(acc, g):
-        if type(g) == paktCommon.ReadMem:
-            (r0, r1, _) = g.param()
-            return [r0, r1]+acc
-        else:
-            return acc
+        #if type(g) == paktCommon.ReadMem:
+        #    (r0, r1, _) = g.param()
+        #    acc.append([r0, r1]+acc
+        #LoadMem, LoadMemjUMP, LoadMultiple
+        if type(g) == jeffG.LoadMem:
+            (r0, r1) = g.outputs[0], g.inputs[0]
+            acc.append([r0, r1])
+
+        return acc
 
     def f_load_const(acc, g):
-        if type(g) == paktCommon.LoadConst:
-            (r, _) = g.param()
-            return [r]+acc
-        else:
-            return acc
+        #if type(g) == paktCommon.LoadConst:
+        #    (r, _) = g.param()
+        #    acc.append([r]+acc
+        #LoadConst, LoadMem
+        if type(g) == jeffG.LoadConst:
+            r = g.outputs[0]
+            acc.append([r])
+        elif type(g) == jeffG.LoadMem:
+            r = g.outputs[0]
+            acc.append([r])
+
+        return acc
 
     def f_copy_reg(acc, g):
-        if type(g) == paktCommon.CopyReg:
-            (r0, r1) = g.param()
-            return [r0, r1] + acc
-        else:
-            return acc
+        #if type(g) == paktCommon.CopyReg:
+        #    (r0, r1) = g.param()
+        #    acc.append([r0, r1] )
+        #MoveReg
+        if type(g) == jeffG.MoveReg:
+            r0, r1 = g.outputs[0], g.inputs[0]
+            acc.append([r0, r1])
+        return acc
 
     #(* [[a1;..];[b1..]] -> [a1;b1],[[..];[..]] *)
     def group_args(regs):
-        def f(heads, tails, l):
+        def f((heads, tails), l):
             if len(l) != 0:
                 hd, tl = l[0], l[1:]
                 return ([hd]+heads, tl+tails)
@@ -329,9 +348,9 @@ def possible_regs_t0(gms, instr):
         #end def f
 
         def aux(acc, ll):
-            if len(ll) != 0 and len(ll[0]) != 0: #(* at least one non-empty list *)
+            if len(ll) != 0 and type(ll[0]) == list and len(ll[0]) != 0: #(* at least one non-empty list *)
                 (heads, tails) = fold_left(f, ([],[]), ll)
-                return aux([heads] +acc), tails
+                return aux([heads] +acc, tails)
             else:
                 acc.reverse()
                 return acc
@@ -560,16 +579,6 @@ def make_cache_funs():
 """
 def make_fake_instr(instr):
     args = arg_dumper(instr)
-    """
-    def f((n, f_assign), arg):
-        def f_new(x):
-            if x==arg:
-                return (S(-n))
-            else:
-                f_assign(x)
-
-        return (n+1, f_new)
-    """
 
     def f_assert(x):
         assert False
@@ -1017,7 +1026,7 @@ def make_assign_regs(gmetas, stack_ptr, frame_ptr):
                     inter = preserved ^ mod_regs
                     #(* If the intersection is empty, none of the preserved regs is modified *)
                     #SRegSet.is_empty(inter)
-                    if len(inter) != 0: #???
+                    if len(inter) != 0:
                         return [gmeta]
                 return []
             #end def satisfy_t0
